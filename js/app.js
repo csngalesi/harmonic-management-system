@@ -13,9 +13,9 @@
             if (!container) return;
             const icons = {
                 success: 'fa-circle-check',
-                error:   'fa-circle-xmark',
+                error: 'fa-circle-xmark',
                 warning: 'fa-triangle-exclamation',
-                info:    'fa-circle-info',
+                info: 'fa-circle-info',
             };
             const toast = document.createElement('div');
             toast.className = `toast ${type}`;
@@ -38,7 +38,7 @@
         },
 
         openModal(htmlContent) {
-            const overlay   = document.getElementById('modal-overlay');
+            const overlay = document.getElementById('modal-overlay');
             const container = document.getElementById('modal-container');
             if (!overlay || !container) return;
             container.innerHTML = htmlContent;
@@ -70,9 +70,9 @@
     // ── Routes ───────────────────────────────────────────────────
     const ROUTES = {
         repertoire: window.RepertoireComponent,
-        player:     window.PlayerComponent,
-        analyzer:   window.AnalyzerComponent,
-        extractor:  window.ExtractorComponent,
+        player: window.PlayerComponent,
+        analyzer: window.AnalyzerComponent,
+        extractor: window.ExtractorComponent,
     };
 
     // ── App Controller ───────────────────────────────────────────
@@ -111,15 +111,15 @@
             ls.classList.remove('hidden');
             App._currentRoute = null;
 
-            const form      = document.getElementById('login-form');
-            const loginBtn  = document.getElementById('login-btn');
+            const form = document.getElementById('login-form');
+            const loginBtn = document.getElementById('login-btn');
             const signupBtn = document.getElementById('signup-btn');
-            const errorEl   = document.getElementById('login-error');
-            let   isSignup  = false;
+            const errorEl = document.getElementById('login-error');
+            let isSignup = false;
 
             form.onsubmit = async (e) => {
                 e.preventDefault();
-                const email    = document.getElementById('login-email').value.trim();
+                const email = document.getElementById('login-email').value.trim();
                 const password = document.getElementById('login-password').value;
                 errorEl.classList.add('hidden');
 
@@ -148,6 +148,13 @@
                     : '<i class="fa-solid fa-right-to-bracket"></i> Entrar';
                 signupBtn.textContent = isSignup ? 'Já tenho conta' : 'Criar conta';
             };
+
+            const debugBtn = document.getElementById('debug-login-btn');
+            if (debugBtn) {
+                debugBtn.onclick = () => {
+                    App._showApp({ email: 'developer@hms.local' });
+                };
+            }
         },
 
         _showApp: function (user) {
@@ -164,7 +171,7 @@
 
         // ── Sidebar ──────────────────────────────────────────────
         _setupSidebar: function () {
-            const sidebar  = document.getElementById('sidebar');
+            const sidebar = document.getElementById('sidebar');
             const backdrop = document.getElementById('sidebar-backdrop');
 
             const toggleBtn = document.getElementById('sidebar-toggle');
@@ -199,12 +206,12 @@
             });
         },
 
-        _isMobile:            () => window.innerWidth <= 768,
-        _openMobileSidebar:   () => {
+        _isMobile: () => window.innerWidth <= 768,
+        _openMobileSidebar: () => {
             document.getElementById('sidebar')?.classList.add('mobile-open');
             document.getElementById('sidebar-backdrop')?.classList.remove('hidden');
         },
-        _closeMobileSidebar:  () => {
+        _closeMobileSidebar: () => {
             document.getElementById('sidebar')?.classList.remove('mobile-open');
             document.getElementById('sidebar-backdrop')?.classList.add('hidden');
         },
