@@ -148,13 +148,6 @@
                     : '<i class="fa-solid fa-right-to-bracket"></i> Entrar';
                 signupBtn.textContent = isSignup ? 'Já tenho conta' : 'Criar conta';
             };
-
-            const debugBtn = document.getElementById('debug-login-btn');
-            if (debugBtn) {
-                debugBtn.onclick = () => {
-                    App._showApp({ email: 'developer@hms.local' });
-                };
-            }
         },
 
         _showApp: function (user) {
