@@ -255,11 +255,8 @@
             document.getElementById('btn-analyze-draft').addEventListener('click', () => ExtractorComponent._analyzeDraft());
 
             document.addEventListener('keydown', (e) => {
-                if (e.code !== 'Space') return;
+                if (e.key !== 'Control') return;
                 if (_state.captureInterval !== 0 || !_state.isRecording) return;
-                const tag = document.activeElement?.tagName?.toLowerCase();
-                if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
-                e.preventDefault();
                 ExtractorComponent._captureCurrentChord();
             });
         },
