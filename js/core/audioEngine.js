@@ -14,34 +14,45 @@
             await Tone.start();
 
             // Using a realistic Acoustic Guitar Sampler via a public CDN 
-            // from Tone.js's standard sound library (Salamander / Guitar)
-            return new Promise((resolve) => {
-                synth = new Tone.Sampler({
-                    urls: {
-                        "A2": "A2.mp3",
-                        "A3": "A3.mp3",
-                        "A4": "A4.mp3",
-                        "C3": "C3.mp3",
-                        "C4": "C4.mp3",
-                        "C5": "C5.mp3",
-                        "E2": "E2.mp3",
-                        "E3": "E3.mp3",
-                        "E4": "E4.mp3"
-                    },
-                    baseUrl: "https://tonejs.github.io/audio/salamander/",
-                    release: 1.5,
-                    onload: () => {
-                        // Add a slight reverb to simulate the guitar body
-                        const reverb = new Tone.Reverb({
-                            decay: 2.5,
-                            preDelay: 0.01
-                        }).toDestination();
+            // from Tone.js's standard sound library (Salamander)
+            return new Promise((resolve, reject) => {
+                try {
+                    const reverb = new Tone.Reverb({
+                        decay: 2.5,
+                        preDelay: 0.01
+                    }).toDestination();
 
-                        synth.connect(reverb);
-                        synth.volume.value = -2; // Default piano samples are quiet
-                        resolve(synth);
-                    }
-                });
+                    // Generate reverb impulse response
+                    reverb.generate().then(() => {
+                        synth = new Tone.Sampler({
+                            urls: {
+                                "A2": "A2.mp3",
+                                "A3": "A3.mp3",
+                                "A4": "A4.mp3",
+                                "C3": "C3.mp3",
+                                "C4": "C4.mp3",
+                                "C5": "C5.mp3",
+                                "E2": "E2.mp3",
+                                "E3": "E3.mp3",
+                                "E4": "E4.mp3"
+                            },
+                            baseUrl: "https://tonejs.github.io/audio/salamander/",
+                            release: 1.5,
+                            onload: () => {
+                                synth.connect(reverb);
+                                synth.volume.value = -2; // Default piano/guitar samples are quiet
+                                resolve(synth);
+                            },
+                            onerror: (err) => {
+                                console.error("Tone.Sampler failed to load audio files:", err);
+                                reject(err);
+                            }
+                        });
+                    });
+                } catch (e) {
+                    console.error("Audio init error:", e);
+                    reject(e);
+                }
             });
         }
         return synth;
