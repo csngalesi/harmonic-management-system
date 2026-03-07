@@ -13,7 +13,7 @@
 
     // ── Chromatic Constants ──────────────────────────────────────
     const SHARP_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    const FLAT_NAMES  = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+    const FLAT_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
     // Keys that should render notes with flat spellings
     const FLAT_PREF = new Set([
@@ -50,9 +50,9 @@
     function makeKeyState(rootName, isMinor) {
         const key = rootName + (isMinor ? 'm' : '');
         return {
-            rootIdx:   noteToIdx(rootName),
-            isMinor:   !!isMinor,
-            useFlats:  FLAT_PREF.has(key) || FLAT_PREF.has(rootName),
+            rootIdx: noteToIdx(rootName),
+            isMinor: !!isMinor,
+            useFlats: FLAT_PREF.has(key) || FLAT_PREF.has(rootName),
         };
     }
 
@@ -78,11 +78,11 @@
         if (!m) return token;
 
         const accidental = m[1];
-        const degNum     = parseInt(m[2]);
-        let   suffix     = m[3];
+        const degNum = parseInt(m[2]);
+        let suffix = m[3];
 
         const noteIdx = degreeNoteIdx(keyState, degNum, accidental);
-        const note    = idxToNote(noteIdx, keyState.useFlats);
+        const note = idxToNote(noteIdx, keyState.useFlats);
 
         if (suffix === '') {
             // Apply diatonic rules
@@ -104,9 +104,10 @@
     // ── Tokenizer ────────────────────────────────────────────────
     // Converts a raw harmony string into a flat array of token objects.
     function tokenize(harmonyStr) {
-        // 1. Clean visual dash separators (space-dash-space)
+        // 1. Clean visual dash separators (space-dash-space) and detach slashes
         let str = harmonyStr
             .replace(/\s*-\s*/g, ' ')
+            .replace(/\//g, ' / ') // Ensure slashes are distinct structural tokens
             .trim();
 
         // 2. Extract {section}xN blocks (may contain spaces inside)
@@ -137,16 +138,16 @@
             }
 
             // Structural tags
-            if (raw === '/')    { tokens.push({ type: 'STRUCT', value: '/' });   continue; }
-            if (raw === '[')    { tokens.push({ type: 'STRUCT', value: '[' });   continue; }
-            if (raw === ']')    { tokens.push({ type: 'STRUCT', value: ']' });   continue; }
-            if (raw === '[1.')  { tokens.push({ type: 'STRUCT', value: '[1.' }); continue; }
-            if (raw === '[2.')  { tokens.push({ type: 'STRUCT', value: '[2.' }); continue; }
+            if (raw === '/') { tokens.push({ type: 'STRUCT', value: '/' }); continue; }
+            if (raw === '[') { tokens.push({ type: 'STRUCT', value: '[' }); continue; }
+            if (raw === ']') { tokens.push({ type: 'STRUCT', value: ']' }); continue; }
+            if (raw === '[1.') { tokens.push({ type: 'STRUCT', value: '[1.' }); continue; }
+            if (raw === '[2.') { tokens.push({ type: 'STRUCT', value: '[2.' }); continue; }
 
             // Secondary dominant: prefix + (target) or "target"
             // E.g.: 25(4), 57(6m), b725"4", 25(6m)
             const sdM = raw.match(/^([b#1-7mMho7]+)\((.+?)\)$/) ||
-                        raw.match(/^([b#1-7mMho7]+)"(.+?)"$/);
+                raw.match(/^([b#1-7mMho7]+)"(.+?)"$/);
             if (sdM) {
                 const showTarget = raw.includes('(');
                 const prefixTokens = parsePrefixStr(sdM[1]);
@@ -197,19 +198,19 @@
                 // Resolve target degree to a note and mode
                 const tM = token.target.match(/^([b#]?)([1-7])([mM]?)(.*)$/);
                 if (tM) {
-                    const tAcc  = tM[1];
-                    const tDeg  = parseInt(tM[2]);
+                    const tAcc = tM[1];
+                    const tDeg = parseInt(tM[2]);
                     const tMode = tM[3]; // '' | 'm' | 'M'
 
                     const tNoteIdx = degreeNoteIdx(keyState, tDeg, tAcc);
-                    let   tIsMinor;
-                    if (tMode === 'm')      tIsMinor = true;
+                    let tIsMinor;
+                    if (tMode === 'm') tIsMinor = true;
                     else if (tMode === 'M') tIsMinor = false;
-                    else                    tIsMinor = isMinorDegree(keyState, tDeg);
+                    else tIsMinor = isMinorDegree(keyState, tDeg);
 
                     const targetKey = {
-                        rootIdx:  tNoteIdx,
-                        isMinor:  tIsMinor,
+                        rootIdx: tNoteIdx,
+                        isMinor: tIsMinor,
                         useFlats: keyState.useFlats,
                     };
 
@@ -242,7 +243,7 @@
 
     // Apply a modulation instruction to the keyState in-place
     function applyModulation(modStr, keyState) {
-        if (modStr === 'm') { keyState.isMinor = true;  return; }
+        if (modStr === 'm') { keyState.isMinor = true; return; }
         if (modStr === 'M') { keyState.isMinor = false; return; }
 
         // Full modulation: [b#]?[1-7][mM]
@@ -265,23 +266,23 @@
 
     function normalizeQ(q) {
         return q.replace(/\s/g, '').toLowerCase()
-                .replace('maj7', 'M7').replace('maj', '')
-                .replace('min7', 'm7').replace('min', 'm')
-                .replace('dim7', '°7').replace('dim', '°')
-                .replace('ø7', 'm7(b5)').replace('ø', 'm7(b5)')
-                .replace('half-dim', 'm7(b5)');
+            .replace('maj7', 'M7').replace('maj', '')
+            .replace('min7', 'm7').replace('min', 'm')
+            .replace('dim7', '°7').replace('dim', '°')
+            .replace('ø7', 'm7(b5)').replace('ø', 'm7(b5)')
+            .replace('half-dim', 'm7(b5)');
     }
 
     // Convert a chord quality back to HMS suffix notation
     function qualityToHmsSuffix(quality) {
         const q = normalizeQ(quality);
         if (q === '' || q === 'M' || q === 'maj') return 'M'; // force major
-        if (q === 'm')          return 'm';
-        if (q === '7')          return '7';
-        if (q === 'm7')         return 'm7';
-        if (q === 'M7')         return 'M7';
-        if (q === 'm7(b5)')     return 'h';
-        if (q === '°' || q === 'dim')  return 'o';
+        if (q === 'm') return 'm';
+        if (q === '7') return '7';
+        if (q === 'm7') return 'm7';
+        if (q === 'M7') return 'M7';
+        if (q === 'm7(b5)') return 'h';
+        if (q === '°' || q === 'dim') return 'o';
         // Pass through unknown extensions
         return quality;
     }
@@ -292,15 +293,15 @@
         if (!parsed) return chordStr;
 
         const chordRootIdx = noteToIdx(parsed.root);
-        const scale     = keyState.isMinor ? MINOR_SCALE : MAJOR_SCALE;
-        const diatonic  = keyState.isMinor ? MINOR_QUALITY : MAJOR_QUALITY;
+        const scale = keyState.isMinor ? MINOR_SCALE : MAJOR_SCALE;
+        const diatonic = keyState.isMinor ? MINOR_QUALITY : MAJOR_QUALITY;
 
         // Find matching diatonic degree
         for (let deg = 1; deg <= 7; deg++) {
             const scaleNoteIdx = ((keyState.rootIdx + scale[deg]) % 12 + 12) % 12;
             if (scaleNoteIdx !== chordRootIdx) continue;
 
-            const dQ     = diatonic[deg] ?? '';
+            const dQ = diatonic[deg] ?? '';
             const chordQ = normalizeQ(parsed.quality);
             const diatoQ = normalizeQ(dQ);
 
@@ -314,7 +315,7 @@
             // Non-diatonic quality override
             const hmsSuffix = qualityToHmsSuffix(parsed.quality);
             // If we're forcing a major chord on a naturally minor degree, use 'M'
-            if (hmsSuffix === 'M' && ['2','3','6'].includes(degStr)) return degStr + 'M';
+            if (hmsSuffix === 'M' && ['2', '3', '6'].includes(degStr)) return degStr + 'M';
             return degStr + hmsSuffix;
         }
 
@@ -343,13 +344,13 @@
             if (i + 1 < degreeArr.length) {
                 const ni1 = noteIdxArr[i];
                 const ni2 = noteIdxArr[i + 1];
-                const d1  = degreeArr[i];
-                const d2  = degreeArr[i + 1];
-                const q1  = extractQuality(d1);
-                const q2  = extractQuality(d2);
+                const d1 = degreeArr[i];
+                const d2 = degreeArr[i + 1];
+                const q1 = extractQuality(d1);
+                const q2 = extractQuality(d2);
 
                 const isIIchord = (q1 === 'm' || q1 === 'm7' || q1 === 'h');
-                const isVchord  = (q2 === '7' || q2 === '');
+                const isVchord = (q2 === '7' || q2 === '');
                 // Root of V should be P4 above root of ii (= 5 semitones up)
                 const isP4up = ((ni1 + 5) % 12 === ni2);
 
@@ -405,32 +406,32 @@
     function allKeys() {
         return [
             // Major
-            { value: 'C',   label: 'C Maior',   isMinor: false },
-            { value: 'G',   label: 'G Maior',   isMinor: false },
-            { value: 'D',   label: 'D Maior',   isMinor: false },
-            { value: 'A',   label: 'A Maior',   isMinor: false },
-            { value: 'E',   label: 'E Maior',   isMinor: false },
-            { value: 'B',   label: 'B Maior',   isMinor: false },
-            { value: 'F#',  label: 'F# Maior',  isMinor: false },
-            { value: 'F',   label: 'F Maior',   isMinor: false },
-            { value: 'Bb',  label: 'Bb Maior',  isMinor: false },
-            { value: 'Eb',  label: 'Eb Maior',  isMinor: false },
-            { value: 'Ab',  label: 'Ab Maior',  isMinor: false },
-            { value: 'Db',  label: 'Db Maior',  isMinor: false },
-            { value: 'Gb',  label: 'Gb Maior',  isMinor: false },
+            { value: 'C', label: 'C Maior', isMinor: false },
+            { value: 'G', label: 'G Maior', isMinor: false },
+            { value: 'D', label: 'D Maior', isMinor: false },
+            { value: 'A', label: 'A Maior', isMinor: false },
+            { value: 'E', label: 'E Maior', isMinor: false },
+            { value: 'B', label: 'B Maior', isMinor: false },
+            { value: 'F#', label: 'F# Maior', isMinor: false },
+            { value: 'F', label: 'F Maior', isMinor: false },
+            { value: 'Bb', label: 'Bb Maior', isMinor: false },
+            { value: 'Eb', label: 'Eb Maior', isMinor: false },
+            { value: 'Ab', label: 'Ab Maior', isMinor: false },
+            { value: 'Db', label: 'Db Maior', isMinor: false },
+            { value: 'Gb', label: 'Gb Maior', isMinor: false },
             // Minor
-            { value: 'Am',  label: 'A Menor',   isMinor: true  },
-            { value: 'Em',  label: 'E Menor',   isMinor: true  },
-            { value: 'Bm',  label: 'B Menor',   isMinor: true  },
-            { value: 'F#m', label: 'F# Menor',  isMinor: true  },
-            { value: 'C#m', label: 'C# Menor',  isMinor: true  },
-            { value: 'G#m', label: 'G# Menor',  isMinor: true  },
-            { value: 'Dm',  label: 'D Menor',   isMinor: true  },
-            { value: 'Gm',  label: 'G Menor',   isMinor: true  },
-            { value: 'Cm',  label: 'C Menor',   isMinor: true  },
-            { value: 'Fm',  label: 'F Menor',   isMinor: true  },
-            { value: 'Bbm', label: 'Bb Menor',  isMinor: true  },
-            { value: 'Ebm', label: 'Eb Menor',  isMinor: true  },
+            { value: 'Am', label: 'A Menor', isMinor: true },
+            { value: 'Em', label: 'E Menor', isMinor: true },
+            { value: 'Bm', label: 'B Menor', isMinor: true },
+            { value: 'F#m', label: 'F# Menor', isMinor: true },
+            { value: 'C#m', label: 'C# Menor', isMinor: true },
+            { value: 'G#m', label: 'G# Menor', isMinor: true },
+            { value: 'Dm', label: 'D Menor', isMinor: true },
+            { value: 'Gm', label: 'G Menor', isMinor: true },
+            { value: 'Cm', label: 'C Menor', isMinor: true },
+            { value: 'Fm', label: 'F Menor', isMinor: true },
+            { value: 'Bbm', label: 'Bb Menor', isMinor: true },
+            { value: 'Ebm', label: 'Eb Menor', isMinor: true },
         ];
     }
 
@@ -447,10 +448,10 @@
         translate(harmonyStr, rootName, isMinor = false) {
             if (!harmonyStr || !rootName) return [];
             // Handle "Am" style rootName
-            const actualRoot  = rootName.replace(/m$/, '');
+            const actualRoot = rootName.replace(/m$/, '');
             const actualMinor = isMinor || rootName.endsWith('m');
             const keyState = makeKeyState(actualRoot, actualMinor);
-            const tokens   = tokenize(harmonyStr);
+            const tokens = tokenize(harmonyStr);
             return processTokens(tokens, keyState);
         },
 
@@ -464,9 +465,9 @@
         analyze(chordsStr, rootName, isMinor = false) {
             if (!chordsStr || !rootName) return '';
 
-            const actualRoot  = rootName.replace(/m$/, '');
+            const actualRoot = rootName.replace(/m$/, '');
             const actualMinor = isMinor || rootName.endsWith('m');
-            const keyState    = makeKeyState(actualRoot, actualMinor);
+            const keyState = makeKeyState(actualRoot, actualMinor);
 
             // Parse chord list (accepts space or dash separators)
             const chords = chordsStr
@@ -476,7 +477,7 @@
                 .filter(Boolean);
 
             // Map chords to degree tokens
-            const degreeArr  = chords.map(c => analyzeChord(c, keyState));
+            const degreeArr = chords.map(c => analyzeChord(c, keyState));
 
             // Collect note indices for pattern detection
             const noteIdxArr = chords.map(c => {
