@@ -6,6 +6,9 @@
 (function () {
     'use strict';
 
+    // Vagalume API key — register free at https://api.vagalume.com.br
+    const VAGALUME_KEY = '';
+
     let _state = {
         songs:        [],
         setlists:     [],
@@ -294,20 +297,47 @@
             }
 
             const btn = document.getElementById('btn-fetch-lyrics');
+            const setStatus = (msg) => { btn.innerHTML = `<span class="btn-spinner"></span> ${msg}`; };
             btn.disabled = true;
-            btn.innerHTML = '<span class="btn-spinner"></span> Buscando…';
 
             try {
-                const url = `https://lrclib.net/api/get?artist_name=${encodeURIComponent(artist)}&track_name=${encodeURIComponent(title)}`;
-                const res = await fetch(url);
-                if (!res.ok) throw new Error('not_found');
-                const data = await res.json();
-                const lyrics = data.plainLyrics || data.syncedLyrics;
-                if (!lyrics) throw new Error('not_found');
-                document.getElementById('sf-lyrics').value = lyrics.trim();
-                window.HMSApp.showToast('Letra encontrada!', 'success');
-            } catch {
-                window.HMSApp.showToast('Letra não encontrada para este artista/título.', 'warning');
+                // 1. Try lrclib.net
+                setStatus('lrclib…');
+                let lyrics = null;
+                try {
+                    const res = await fetch(`https://lrclib.net/api/get?artist_name=${encodeURIComponent(artist)}&track_name=${encodeURIComponent(title)}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        lyrics = data.plainLyrics || data.syncedLyrics || null;
+                    }
+                } catch { /* network error, continue */ }
+
+                if (lyrics) {
+                    document.getElementById('sf-lyrics').value = lyrics.trim();
+                    window.HMSApp.showToast('Letra encontrada via lrclib.net!', 'success');
+                    return;
+                }
+
+                // 2. Try Vagalume
+                if (!VAGALUME_KEY) {
+                    window.HMSApp.showToast('lrclib: não encontrado. Configure VAGALUME_KEY para tentar Vagalume.', 'warning');
+                    return;
+                }
+                setStatus('Vagalume…');
+                try {
+                    const res = await fetch(`https://api.vagalume.com.br/search.php?art=${encodeURIComponent(artist)}&mus=${encodeURIComponent(title)}&apikey=${VAGALUME_KEY}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        lyrics = data.mus?.[0]?.text || null;
+                    }
+                } catch { /* network error */ }
+
+                if (lyrics) {
+                    document.getElementById('sf-lyrics').value = lyrics.trim();
+                    window.HMSApp.showToast('Letra encontrada via Vagalume!', 'success');
+                } else {
+                    window.HMSApp.showToast('lrclib: ✗  Vagalume: ✗  Letra não encontrada.', 'warning');
+                }
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Buscar na web';
