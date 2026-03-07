@@ -67,6 +67,9 @@
         candidateChord:  '—',
         candidateFrames: 0,
         STABLE_FRAMES:   3,
+        // ⑥ Onset blanking: ignore first N ms after a chord change (transition noise)
+        onsetBlankMs:    150,
+        onsetBlankUntil: 0,
     };
 
     // ── Priority sets ────────────────────────────────────────────────────────
@@ -108,6 +111,7 @@
         _state.chromaHistory   = [];
         _state.candidateChord  = '—';
         _state.candidateFrames = 0;
+        _state.onsetBlankUntil = 0;
     }
 
     const ExtractorComponent = {
@@ -371,6 +375,9 @@
                 }
                 ctx2d.stroke();
 
+                // ⑥ Onset blanking: skip detection during chord-change transition window
+                if (performance.now() < _state.onsetBlankUntil) return;
+
                 // ① Compute chroma for this frame (with harmonic-decay + bass)
                 _state.analyser.getFloatFrequencyData(freqData);
                 const { chroma, bassPc } = ExtractorComponent._computeChroma(
@@ -402,7 +409,14 @@
                 }
 
                 if (_state.candidateFrames >= _state.STABLE_FRAMES) {
+                    const prevChord = _state.detectedChord;
                     _state.detectedChord = rawName;
+
+                    // ⑥ New chord committed → open blanking window and reset history
+                    if (rawName !== prevChord) {
+                        _state.onsetBlankUntil = performance.now() + _state.onsetBlankMs;
+                        _resetDetectionState();
+                    }
 
                     const noteEl = document.getElementById('detected-note');
                     if (noteEl) noteEl.textContent = rawName;
