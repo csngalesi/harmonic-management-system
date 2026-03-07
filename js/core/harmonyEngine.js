@@ -200,6 +200,12 @@
                 continue;
             }
 
+            // Repeat annotation like "2x", "3x" — pass through as raw text
+            if (/^\d+x$/i.test(raw)) {
+                tokens.push({ type: 'RAW', value: raw });
+                continue;
+            }
+
             // Regular chord degree(s).
             // A run like "251" (no spaces) must be split into ["2","5","1"].
             // Guard: only split when parsePrefixStr reconstructs the exact raw
