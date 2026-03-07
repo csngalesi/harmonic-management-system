@@ -144,12 +144,10 @@
             if (raw === '[1.') { tokens.push({ type: 'STRUCT', value: '[1.' }); continue; }
             if (raw === '[2.') { tokens.push({ type: 'STRUCT', value: '[2.' }); continue; }
 
-            // Dot notation: X.Y = degree Y rendered in the key rooted at degree X.
-            // E.g.: 5.5 in C major → V of V → D7
-            //       4.5 in C major → V of IV → C7
-            const dotM = raw.match(/^([b#]?[1-7])\.([b#]?[1-7][mMho7]*)$/);
-            if (dotM) {
-                tokens.push({ type: 'DOT_DEGREE', outer: dotM[1], inner: dotM[2] });
+            // 5.5 = V of V (dominant of the dominant).
+            // E.g.: in C major → V of G → D7
+            if (raw === '5.5') {
+                tokens.push({ type: 'DOT_DEGREE', outer: '5', inner: '5' });
                 continue;
             }
 
