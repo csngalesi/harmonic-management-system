@@ -1,7 +1,10 @@
 /**
  * HMS — Extrator de Áudio Component (Módulo 3)
- * Pitch detection via Web Audio API + autocorrelation algorithm.
- * Generates a draft chord progression to be edited and saved.
+ * Chord detection via Web Audio API + chromagram + template matching.
+ *  - FFT size 8192 → ~5.4 Hz/bin resolution, good for chord tones ≥ C2
+ *  - Chromagram: collapse all octaves into 12 pitch-class energy bins
+ *  - Template matching: triads (major, minor, dim, sus) + tetrads (7, m7, M7, h)
+ *    so the V7 chord is correctly detected as a tetrad, not a triad.
  * Exposed via window.ExtractorComponent
  */
 (function () {
@@ -11,17 +14,30 @@
     const KEYS      = window.HarmonyEngine.allKeys();
     const esc       = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
+    // Chord templates: root = 0, intervals in semitones
+    const CHORD_TEMPLATES = [
+        { q: '',     iv: [0, 4, 7]        },  // major triad
+        { q: 'm',    iv: [0, 3, 7]        },  // minor triad
+        { q: '7',    iv: [0, 4, 7, 10]    },  // dominant 7th  (tetrad — V7)
+        { q: 'm7',   iv: [0, 3, 7, 10]    },  // minor 7th
+        { q: 'M7',   iv: [0, 4, 7, 11]    },  // major 7th
+        { q: 'h',    iv: [0, 3, 6, 10]    },  // half-diminished (m7b5)
+        { q: 'dim',  iv: [0, 3, 6]        },  // diminished triad
+        { q: 'sus4', iv: [0, 5, 7]        },  // sus4
+        { q: 'sus2', iv: [0, 2, 7]        },  // sus2
+    ];
+
     let _state = {
-        audioCtx:     null,
-        analyser:     null,
-        micStream:    null,
-        sourceNode:   null,
-        animFrame:    null,
-        isRecording:  false,
-        detectedNote: '—',
-        capturedChords: [],
+        audioCtx:        null,
+        analyser:        null,
+        micStream:       null,
+        sourceNode:      null,
+        animFrame:       null,
+        isRecording:     false,
+        detectedChord:   '—',
+        capturedChords:  [],
         lastCaptureTime: 0,
-        captureInterval: 1500, // ms between auto-captures
+        captureInterval: 1500,
     };
 
     const ExtractorComponent = {
@@ -43,7 +59,7 @@
                     </div>
                 </div>
 
-                <!-- Audio source selection -->
+                <!-- Configuração -->
                 <div class="panel mb-3">
                     <div class="panel-header">
                         <span class="panel-title"><i class="fa-solid fa-sliders"></i> Configuração</span>
@@ -80,21 +96,22 @@
                     </div>
                 </div>
 
-                <!-- Visualizer + detected note -->
+                <!-- Visualizer + acorde detectado -->
                 <div style="display:grid;grid-template-columns:1fr 200px;gap:16px;margin-bottom:20px;" id="viz-grid">
                     <div class="audio-panel">
                         <canvas id="audio-canvas" height="120"></canvas>
                     </div>
                     <div class="panel" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;">
-                        <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-muted);">Nota Detectada</div>
+                        <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-muted);">Acorde Detectado</div>
                         <div class="detected-chord" id="detected-note">—</div>
+                        <div id="chord-confidence" style="font-size:.7rem;color:var(--text-muted);min-height:1em;"></div>
                         <button class="btn btn-secondary btn-sm" id="btn-capture-manual">
                             <i class="fa-solid fa-hand-pointer"></i> Capturar
                         </button>
                     </div>
                 </div>
 
-                <!-- Captured chord list -->
+                <!-- Acordes capturados -->
                 <div class="panel mb-3">
                     <div class="panel-header">
                         <span class="panel-title"><i class="fa-solid fa-list"></i> Acordes Capturados</span>
@@ -116,7 +133,7 @@
                     </div>
                 </div>
 
-                <!-- Draft output + save -->
+                <!-- Draft + analisar -->
                 <div class="panel">
                     <div class="panel-header">
                         <span class="panel-title"><i class="fa-solid fa-wand-magic-sparkles"></i> Draft de Harmonia</span>
@@ -135,7 +152,6 @@
                 </div>
             `;
 
-            // Make viz grid responsive
             if (window.innerWidth <= 768) {
                 document.getElementById('viz-grid').style.gridTemplateColumns = '1fr';
             }
@@ -154,7 +170,7 @@
                 if (e.target.files[0]) ExtractorComponent._loadFile(e.target.files[0]);
             });
             document.getElementById('btn-capture-manual').addEventListener('click', () => {
-                ExtractorComponent._captureCurrentNote();
+                ExtractorComponent._captureCurrentChord();
             });
             document.getElementById('btn-undo-capture').addEventListener('click', () => {
                 _state.capturedChords.pop();
@@ -191,18 +207,17 @@
 
         _loadFile: function (file) {
             ExtractorComponent._stopAudio();
-
             const reader = new FileReader();
             reader.onload = async (e) => {
                 try {
-                    const ctx     = new AudioContext();
+                    const ctx    = new AudioContext();
                     _state.audioCtx = ctx;
-                    const buffer  = await ctx.decodeAudioData(e.target.result);
-                    const source  = ctx.createBufferSource();
+                    const buffer = await ctx.decodeAudioData(e.target.result);
+                    const source = ctx.createBufferSource();
                     source.buffer = buffer;
 
                     const analyser = ctx.createAnalyser();
-                    analyser.fftSize = 2048;
+                    analyser.fftSize = 8192;
                     source.connect(analyser);
                     analyser.connect(ctx.destination);
                     source.start(0);
@@ -212,9 +227,7 @@
                     _state.isRecording = true;
 
                     ExtractorComponent._startDraw();
-                    ExtractorComponent._startAutoCapture();
                     window.HMSApp.showToast('Arquivo de áudio carregado.', 'success');
-
                     source.onended = () => ExtractorComponent._stopAudio();
                 } catch (err) {
                     window.HMSApp.showToast('Erro ao processar áudio: ' + err.message, 'error');
@@ -224,10 +237,10 @@
         },
 
         _setupAudioContext: function (stream) {
-            const ctx     = new AudioContext();
-            const source  = ctx.createMediaStreamSource(stream);
+            const ctx      = new AudioContext();
+            const source   = ctx.createMediaStreamSource(stream);
             const analyser = ctx.createAnalyser();
-            analyser.fftSize = 2048;
+            analyser.fftSize = 8192;  // better frequency resolution for chord detection
             source.connect(analyser);
 
             _state.audioCtx   = ctx;
@@ -235,7 +248,6 @@
             _state.sourceNode = source;
 
             ExtractorComponent._startDraw();
-            ExtractorComponent._startAutoCapture();
         },
 
         _stopAudio: function () {
@@ -251,124 +263,132 @@
             if (startBtn) startBtn.classList.remove('hidden');
             if (stopBtn)  stopBtn.classList.add('hidden');
 
-            // Clear canvas
             const canvas = document.getElementById('audio-canvas');
             if (canvas) {
-                const ctx2d = canvas.getContext('2d');
-                ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+                canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
             }
         },
 
-        // ── Waveform Drawing ──────────────────────────────────────
+        // ── Waveform + Chord Detection Loop ───────────────────────
         _startDraw: function () {
-            const canvas  = document.getElementById('audio-canvas');
+            const canvas = document.getElementById('audio-canvas');
             if (!canvas) return;
-            const ctx2d   = canvas.getContext('2d');
-            const bufLen  = _state.analyser.fftSize;
-            const dataArr = new Float32Array(bufLen);
+            const ctx2d    = canvas.getContext('2d');
+            const fftSize  = _state.analyser.fftSize;
+            const timeData = new Float32Array(fftSize);
+            const freqData = new Float32Array(_state.analyser.frequencyBinCount);
 
             function draw() {
                 _state.animFrame = requestAnimationFrame(draw);
-                _state.analyser.getFloatTimeDomainData(dataArr);
 
+                // ── Waveform (time domain) ──
+                _state.analyser.getFloatTimeDomainData(timeData);
                 canvas.width = canvas.offsetWidth;
                 const W = canvas.width, H = canvas.height;
-
                 ctx2d.fillStyle = '#080a10';
                 ctx2d.fillRect(0, 0, W, H);
-
                 ctx2d.lineWidth   = 1.5;
                 ctx2d.strokeStyle = '#4ade80';
                 ctx2d.beginPath();
-
-                const sliceW = W / bufLen;
+                const sliceW = W / fftSize;
                 let x = 0;
-                for (let i = 0; i < bufLen; i++) {
-                    const y = (dataArr[i] / 2 + 0.5) * H;
+                for (let i = 0; i < fftSize; i++) {
+                    const y = (timeData[i] / 2 + 0.5) * H;
                     i === 0 ? ctx2d.moveTo(x, y) : ctx2d.lineTo(x, y);
                     x += sliceW;
                 }
                 ctx2d.stroke();
 
-                // Pitch detection
-                const pitch = ExtractorComponent._detectPitch(dataArr, _state.audioCtx.sampleRate);
-                const note  = pitch > 0 ? ExtractorComponent._frequencyToNote(pitch) : '—';
-                _state.detectedNote = note;
+                // ── Chord detection (frequency domain) ──
+                _state.analyser.getFloatFrequencyData(freqData);
+                const result = ExtractorComponent._detectChord(freqData, _state.audioCtx.sampleRate);
+
+                const chordName = result ? result.name : '—';
+                _state.detectedChord = chordName;
 
                 const noteEl = document.getElementById('detected-note');
-                if (noteEl) noteEl.textContent = note;
+                if (noteEl) noteEl.textContent = chordName;
+
+                const confEl = document.getElementById('chord-confidence');
+                if (confEl) confEl.textContent = result ? `confiança: ${Math.round(result.score * 100)}%` : '';
 
                 // Auto-capture
-                if (_state.captureInterval > 0 && pitch > 0) {
+                if (_state.captureInterval > 0 && result) {
                     const now = Date.now();
                     if (now - _state.lastCaptureTime > _state.captureInterval) {
                         _state.lastCaptureTime = now;
-                        ExtractorComponent._captureCurrentNote();
+                        ExtractorComponent._captureCurrentChord();
                     }
                 }
             }
             draw();
         },
 
-        _startAutoCapture: function () {
-            // Auto-capture is handled inside _startDraw's loop
+        // ── Chromagram ────────────────────────────────────────────
+        // Sums FFT bin energy into 12 pitch-class buckets (all octaves collapsed).
+        // freqData: Float32Array in dBFS from analyser.getFloatFrequencyData()
+        _computeChroma: function (freqData, sampleRate) {
+            const chroma = new Float32Array(12).fill(0);
+            const binHz  = sampleRate / (_state.analyser.fftSize);
+
+            for (let i = 2; i < freqData.length; i++) {
+                const freq = i * binHz;
+                if (freq < 65 || freq > 2000) continue;  // C2–C7 range
+                const db = freqData[i];
+                if (db < -70) continue;                   // ignore noise floor
+                const energy = Math.pow(10, db / 20);
+                const midi   = 12 * Math.log2(freq / 440) + 69;
+                const pc     = ((Math.round(midi) % 12) + 12) % 12;
+                chroma[pc]  += energy;
+            }
+            return chroma;
         },
 
-        // ── Autocorrelation Pitch Detection ───────────────────────
-        _detectPitch: function (buf, sampleRate) {
-            const SIZE = buf.length;
-            let rms = 0;
-            for (let i = 0; i < SIZE; i++) rms += buf[i] * buf[i];
-            rms = Math.sqrt(rms / SIZE);
-            if (rms < 0.01) return -1; // too quiet
+        // ── Template Matching ─────────────────────────────────────
+        // Returns { name, root, quality, score } or null if below confidence.
+        _detectChord: function (freqData, sampleRate) {
+            const chroma = ExtractorComponent._computeChroma(freqData, sampleRate);
+            const maxVal = Math.max(...chroma);
+            if (maxVal < 0.005) return null;  // signal too weak
 
-            let r1 = 0, r2 = SIZE - 1;
-            const thres = 0.2;
-            for (let i = 0; i < SIZE / 2; i++) {
-                if (Math.abs(buf[i]) < thres) { r1 = i; break; }
-            }
-            for (let i = 1; i < SIZE / 2; i++) {
-                if (Math.abs(buf[SIZE - i]) < thres) { r2 = SIZE - i; break; }
-            }
-            const buf2 = buf.slice(r1, r2);
-            const c    = new Float32Array(buf2.length).fill(0);
+            // Normalize
+            const norm = Array.from(chroma).map(v => v / maxVal);
 
-            for (let i = 0; i < buf2.length; i++) {
-                for (let j = 0; j < buf2.length - i; j++) {
-                    c[i] += buf2[j] * buf2[j + i];
+            // Score each root × quality combination
+            // score = (sum of energy at chord tones) / chordSize - penalty for non-tones
+            const PENALTY = 0.3;
+            const THRESHOLD = 0.38;  // minimum score to declare a detection
+
+            let best = null;
+
+            for (let root = 0; root < 12; root++) {
+                for (const tmpl of CHORD_TEMPLATES) {
+                    const tones = new Set(tmpl.iv.map(i => (root + i) % 12));
+                    let score = 0;
+                    for (let pc = 0; pc < 12; pc++) {
+                        score += tones.has(pc) ? norm[pc] : -norm[pc] * PENALTY;
+                    }
+                    score /= tmpl.iv.length;
+
+                    if (score > THRESHOLD && (!best || score > best.score)) {
+                        best = {
+                            name:    CHROMATIC[root] + tmpl.q,
+                            root,
+                            quality: tmpl.q,
+                            score,
+                        };
+                    }
                 }
             }
 
-            let d = 0;
-            while (c[d] > c[d + 1]) d++;
-            let maxVal = -Infinity, maxPos = -1;
-            for (let i = d; i < buf2.length; i++) {
-                if (c[i] > maxVal) { maxVal = c[i]; maxPos = i; }
-            }
-            if (maxPos === -1) return -1;
-
-            // Parabolic interpolation
-            const x1 = c[maxPos - 1] ?? c[maxPos];
-            const x2 = c[maxPos];
-            const x3 = c[maxPos + 1] ?? c[maxPos];
-            const a  = (x1 + x3 - 2 * x2) / 2;
-            const b  = (x3 - x1) / 2;
-            const shift = a ? -b / (2 * a) : 0;
-
-            return sampleRate / (maxPos + shift);
-        },
-
-        _frequencyToNote: function (freq) {
-            const noteNum = 12 * (Math.log(freq / 440) / Math.log(2));
-            const idx     = (Math.round(noteNum) + 69 + 1200) % 12;
-            return CHROMATIC[idx];
+            return best;
         },
 
         // ── Chord Capture ─────────────────────────────────────────
-        _captureCurrentNote: function () {
-            const note = _state.detectedNote;
-            if (!note || note === '—') return;
-            _state.capturedChords.push(note);
+        _captureCurrentChord: function () {
+            const chord = _state.detectedChord;
+            if (!chord || chord === '—') return;
+            _state.capturedChords.push(chord);
             ExtractorComponent._updateCapturedList();
         },
 
@@ -426,7 +446,6 @@
 
             document.getElementById('btn-go-analyzer').addEventListener('click', () => {
                 window.HMSApp.navigate('analyzer');
-                // Pre-fill analyzer after navigation
                 setTimeout(() => {
                     const ca = document.getElementById('analyzer-chords');
                     const ka = document.getElementById('analyzer-key');
