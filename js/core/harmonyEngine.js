@@ -104,11 +104,37 @@
     // ── Tokenizer ────────────────────────────────────────────────
     // Converts a raw harmony string into a flat array of token objects.
     function tokenize(harmonyStr) {
-        // 1. Clean visual dash separators (space-dash-space) and detach slashes
+        // 1. Clean visual dash separators; pre-process before slash injection
         let str = harmonyStr
             .replace(/\s*-\s*/g, ' ')
-            .replace(/\//g, ' / ') // Ensure slashes are distinct structural tokens
             .trim();
+
+        // Pre-process SEC_DOM patterns that contain slashes (e.g. 5/(3/)) BEFORE
+        // the global slash injection, which would otherwise break them.
+        const secDomSlash = [];
+        str = str.replace(
+            /([b#1-7mMho7]+)(\/?)(\(([^)]*)\)|"([^"]*)")/g,
+            (match, prefix, slashPre, _tFull, targetP, targetQ) => {
+                const rawTarget = targetP !== undefined ? targetP : (targetQ || '');
+                const slashBeforeTarget = slashPre === '/';
+                const slashAfterTarget = rawTarget.endsWith('/');
+                if (!slashBeforeTarget && !slashAfterTarget) return match;
+                const showTarget = _tFull[0] === '(';
+                const cleanTarget = rawTarget.replace(/\/$/, '');
+                const i = secDomSlash.length;
+                secDomSlash.push({
+                    type: 'SEC_DOM',
+                    prefix: parsePrefixStr(prefix),
+                    target: cleanTarget,
+                    showTarget,
+                    slashBeforeTarget,
+                    slashAfterTarget,
+                });
+                return `¶${i}¶`;
+            }
+        );
+
+        str = str.replace(/\//g, ' / '); // Ensure slashes are distinct structural tokens
 
         // 2. Extract {section}xN blocks (may contain spaces inside)
         const sections = [];
@@ -123,6 +149,13 @@
 
         const tokens = [];
         for (const raw of rawTokens) {
+            // SEC_DOM-with-slash placeholder
+            const sdsM = raw.match(/^¶(\d+)¶$/);
+            if (sdsM) {
+                tokens.push(secDomSlash[parseInt(sdsM[1], 10)]);
+                continue;
+            }
+
             // Section placeholder
             const secM = raw.match(/^§(\d+)§$/);
             if (secM) {
@@ -234,9 +267,19 @@
                         result.push({ type: 'CHORD', value: renderDegreeToken(pd, targetKey) });
                     }
 
+                    // Optional slash between prefix chord(s) and target chord
+                    if (token.slashBeforeTarget) {
+                        result.push({ type: 'STRUCT', value: '/' });
+                    }
+
                     // Show target chord if parens notation
                     if (token.showTarget) {
                         result.push({ type: 'CHORD', value: renderDegreeToken(token.target, keyState) });
+                    }
+
+                    // Optional slash after target chord
+                    if (token.slashAfterTarget) {
+                        result.push({ type: 'STRUCT', value: '/' });
                     }
                 }
 
