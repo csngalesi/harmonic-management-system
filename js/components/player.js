@@ -7,14 +7,14 @@
     'use strict';
 
     let _state = {
-        song:         null,
-        displayKey:   null,
+        song: null,
+        displayKey: null,
         displayMinor: false,
-        fontSize:     'md', // 'md' | 'lg' | 'xl'
+        fontSize: 'md', // 'md' | 'lg' | 'xl'
     };
 
     const KEYS = window.HarmonyEngine.allKeys();
-    const esc  = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
     const PlayerComponent = {
 
@@ -47,17 +47,17 @@
             }
 
             // Default display key = original key
-            const origKey    = _state.song.original_key || 'C';
+            const origKey = _state.song.original_key || 'C';
             const origIsMinor = origKey.endsWith('m');
-            const origRoot   = origKey.replace(/m$/, '');
-            _state.displayKey   = origRoot;
+            const origRoot = origKey.replace(/m$/, '');
+            _state.displayKey = origRoot;
             _state.displayMinor = origIsMinor;
 
             PlayerComponent._renderPage();
         },
 
         _renderPage: function () {
-            const s    = _state.song;
+            const s = _state.song;
             const content = document.getElementById('main-content');
 
             const keyOptions = KEYS.map(k =>
@@ -74,6 +74,9 @@
                         </div>
                     </div>
                     <div class="page-actions">
+                        <button class="btn btn-primary" id="btn-play-audio" style="margin-right:8px;" title="Tocar sequência (1 acorde/seg)">
+                            <i class="fa-solid fa-play"></i> Ouvir Tática
+                        </button>
                         <button class="btn btn-secondary" id="btn-back-rep">
                             <i class="fa-solid fa-arrow-left"></i> Repertório
                         </button>
@@ -101,9 +104,9 @@
                                 </select>
                             </div>
                             <div style="display:flex;align-items:center;gap:6px;margin-left:auto;">
-                                <button class="btn btn-secondary btn-sm font-size-btn ${_state.fontSize==='md'?'active':''}" data-size="md">A</button>
-                                <button class="btn btn-secondary btn-sm font-size-btn ${_state.fontSize==='lg'?'active':''}" data-size="lg" style="font-size:1.1rem;">A</button>
-                                <button class="btn btn-secondary btn-sm font-size-btn ${_state.fontSize==='xl'?'active':''}" data-size="xl" style="font-size:1.3rem;">A</button>
+                                <button class="btn btn-secondary btn-sm font-size-btn ${_state.fontSize === 'md' ? 'active' : ''}" data-size="md">A</button>
+                                <button class="btn btn-secondary btn-sm font-size-btn ${_state.fontSize === 'lg' ? 'active' : ''}" data-size="lg" style="font-size:1.1rem;">A</button>
+                                <button class="btn btn-secondary btn-sm font-size-btn ${_state.fontSize === 'xl' ? 'active' : ''}" data-size="xl" style="font-size:1.3rem;">A</button>
                             </div>
                         </div>
                     </div>
@@ -147,15 +150,53 @@
             PlayerComponent._renderChords();
 
             // Event listeners
-            document.getElementById('btn-back-rep').addEventListener('click', () => window.HMSApp.navigate('repertoire'));
+            const playBtn = document.getElementById('btn-play-audio');
+            playBtn.addEventListener('click', async () => {
+                if (window.HMSAudio.isPlaying) {
+                    window.HMSAudio.stop();
+                    playBtn.innerHTML = '<i class="fa-solid fa-play"></i> Ouvir Tática';
+                    playBtn.classList.remove('btn-danger');
+                    playBtn.classList.add('btn-primary');
+                } else {
+                    const tokens = window.HarmonyEngine.translate(
+                        _state.song.harmony_str,
+                        _state.displayKey,
+                        _state.displayMinor,
+                    );
+
+                    try {
+                        await window.HMSAudio.playSequence(tokens, () => {
+                            // Reset button when finished naturally
+                            if (playBtn) {
+                                playBtn.innerHTML = '<i class="fa-solid fa-play"></i> Ouvir Tática';
+                                playBtn.classList.remove('btn-danger');
+                                playBtn.classList.add('btn-primary');
+                            }
+                        });
+
+                        playBtn.innerHTML = '<i class="fa-solid fa-stop"></i> Parar';
+                        playBtn.classList.remove('btn-primary');
+                        playBtn.classList.add('btn-danger');
+                    } catch (err) {
+                        console.error('Audio start failure', err);
+                        alert('Erro ao iniciar o motor de áudio. Tente interagir com a tela primeiro.');
+                    }
+                }
+            });
+
+            document.getElementById('btn-back-rep').addEventListener('click', () => {
+                if (window.HMSAudio && window.HMSAudio.isPlaying) window.HMSAudio.stop();
+                window.HMSApp.navigate('repertoire');
+            });
             document.getElementById('btn-edit-song').addEventListener('click', () => {
+                if (window.HMSAudio && window.HMSAudio.isPlaying) window.HMSAudio.stop();
                 window.RepertoireComponent.openSongModal(_state.song.id);
             });
 
             document.getElementById('key-select').addEventListener('change', function () {
                 const kObj = KEYS.find(k => k.value === this.value);
                 if (kObj) {
-                    _state.displayKey   = kObj.value.replace(/m$/, '');
+                    _state.displayKey = kObj.value.replace(/m$/, '');
                     _state.displayMinor = kObj.isMinor;
                     PlayerComponent._renderChords();
                 }
