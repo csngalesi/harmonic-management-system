@@ -1,10 +1,13 @@
 /**
  * HMS — Extrator de Áudio Component (Módulo 3)
  * Chord detection via Web Audio API + chromagram + template matching.
- *  - FFT size 8192 → ~5.4 Hz/bin resolution, good for chord tones ≥ C2
- *  - Chromagram: collapse all octaves into 12 pitch-class energy bins
- *  - Template matching: triads (major, minor, dim, sus) + tetrads (7, m7, M7, h)
- *    so the V7 chord is correctly detected as a tetrad, not a triad.
+ *
+ * Detection priorities (highest → lowest bonus):
+ *  1. Diatonic chords of the selected key           (+0.20)
+ *  2. Secondary dominants (V7 → diatonic target)    (+0.10)
+ *  3. ii preparations (minor/half-dim → diatonic)   (+0.08)
+ *  4. Any other chord above confidence threshold
+ *
  * Exposed via window.ExtractorComponent
  */
 (function () {
@@ -14,7 +17,14 @@
     const KEYS      = window.HarmonyEngine.allKeys();
     const esc       = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
-    // Chord templates: root = 0, intervals in semitones
+    // ── Scale data (mirrors harmonyEngine, uses extractor quality strings) ──
+    const MAJOR_SCALE   = { 1:0, 2:2, 3:4, 4:5, 5:7, 6:9, 7:11 };
+    const MINOR_SCALE   = { 1:0, 2:2, 3:3, 4:5, 5:7, 6:8, 7:10 };
+    // 'h' = half-diminished (m7b5) — matches CHORD_TEMPLATES below
+    const MAJOR_QUALITY = { 1:'', 2:'m', 3:'m', 4:'', 5:'7', 6:'m', 7:'h' };
+    const MINOR_QUALITY = { 1:'m', 2:'h', 3:'', 4:'m', 5:'7', 6:'', 7:'' };
+
+    // ── Chord templates ──────────────────────────────────────────────────────
     const CHORD_TEMPLATES = [
         { q: '',     iv: [0, 4, 7]        },  // major triad
         { q: 'm',    iv: [0, 3, 7]        },  // minor triad
@@ -23,8 +33,8 @@
         { q: 'M7',   iv: [0, 4, 7, 11]    },  // major 7th
         { q: 'h',    iv: [0, 3, 6, 10]    },  // half-diminished (m7b5)
         { q: 'dim',  iv: [0, 3, 6]        },  // diminished triad
-        { q: 'sus4', iv: [0, 5, 7]        },  // sus4
-        { q: 'sus2', iv: [0, 2, 7]        },  // sus2
+        { q: 'sus4', iv: [0, 5, 7]        },
+        { q: 'sus2', iv: [0, 2, 7]        },
     ];
 
     let _state = {
@@ -38,7 +48,43 @@
         capturedChords:  [],
         lastCaptureTime: 0,
         captureInterval: 1500,
+        diatonicSet:     new Set(),  // cached "noteIdx:quality" for selected key
+        secDomSet:       new Set(),  // secondary dominant roots (dom7)
+        iiPrepSet:       new Set(),  // ii preparation roots (m or h)
     };
+
+    // ── Build priority sets from the currently selected key ─────────────────
+    function _buildPrioritySets(keyVal) {
+        const kObj    = KEYS.find(k => k.value === keyVal) || KEYS[0];
+        const root    = kObj.value.replace(/m$/, '');
+        const isMinor = kObj.isMinor;
+        const rootIdx = window.HarmonyEngine._noteToIdx(root);
+        const scale   = isMinor ? MINOR_SCALE : MAJOR_SCALE;
+        const quals   = isMinor ? MINOR_QUALITY : MAJOR_QUALITY;
+
+        const diatonic  = new Set();
+        const secDom    = new Set();   // dom7 roots that resolve to a diatonic target
+        const iiPrep    = new Set();   // minor/h roots 2 semitones below a dom7
+
+        for (let deg = 1; deg <= 7; deg++) {
+            const ni = (rootIdx + scale[deg] + 120) % 12;
+            const q  = quals[deg];
+            diatonic.add(`${ni}:${q}`);
+
+            // Secondary dominant: dom7 whose root is P5 above this diatonic chord
+            const secRoot = (ni + 7) % 12;
+            secDom.add(`${secRoot}:7`);
+
+            // ii preparation: minor or h chord 2 semitones below that dom7
+            const iiRoot = (secRoot - 2 + 12) % 12;
+            iiPrep.add(`${iiRoot}:m`);
+            iiPrep.add(`${iiRoot}:h`);
+        }
+
+        _state.diatonicSet = diatonic;
+        _state.secDomSet   = secDom;
+        _state.iiPrepSet   = iiPrep;
+    }
 
     const ExtractorComponent = {
 
@@ -80,14 +126,14 @@
                                     <option value="0">Manual</option>
                                 </select>
                             </div>
-                            <div style="display:flex;gap:8px;">
+                            <div style="display:flex;gap:8px;align-items:center;">
                                 <button class="btn btn-primary" id="btn-start-mic">
                                     <i class="fa-solid fa-microphone"></i> Ligar Microfone
                                 </button>
                                 <button class="btn btn-danger hidden" id="btn-stop-mic">
                                     <i class="fa-solid fa-stop"></i> Parar
                                 </button>
-                                <label class="btn btn-secondary" style="cursor:pointer;">
+                                <label class="btn btn-secondary" id="label-file-input" style="cursor:pointer;">
                                     <i class="fa-solid fa-file-audio"></i> Carregar MP3
                                     <input type="file" id="file-input" accept="audio/*" style="display:none;" />
                                 </label>
@@ -156,6 +202,9 @@
                 document.getElementById('viz-grid').style.gridTemplateColumns = '1fr';
             }
 
+            // Build priority sets for default key
+            _buildPrioritySets(KEYS[0].value);
+
             ExtractorComponent._bindEvents();
         },
 
@@ -184,6 +233,9 @@
             });
             document.getElementById('ext-interval').addEventListener('change', (e) => {
                 _state.captureInterval = parseInt(e.target.value, 10);
+            });
+            document.getElementById('ext-key').addEventListener('change', (e) => {
+                _buildPrioritySets(e.target.value);
             });
             document.getElementById('btn-analyze-draft').addEventListener('click', () => {
                 ExtractorComponent._analyzeDraft();
@@ -222,12 +274,17 @@
                     analyser.connect(ctx.destination);
                     source.start(0);
 
-                    _state.analyser   = analyser;
-                    _state.sourceNode = source;
+                    _state.analyser    = analyser;
+                    _state.sourceNode  = source;
                     _state.isRecording = true;
 
+                    // Show stop button for MP3 playback
+                    document.getElementById('btn-start-mic').classList.add('hidden');
+                    document.getElementById('label-file-input').classList.add('hidden');
+                    document.getElementById('btn-stop-mic').classList.remove('hidden');
+
                     ExtractorComponent._startDraw();
-                    window.HMSApp.showToast('Arquivo de áudio carregado.', 'success');
+                    window.HMSApp.showToast(`Reproduzindo: ${file.name}`, 'success');
                     source.onended = () => ExtractorComponent._stopAudio();
                 } catch (err) {
                     window.HMSApp.showToast('Erro ao processar áudio: ' + err.message, 'error');
@@ -240,7 +297,7 @@
             const ctx      = new AudioContext();
             const source   = ctx.createMediaStreamSource(stream);
             const analyser = ctx.createAnalyser();
-            analyser.fftSize = 8192;  // better frequency resolution for chord detection
+            analyser.fftSize = 8192;
             source.connect(analyser);
 
             _state.audioCtx   = ctx;
@@ -258,15 +315,20 @@
             if (_state.audioCtx)   { _state.audioCtx.close(); _state.audioCtx = null; }
             _state.analyser = null;
 
-            const startBtn = document.getElementById('btn-start-mic');
-            const stopBtn  = document.getElementById('btn-stop-mic');
-            if (startBtn) startBtn.classList.remove('hidden');
-            if (stopBtn)  stopBtn.classList.add('hidden');
+            const startBtn  = document.getElementById('btn-start-mic');
+            const stopBtn   = document.getElementById('btn-stop-mic');
+            const fileLabel = document.getElementById('label-file-input');
+            if (startBtn)  startBtn.classList.remove('hidden');
+            if (stopBtn)   stopBtn.classList.add('hidden');
+            if (fileLabel) fileLabel.classList.remove('hidden');
 
             const canvas = document.getElementById('audio-canvas');
-            if (canvas) {
-                canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-            }
+            if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+
+            const noteEl = document.getElementById('detected-note');
+            if (noteEl) noteEl.textContent = '—';
+            const confEl = document.getElementById('chord-confidence');
+            if (confEl) confEl.textContent = '';
         },
 
         // ── Waveform + Chord Detection Loop ───────────────────────
@@ -281,7 +343,7 @@
             function draw() {
                 _state.animFrame = requestAnimationFrame(draw);
 
-                // ── Waveform (time domain) ──
+                // Waveform
                 _state.analyser.getFloatTimeDomainData(timeData);
                 canvas.width = canvas.offsetWidth;
                 const W = canvas.width, H = canvas.height;
@@ -299,7 +361,7 @@
                 }
                 ctx2d.stroke();
 
-                // ── Chord detection (frequency domain) ──
+                // Chord detection
                 _state.analyser.getFloatFrequencyData(freqData);
                 const result = ExtractorComponent._detectChord(freqData, _state.audioCtx.sampleRate);
 
@@ -310,7 +372,12 @@
                 if (noteEl) noteEl.textContent = chordName;
 
                 const confEl = document.getElementById('chord-confidence');
-                if (confEl) confEl.textContent = result ? `confiança: ${Math.round(result.score * 100)}%` : '';
+                if (confEl && result) {
+                    const tag = result.isDiatonic ? ' · diat.' : result.isSecDom ? ' · V7/x' : result.isIIPrep ? ' · ii/x' : '';
+                    confEl.textContent = `${Math.round(result.score * 100)}%${tag}`;
+                } else if (confEl) {
+                    confEl.textContent = '';
+                }
 
                 // Auto-capture
                 if (_state.captureInterval > 0 && result) {
@@ -325,17 +392,15 @@
         },
 
         // ── Chromagram ────────────────────────────────────────────
-        // Sums FFT bin energy into 12 pitch-class buckets (all octaves collapsed).
-        // freqData: Float32Array in dBFS from analyser.getFloatFrequencyData()
         _computeChroma: function (freqData, sampleRate) {
             const chroma = new Float32Array(12).fill(0);
             const binHz  = sampleRate / (_state.analyser.fftSize);
 
             for (let i = 2; i < freqData.length; i++) {
                 const freq = i * binHz;
-                if (freq < 65 || freq > 2000) continue;  // C2–C7 range
+                if (freq < 65 || freq > 2000) continue;
                 const db = freqData[i];
-                if (db < -70) continue;                   // ignore noise floor
+                if (db < -70) continue;
                 const energy = Math.pow(10, db / 20);
                 const midi   = 12 * Math.log2(freq / 440) + 69;
                 const pc     = ((Math.round(midi) % 12) + 12) % 12;
@@ -344,20 +409,20 @@
             return chroma;
         },
 
-        // ── Template Matching ─────────────────────────────────────
-        // Returns { name, root, quality, score } or null if below confidence.
+        // ── Template Matching with Diatonic / SecDom / ii Bias ────
+        // Bonuses:
+        //   Diatonic chord of selected key  → +0.20
+        //   Secondary dominant V7/target    → +0.10
+        //   ii preparation (m or h)         → +0.08
         _detectChord: function (freqData, sampleRate) {
             const chroma = ExtractorComponent._computeChroma(freqData, sampleRate);
             const maxVal = Math.max(...chroma);
-            if (maxVal < 0.005) return null;  // signal too weak
+            if (maxVal < 0.005) return null;
 
-            // Normalize
             const norm = Array.from(chroma).map(v => v / maxVal);
 
-            // Score each root × quality combination
-            // score = (sum of energy at chord tones) / chordSize - penalty for non-tones
-            const PENALTY = 0.3;
-            const THRESHOLD = 0.38;  // minimum score to declare a detection
+            const PENALTY   = 0.30;
+            const THRESHOLD = 0.32;
 
             let best = null;
 
@@ -370,12 +435,25 @@
                     }
                     score /= tmpl.iv.length;
 
+                    // Priority bonuses
+                    const key       = `${root}:${tmpl.q}`;
+                    const isDiatonic = _state.diatonicSet.has(key);
+                    const isSecDom   = !isDiatonic && _state.secDomSet.has(key);
+                    const isIIPrep   = !isDiatonic && !isSecDom && _state.iiPrepSet.has(key);
+
+                    if (isDiatonic) score += 0.20;
+                    else if (isSecDom) score += 0.10;
+                    else if (isIIPrep) score += 0.08;
+
                     if (score > THRESHOLD && (!best || score > best.score)) {
                         best = {
-                            name:    CHROMATIC[root] + tmpl.q,
+                            name: CHROMATIC[root] + tmpl.q,
                             root,
-                            quality: tmpl.q,
+                            quality:   tmpl.q,
                             score,
+                            isDiatonic,
+                            isSecDom,
+                            isIIPrep,
                         };
                     }
                 }
