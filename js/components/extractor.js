@@ -2,11 +2,19 @@
  * HMS — Extrator de Áudio Component (Módulo 3)
  * Chord detection via Web Audio API + chromagram + template matching.
  *
- * Detection priorities (highest → lowest bonus):
- *  1. Diatonic chords of the selected key           (+0.20)
- *  2. Secondary dominants (V7 → diatonic target)    (+0.10)
- *  3. ii preparations (minor/half-dim → diatonic)   (+0.08)
- *  4. Any other chord above confidence threshold
+ * Signal pipeline:
+ *   FFT (16384 pts, ~2.7 Hz/bin)
+ *   → _computeChroma  (harmonic-decay weighting + bass pitch class)
+ *   → rolling average (last 10 frames — temporal smoothing)
+ *   → _detectChord    (template matching + priority bonuses + bass root bonus)
+ *   → debounce        (3 consecutive stable frames before display update)
+ *
+ * Priority bonuses (mutually exclusive, highest wins):
+ *   Diatonic I–VI  → +0.20
+ *   Diatonic VII   → +0.15
+ *   V7/target      → +0.18
+ *   ii/target m|h  → +0.18
+ *   Bass root match → +0.12  (added on top of any priority bonus)
  *
  * Exposed via window.ExtractorComponent
  */
@@ -20,7 +28,6 @@
     // ── Scale data (mirrors harmonyEngine, uses extractor quality strings) ──
     const MAJOR_SCALE   = { 1:0, 2:2, 3:4, 4:5, 5:7, 6:9, 7:11 };
     const MINOR_SCALE   = { 1:0, 2:2, 3:3, 4:5, 5:7, 6:8, 7:10 };
-    // 'h' = half-diminished (m7b5) — matches CHORD_TEMPLATES below
     const MAJOR_QUALITY = { 1:'', 2:'m', 3:'m', 4:'', 5:'7', 6:'m', 7:'h' };
     const MINOR_QUALITY = { 1:'m', 2:'h', 3:'', 4:'m', 5:'7', 6:'', 7:'' };
 
@@ -28,10 +35,10 @@
     const CHORD_TEMPLATES = [
         { q: '',     iv: [0, 4, 7]        },  // major triad
         { q: 'm',    iv: [0, 3, 7]        },  // minor triad
-        { q: '7',    iv: [0, 4, 7, 10]    },  // dominant 7th  (tetrad — V7)
+        { q: '7',    iv: [0, 4, 7, 10]    },  // dominant 7th
         { q: 'm7',   iv: [0, 3, 7, 10]    },  // minor 7th
         { q: 'M7',   iv: [0, 4, 7, 11]    },  // major 7th
-        { q: 'h',    iv: [0, 3, 6, 10]    },  // half-diminished (m7b5)
+        { q: 'h',    iv: [0, 3, 6, 10]    },  // half-diminished
         { q: 'dim',  iv: [0, 3, 6]        },  // diminished triad
         { q: 'sus4', iv: [0, 5, 7]        },
         { q: 'sus2', iv: [0, 2, 7]        },
@@ -48,13 +55,21 @@
         capturedChords:  [],
         lastCaptureTime: 0,
         captureInterval: 1500,
-        diatonicSet:     new Set(),  // degrees I–VI  → +0.20
-        degVIISet:       new Set(),  // degree VII    → +0.15
-        secDomSet:       new Set(),  // V7/target     → +0.18
-        iiPrepSet:       new Set(),  // ii/target     → +0.18
+        // Priority sets (rebuilt when key changes)
+        diatonicSet:     new Set(),
+        degVIISet:       new Set(),
+        secDomSet:       new Set(),
+        iiPrepSet:       new Set(),
+        // ① Temporal smoothing
+        chromaHistory:   [],
+        CHROMA_HIST_LEN: 10,
+        // ② Stability debounce
+        candidateChord:  '—',
+        candidateFrames: 0,
+        STABLE_FRAMES:   3,
     };
 
-    // ── Build priority sets from the currently selected key ─────────────────
+    // ── Priority sets ────────────────────────────────────────────────────────
     function _buildPrioritySets(keyVal) {
         const kObj    = KEYS.find(k => k.value === keyVal) || KEYS[0];
         const root    = kObj.value.replace(/m$/, '');
@@ -63,26 +78,21 @@
         const scale   = isMinor ? MINOR_SCALE : MAJOR_SCALE;
         const quals   = isMinor ? MINOR_QUALITY : MAJOR_QUALITY;
 
-        const diatonic = new Set();  // degrees I–VI
-        const degVII   = new Set();  // degree VII only
-        const secDom   = new Set();  // dom7 whose root is P5 above a diatonic chord
-        const iiPrep   = new Set();  // m or h chord 2 semitones below a dom7
+        const diatonic = new Set();
+        const degVII   = new Set();
+        const secDom   = new Set();
+        const iiPrep   = new Set();
 
         for (let deg = 1; deg <= 7; deg++) {
             const ni = (rootIdx + scale[deg] + 120) % 12;
             const q  = quals[deg];
 
-            if (deg === 7) {
-                degVII.add(`${ni}:${q}`);
-            } else {
-                diatonic.add(`${ni}:${q}`);
-            }
+            if (deg === 7) degVII.add(`${ni}:${q}`);
+            else           diatonic.add(`${ni}:${q}`);
 
-            // Secondary dominant: dom7 a P5 above this chord
             const secRoot = (ni + 7) % 12;
             secDom.add(`${secRoot}:7`);
 
-            // ii preparation: m or h chord 2 semitones below the dom7
             const iiRoot = (secRoot - 2 + 12) % 12;
             iiPrep.add(`${iiRoot}:m`);
             iiPrep.add(`${iiRoot}:h`);
@@ -92,6 +102,12 @@
         _state.degVIISet   = degVII;
         _state.secDomSet   = secDom;
         _state.iiPrepSet   = iiPrep;
+    }
+
+    function _resetDetectionState() {
+        _state.chromaHistory   = [];
+        _state.candidateChord  = '—';
+        _state.candidateFrames = 0;
     }
 
     const ExtractorComponent = {
@@ -113,7 +129,6 @@
                     </div>
                 </div>
 
-                <!-- Configuração -->
                 <div class="panel mb-3">
                     <div class="panel-header">
                         <span class="panel-title"><i class="fa-solid fa-sliders"></i> Configuração</span>
@@ -150,7 +165,6 @@
                     </div>
                 </div>
 
-                <!-- Visualizer + acorde detectado -->
                 <div style="display:grid;grid-template-columns:1fr 200px;gap:16px;margin-bottom:20px;" id="viz-grid">
                     <div class="audio-panel">
                         <canvas id="audio-canvas" height="120"></canvas>
@@ -165,7 +179,6 @@
                     </div>
                 </div>
 
-                <!-- Acordes capturados -->
                 <div class="panel mb-3">
                     <div class="panel-header">
                         <span class="panel-title"><i class="fa-solid fa-list"></i> Acordes Capturados</span>
@@ -180,14 +193,11 @@
                     </div>
                     <div class="panel-body">
                         <div id="captured-list" class="chord-grid">
-                            <span style="color:var(--text-muted);font-size:.875rem;">
-                                Aguardando captura…
-                            </span>
+                            <span style="color:var(--text-muted);font-size:.875rem;">Aguardando captura…</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- Draft + analisar -->
                 <div class="panel">
                     <div class="panel-header">
                         <span class="panel-title"><i class="fa-solid fa-wand-magic-sparkles"></i> Draft de Harmonia</span>
@@ -210,25 +220,17 @@
                 document.getElementById('viz-grid').style.gridTemplateColumns = '1fr';
             }
 
-            // Build priority sets for default key
             _buildPrioritySets(KEYS[0].value);
-
             ExtractorComponent._bindEvents();
         },
 
         _bindEvents: function () {
-            document.getElementById('btn-start-mic').addEventListener('click', () => {
-                ExtractorComponent._startMic();
-            });
-            document.getElementById('btn-stop-mic').addEventListener('click', () => {
-                ExtractorComponent._stopAudio();
-            });
+            document.getElementById('btn-start-mic').addEventListener('click', () => ExtractorComponent._startMic());
+            document.getElementById('btn-stop-mic').addEventListener('click',  () => ExtractorComponent._stopAudio());
             document.getElementById('file-input').addEventListener('change', (e) => {
                 if (e.target.files[0]) ExtractorComponent._loadFile(e.target.files[0]);
             });
-            document.getElementById('btn-capture-manual').addEventListener('click', () => {
-                ExtractorComponent._captureCurrentChord();
-            });
+            document.getElementById('btn-capture-manual').addEventListener('click', () => ExtractorComponent._captureCurrentChord());
             document.getElementById('btn-undo-capture').addEventListener('click', () => {
                 _state.capturedChords.pop();
                 ExtractorComponent._updateCapturedList();
@@ -244,13 +246,12 @@
             });
             document.getElementById('ext-key').addEventListener('change', (e) => {
                 _buildPrioritySets(e.target.value);
+                _resetDetectionState();
             });
-            document.getElementById('btn-analyze-draft').addEventListener('click', () => {
-                ExtractorComponent._analyzeDraft();
-            });
+            document.getElementById('btn-analyze-draft').addEventListener('click', () => ExtractorComponent._analyzeDraft());
         },
 
-        // ── Microphone ────────────────────────────────────────────
+        // ── Audio setup ───────────────────────────────────────────
         _startMic: async function () {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
@@ -277,7 +278,7 @@
                     source.buffer = buffer;
 
                     const analyser = ctx.createAnalyser();
-                    analyser.fftSize = 8192;
+                    analyser.fftSize = 16384;  // ⑤ better frequency resolution (~2.7 Hz/bin)
                     source.connect(analyser);
                     analyser.connect(ctx.destination);
                     source.start(0);
@@ -285,8 +286,8 @@
                     _state.analyser    = analyser;
                     _state.sourceNode  = source;
                     _state.isRecording = true;
+                    _resetDetectionState();
 
-                    // Show stop button for MP3 playback
                     document.getElementById('btn-start-mic').classList.add('hidden');
                     document.getElementById('label-file-input').classList.add('hidden');
                     document.getElementById('btn-stop-mic').classList.remove('hidden');
@@ -305,18 +306,20 @@
             const ctx      = new AudioContext();
             const source   = ctx.createMediaStreamSource(stream);
             const analyser = ctx.createAnalyser();
-            analyser.fftSize = 8192;
+            analyser.fftSize = 16384;  // ⑤
             source.connect(analyser);
 
             _state.audioCtx   = ctx;
             _state.analyser   = analyser;
             _state.sourceNode = source;
+            _resetDetectionState();
 
             ExtractorComponent._startDraw();
         },
 
         _stopAudio: function () {
             _state.isRecording = false;
+            _resetDetectionState();
             if (_state.animFrame)  { cancelAnimationFrame(_state.animFrame); _state.animFrame = null; }
             if (_state.micStream)  { _state.micStream.getTracks().forEach(t => t.stop()); _state.micStream = null; }
             if (_state.sourceNode) { try { _state.sourceNode.stop(); } catch (_) {} _state.sourceNode = null; }
@@ -332,14 +335,13 @@
 
             const canvas = document.getElementById('audio-canvas');
             if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-
             const noteEl = document.getElementById('detected-note');
             if (noteEl) noteEl.textContent = '—';
             const confEl = document.getElementById('chord-confidence');
             if (confEl) confEl.textContent = '';
         },
 
-        // ── Waveform + Chord Detection Loop ───────────────────────
+        // ── Draw + detection loop ─────────────────────────────────
         _startDraw: function () {
             const canvas = document.getElementById('audio-canvas');
             if (!canvas) return;
@@ -351,7 +353,7 @@
             function draw() {
                 _state.animFrame = requestAnimationFrame(draw);
 
-                // Waveform
+                // Waveform (time domain)
                 _state.analyser.getFloatTimeDomainData(timeData);
                 canvas.width = canvas.offsetWidth;
                 const W = canvas.width, H = canvas.height;
@@ -369,26 +371,57 @@
                 }
                 ctx2d.stroke();
 
-                // Chord detection
+                // ① Compute chroma for this frame (with harmonic-decay + bass)
                 _state.analyser.getFloatFrequencyData(freqData);
-                const result = ExtractorComponent._detectChord(freqData, _state.audioCtx.sampleRate);
+                const { chroma, bassPc } = ExtractorComponent._computeChroma(
+                    freqData, _state.audioCtx.sampleRate
+                );
 
-                const chordName = result ? result.name : '—';
-                _state.detectedChord = chordName;
+                // ① Add to rolling history and compute smoothed average
+                _state.chromaHistory.push(chroma);
+                if (_state.chromaHistory.length > _state.CHROMA_HIST_LEN) {
+                    _state.chromaHistory.shift();
+                }
+                const smoothChroma = new Float32Array(12).fill(0);
+                for (const h of _state.chromaHistory) {
+                    for (let i = 0; i < 12; i++) smoothChroma[i] += h[i];
+                }
+                const hLen = _state.chromaHistory.length;
+                for (let i = 0; i < 12; i++) smoothChroma[i] /= hLen;
 
-                const noteEl = document.getElementById('detected-note');
-                if (noteEl) noteEl.textContent = chordName;
+                // Detect chord from smoothed chroma
+                const rawResult = ExtractorComponent._detectChord(smoothChroma, bassPc);
+                const rawName   = rawResult ? rawResult.name : '—';
 
-                const confEl = document.getElementById('chord-confidence');
-                if (confEl && result) {
-                    const tag = result.isDiatonic ? ' · diat.' : result.isDegVII ? ' · VII' : result.isSecDom ? ' · V7/x' : result.isIIPrep ? ' · ii/x' : '';
-                    confEl.textContent = `${Math.round(result.score * 100)}%${tag}`;
-                } else if (confEl) {
-                    confEl.textContent = '';
+                // ② Debounce: require STABLE_FRAMES consecutive identical frames
+                if (rawName === _state.candidateChord) {
+                    _state.candidateFrames++;
+                } else {
+                    _state.candidateChord  = rawName;
+                    _state.candidateFrames = 1;
                 }
 
-                // Auto-capture
-                if (_state.captureInterval > 0 && result) {
+                if (_state.candidateFrames >= _state.STABLE_FRAMES) {
+                    _state.detectedChord = rawName;
+
+                    const noteEl = document.getElementById('detected-note');
+                    if (noteEl) noteEl.textContent = rawName;
+
+                    const confEl = document.getElementById('chord-confidence');
+                    if (confEl && rawResult) {
+                        const tag = rawResult.isDiatonic ? ' · diat.'
+                                  : rawResult.isDegVII   ? ' · VII'
+                                  : rawResult.isSecDom   ? ' · V7/x'
+                                  : rawResult.isIIPrep   ? ' · ii/x' : '';
+                        const bass = rawResult.hasBassMatch ? ' 🎸' : '';
+                        confEl.textContent = `${Math.round(rawResult.score * 100)}%${tag}${bass}`;
+                    } else if (confEl) {
+                        confEl.textContent = '';
+                    }
+                }
+
+                // Auto-capture (uses the stable chord, not the raw candidate)
+                if (_state.captureInterval > 0 && _state.detectedChord !== '—') {
                     const now = Date.now();
                     if (now - _state.lastCaptureTime > _state.captureInterval) {
                         _state.lastCaptureTime = now;
@@ -399,39 +432,53 @@
             draw();
         },
 
-        // ── Chromagram ────────────────────────────────────────────
+        // ── ③④ Chromagram with harmonic decay + bass pitch class ──
+        // ③ Harmonic decay: weight = max(0.2, 1.0 - (octave-2) * 0.2)
+        //    octave2=1.0, octave3=0.8, octave4=0.6, octave5=0.4, octave6+=0.2
+        // ④ Bass pitch class: dominant pitch in 65–250 Hz (chord root is usually here)
         _computeChroma: function (freqData, sampleRate) {
-            const chroma = new Float32Array(12).fill(0);
-            const binHz  = sampleRate / (_state.analyser.fftSize);
+            const chroma     = new Float32Array(12).fill(0);
+            const bassChroma = new Float32Array(12).fill(0);
+            const binHz      = sampleRate / (_state.analyser.fftSize);
 
             for (let i = 2; i < freqData.length; i++) {
                 const freq = i * binHz;
-                if (freq < 65 || freq > 2000) continue;
+                if (freq < 65 || freq > 2100) continue;
                 const db = freqData[i];
-                if (db < -70) continue;
-                const energy = Math.pow(10, db / 20);
-                const midi   = 12 * Math.log2(freq / 440) + 69;
-                const pc     = ((Math.round(midi) % 12) + 12) % 12;
-                chroma[pc]  += energy;
+                if (db < -72) continue;
+
+                const energy  = Math.pow(10, db / 20);
+                const midi    = 12 * Math.log2(freq / 440) + 69;
+                const pc      = ((Math.round(midi) % 12) + 12) % 12;
+                const octave  = Math.floor(midi / 12) - 1;         // C2=oct2, C3=oct3…
+                const weight  = Math.max(0.2, 1.0 - (octave - 2) * 0.2);  // ③ decay
+
+                chroma[pc] += energy * weight;
+
+                if (freq <= 250) bassChroma[pc] += energy;          // ④ bass range
             }
-            return chroma;
+
+            // Dominant bass pitch class (-1 if signal too weak)
+            const bassMax = Math.max(...bassChroma);
+            const bassPc  = bassMax > 1e-5
+                ? bassChroma.indexOf(bassMax)
+                : -1;
+
+            return { chroma, bassPc };
         },
 
-        // ── Template Matching with priority bias ──────────────────
-        // Bonuses (mutually exclusive, highest wins):
-        //   Diatonic I–VI of selected key  → +0.20
-        //   Diatonic VII of selected key   → +0.15
-        //   Secondary dominant V7/target   → +0.18
-        //   ii preparation m/h → target    → +0.18
-        _detectChord: function (freqData, sampleRate) {
-            const chroma = ExtractorComponent._computeChroma(freqData, sampleRate);
-            const maxVal = Math.max(...chroma);
+        // ── Template matching ─────────────────────────────────────
+        // Accepts pre-smoothed chroma + bass pitch class.
+        // Bass root match (+0.12) stacks on top of any priority bonus.
+        _detectChord: function (smoothChroma, bassPc) {
+            const maxVal = Math.max(...smoothChroma);
             if (maxVal < 0.005) return null;
 
-            const norm = Array.from(chroma).map(v => v / maxVal);
+            const norm = Array.from(smoothChroma).map(v => v / maxVal);
 
-            const PENALTY   = 0.30;
-            const THRESHOLD = 0.32;
+            const PENALTY    = 0.30;
+            const THRESHOLD  = 0.32;
+            const BASS_BONUS = 0.12;
 
             let best = null;
 
@@ -456,16 +503,21 @@
                     else if (isSecDom) score += 0.18;
                     else if (isIIPrep) score += 0.18;
 
+                    // ④ Bass root bonus: stacks on top
+                    const hasBassMatch = bassPc !== -1 && root === bassPc;
+                    if (hasBassMatch) score += BASS_BONUS;
+
                     if (score > THRESHOLD && (!best || score > best.score)) {
                         best = {
                             name: CHROMATIC[root] + tmpl.q,
                             root,
-                            quality:  tmpl.q,
+                            quality: tmpl.q,
                             score,
                             isDiatonic,
                             isDegVII,
                             isSecDom,
                             isIIPrep,
+                            hasBassMatch,
                         };
                     }
                 }
@@ -485,18 +537,15 @@
         _updateCapturedList: function () {
             const el = document.getElementById('captured-list');
             if (!el) return;
-
             if (_state.capturedChords.length === 0) {
                 el.innerHTML = '<span style="color:var(--text-muted);font-size:.875rem;">Aguardando captura…</span>';
                 const draftEl = document.getElementById('draft-chords');
                 if (draftEl) draftEl.value = '';
                 return;
             }
-
             el.innerHTML = _state.capturedChords.map((n, i) =>
                 `<div class="chord-cell ${i === _state.capturedChords.length - 1 ? 'chord-highlight' : ''}">${esc(n)}</div>`
             ).join('');
-
             const draftEl = document.getElementById('draft-chords');
             if (draftEl) draftEl.value = _state.capturedChords.join(' ');
         },
@@ -505,16 +554,13 @@
         _analyzeDraft: function () {
             const chordsStr = (document.getElementById('draft-chords').value || '').trim();
             const keyVal    = document.getElementById('ext-key').value;
-
             if (!chordsStr) {
                 window.HMSApp.showToast('Capture alguns acordes primeiro.', 'warning');
                 return;
             }
-
             const kObj    = KEYS.find(k => k.value === keyVal) || KEYS[0];
             const root    = kObj.value.replace(/m$/, '');
             const isMinor = kObj.isMinor;
-
             const degrees = window.HarmonyEngine.analyze(chordsStr, root, isMinor);
 
             const resultEl = document.getElementById('draft-result');
@@ -533,7 +579,6 @@
                     </div>
                 </div>
             `;
-
             document.getElementById('btn-go-analyzer').addEventListener('click', () => {
                 window.HMSApp.navigate('analyzer');
                 setTimeout(() => {
