@@ -160,9 +160,17 @@
                 continue;
             }
 
-            // Regular chord degree
+            // Regular chord degree(s).
+            // A run like "251" (no spaces) must be split into ["2","5","1"].
+            // Guard: only split when parsePrefixStr reconstructs the exact raw
+            // string — otherwise a token like "1sus4" (foreign chars) is kept whole.
             if (/^[b#]?[1-7]/.test(raw)) {
-                tokens.push({ type: 'CHORD', value: raw });
+                const parts = parsePrefixStr(raw);
+                if (parts.length > 1 && parts.join('') === raw) {
+                    for (const p of parts) tokens.push({ type: 'CHORD', value: p });
+                } else {
+                    tokens.push({ type: 'CHORD', value: raw });
+                }
                 continue;
             }
 
