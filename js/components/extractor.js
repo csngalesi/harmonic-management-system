@@ -70,6 +70,10 @@
         // ⑥ Onset blanking: ignore first N ms after a chord change (transition noise)
         onsetBlankMs:    150,
         onsetBlankUntil: 0,
+        // ⑦ Perceived key: inferred after 15 s of audio
+        keyDetectStartTime: 0,
+        keyDetectBuffer:    [],
+        keyDetectDone:      false,
     };
 
     // ── Priority sets ────────────────────────────────────────────────────────
@@ -153,7 +157,7 @@
                                     <option value="0">Manual</option>
                                 </select>
                             </div>
-                            <div style="display:flex;gap:8px;align-items:center;">
+                            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
                                 <button class="btn btn-primary" id="btn-start-mic">
                                     <i class="fa-solid fa-microphone"></i> Ligar Microfone
                                 </button>
@@ -164,6 +168,10 @@
                                     <i class="fa-solid fa-file-audio"></i> Carregar MP3
                                     <input type="file" id="file-input" accept="audio/*" style="display:none;" />
                                 </label>
+                                <div style="display:flex;flex-direction:column;gap:2px;padding-left:8px;border-left:1px solid var(--border);">
+                                    <span style="font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);">Tom Percebido</span>
+                                    <span id="perceived-key" style="font-size:.88rem;color:var(--chord-blue);font-family:var(--font-mono);min-width:80px;">—</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -268,6 +276,7 @@
                 _state.micStream = stream;
                 ExtractorComponent._setupAudioContext(stream);
                 _state.isRecording = true;
+                ExtractorComponent._resetKeyDetect();
                 document.getElementById('btn-start-mic').classList.add('hidden');
                 document.getElementById('btn-stop-mic').classList.remove('hidden');
                 window.HMSApp.showToast('Microfone ativado.', 'success');
@@ -297,6 +306,7 @@
                     _state.sourceNode  = source;
                     _state.isRecording = true;
                     _resetDetectionState();
+                    ExtractorComponent._resetKeyDetect();
 
                     document.getElementById('btn-start-mic').classList.add('hidden');
                     document.getElementById('label-file-input').classList.add('hidden');
@@ -440,6 +450,21 @@
                     }
                 }
 
+                // ⑦ Key detection: accumulate unique consecutive chords; infer after 15 s
+                if (_state.detectedChord !== '—') {
+                    const buf = _state.keyDetectBuffer;
+                    if (!buf.length || buf[buf.length - 1] !== _state.detectedChord)
+                        buf.push(_state.detectedChord);
+                }
+                if (!_state.keyDetectDone && _state.keyDetectStartTime > 0 &&
+                        Date.now() - _state.keyDetectStartTime >= 15000 &&
+                        _state.keyDetectBuffer.length >= 3) {
+                    _state.keyDetectDone = true;
+                    const inferred = ExtractorComponent._inferKey(_state.keyDetectBuffer);
+                    const el = document.getElementById('perceived-key');
+                    if (el) el.textContent = inferred ? inferred.label : '?';
+                }
+
                 // Auto-capture (uses the stable chord, not the raw candidate)
                 if (_state.captureInterval > 0 && _state.detectedChord !== '—') {
                     const now = Date.now();
@@ -544,6 +569,38 @@
             }
 
             return best;
+        },
+
+        // ── Perceived Key ─────────────────────────────────────────
+        _resetKeyDetect: function () {
+            _state.keyDetectStartTime = Date.now();
+            _state.keyDetectBuffer    = [];
+            _state.keyDetectDone      = false;
+            const el = document.getElementById('perceived-key');
+            if (el) el.textContent = '…';
+        },
+
+        _inferKey: function (chords) {
+            if (!window.HarmonyEngine || !chords.length) return null;
+            const keys = window.HarmonyEngine.allKeys();
+            const unique = [...new Set(chords)];
+
+            let bestKey = null, bestScore = -Infinity;
+
+            for (const key of keys) {
+                let score = 0;
+                for (const chord of unique) {
+                    const deg = (window.HarmonyEngine.analyze(chord, key.value, key.isMinor) || '').trim();
+                    if (/^[1-7]/.test(deg)) score++;          // root is in scale
+                    if (/^[1-7]$/.test(deg)) score += 0.5;    // quality also matches diatonic
+                }
+                // Tiebreaker: bonus if tonic root appears among the chord roots
+                const tonicRoot = key.value.replace(/m$/, '');
+                if (unique.some(c => (c.match(/^([A-G][b#]?)/) || [])[1] === tonicRoot))
+                    score += 0.5;
+                if (score > bestScore) { bestScore = score; bestKey = key; }
+            }
+            return bestKey;
         },
 
         // ── Chord Capture ─────────────────────────────────────────
