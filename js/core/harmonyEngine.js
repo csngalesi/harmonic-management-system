@@ -206,6 +206,12 @@
                 continue;
             }
 
+            // Reference label: $Texto$ — free-form annotation
+            if (raw.startsWith('$') && raw.endsWith('$') && raw.length > 2) {
+                tokens.push({ type: 'LABEL', value: raw.slice(1, -1) });
+                continue;
+            }
+
             // Regular chord degree(s).
             // A run like "251" (no spaces) must be split into ["2","5","1"].
             // Guard: only split when parsePrefixStr reconstructs the exact raw
@@ -312,6 +318,9 @@
                 if (token.times > 1) {
                     result.push({ type: 'STRUCT', value: '×' + token.times });
                 }
+
+            } else if (token.type === 'LABEL') {
+                result.push({ type: 'LABEL', value: token.value });
 
             } else if (token.type === 'RAW') {
                 result.push({ type: 'STRUCT', value: token.value });

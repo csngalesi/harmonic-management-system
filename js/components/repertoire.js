@@ -298,12 +298,13 @@
             btn.innerHTML = '<span class="btn-spinner"></span> Buscando…';
 
             try {
-                const url = `https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(title)}`;
+                const url = `https://lrclib.net/api/get?artist_name=${encodeURIComponent(artist)}&track_name=${encodeURIComponent(title)}`;
                 const res = await fetch(url);
                 if (!res.ok) throw new Error('not_found');
                 const data = await res.json();
-                if (!data.lyrics) throw new Error('not_found');
-                document.getElementById('sf-lyrics').value = data.lyrics.trim();
+                const lyrics = data.plainLyrics || data.syncedLyrics;
+                if (!lyrics) throw new Error('not_found');
+                document.getElementById('sf-lyrics').value = lyrics.trim();
                 window.HMSApp.showToast('Letra encontrada!', 'success');
             } catch {
                 window.HMSApp.showToast('Letra não encontrada para este artista/título.', 'warning');

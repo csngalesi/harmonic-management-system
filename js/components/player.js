@@ -240,6 +240,9 @@
             }
 
             grid.innerHTML = tokens.map(t => {
+                if (t.type === 'LABEL') {
+                    return `<div class="chord-cell label">${esc(t.value)}</div>`;
+                }
                 if (t.type === 'STRUCT') {
                     return `<div class="chord-cell struct">${esc(t.value)}</div>`;
                 }

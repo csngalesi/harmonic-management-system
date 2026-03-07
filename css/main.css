@@ -467,6 +467,7 @@ tbody tr:hover td { background: var(--glass-bg); }
 }
 .chord-cell:hover { border-color: var(--chord-green); background: rgba(74,222,128,.08); }
 .chord-cell.struct { color: var(--text-muted); font-size: 1.1rem; background: transparent; border-style: dashed; }
+.chord-cell.label { color: var(--text-muted); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; background: rgba(255,255,255,.05); border-style: solid; border-color: rgba(255,255,255,.15); min-width: auto; padding: 4px 10px; align-self: center; }
 .chord-cell.chord-highlight { color: var(--chord-amber); border-color: var(--chord-amber); background: rgba(251,191,36,.08); }
 
 /* Large display mode */
