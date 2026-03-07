@@ -168,9 +168,14 @@
                                     <i class="fa-solid fa-file-audio"></i> Carregar MP3
                                     <input type="file" id="file-input" accept="audio/*" style="display:none;" />
                                 </label>
-                                <div style="display:flex;flex-direction:column;gap:2px;padding-left:8px;border-left:1px solid var(--border);">
+                                <div style="display:flex;flex-direction:column;gap:4px;padding-left:8px;border-left:1px solid var(--border);">
                                     <span style="font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);">Tom Percebido</span>
-                                    <span id="perceived-key" style="font-size:.88rem;color:var(--chord-blue);font-family:var(--font-mono);min-width:80px;">—</span>
+                                    <div style="display:flex;align-items:center;gap:6px;">
+                                        <span id="perceived-key" style="font-size:.88rem;color:var(--chord-blue);font-family:var(--font-mono);min-width:80px;">—</span>
+                                        <button class="btn btn-secondary btn-sm" id="btn-reset-key" title="Zerar e recapturar o tom">
+                                            <i class="fa-solid fa-rotate"></i>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -261,6 +266,7 @@
                 _resetDetectionState();
             });
             document.getElementById('btn-analyze-draft').addEventListener('click', () => ExtractorComponent._analyzeDraft());
+            document.getElementById('btn-reset-key').addEventListener('click', () => ExtractorComponent._resetKeyDetect());
 
             document.addEventListener('keydown', (e) => {
                 if (e.key !== 'Control') return;
