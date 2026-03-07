@@ -73,10 +73,15 @@
                             <p>${esc([s.artist, s.composer, s.genre].filter(Boolean).join(' · '))}</p>
                         </div>
                     </div>
-                    <div class="page-actions">
-                        <button class="btn btn-primary" id="btn-play-audio" style="margin-right:8px;" title="Tocar sequência (1 acorde/seg)">
-                            <i class="fa-solid fa-play"></i> Ouvir Tática
-                        </button>
+                        <div style="display:flex;align-items:center;background:var(--surface);border:1px solid var(--line-color);border-radius:8px;padding:2px;margin-right:8px;">
+                            <button class="btn btn-primary" id="btn-play-audio" style="border-radius:6px;height:100%;margin-right:6px;" title="Tocar sequência">
+                                <i class="fa-solid fa-play"></i> Ouvir Tática
+                            </button>
+                            <div style="display:flex;align-items:center;padding-right:10px;">
+                                <label for="play-bpm" style="font-size:0.8rem;color:var(--text-muted);margin-right:6px;margin-bottom:0;">BPM:</label>
+                                <input type="number" id="play-bpm" value="60" min="20" max="240" step="5" style="width:55px;background:transparent;border:none;color:white;font-family:var(--font-mono);font-size:0.9rem;outline:none;" />
+                            </div>
+                        </div>
                         <button class="btn btn-secondary" id="btn-back-rep">
                             <i class="fa-solid fa-arrow-left"></i> Repertório
                         </button>
@@ -158,6 +163,9 @@
                     playBtn.classList.remove('btn-danger');
                     playBtn.classList.add('btn-primary');
                 } else {
+                    const bpmInput = document.getElementById('play-bpm');
+                    const bpm = bpmInput ? parseInt(bpmInput.value, 10) || 60 : 60;
+
                     const tokens = window.HarmonyEngine.translate(
                         _state.song.harmony_str,
                         _state.displayKey,
@@ -165,7 +173,7 @@
                     );
 
                     try {
-                        await window.HMSAudio.playSequence(tokens, () => {
+                        await window.HMSAudio.playSequence(tokens, bpm, () => {
                             // Reset button when finished naturally
                             if (playBtn) {
                                 playBtn.innerHTML = '<i class="fa-solid fa-play"></i> Ouvir Tática';

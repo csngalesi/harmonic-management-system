@@ -12,26 +12,37 @@
     async function initSynth() {
         if (!synth) {
             await Tone.start();
-            // A plucky, guitar/harp-like FM synth
-            synth = new Tone.PolySynth(Tone.FMSynth, {
-                harmonicity: 3.0,
-                modulationIndex: 10,
-                oscillator: { type: "sine" },
-                envelope: {
-                    attack: 0.01,
-                    decay: 1.5,
-                    sustain: 0.1,
-                    release: 1.2
-                },
-                modulation: { type: "square" },
-                modulationEnvelope: {
-                    attack: 0.01,
-                    decay: 0.5,
-                    sustain: 0.0,
-                    release: 0.1
-                }
-            }).toDestination();
-            synth.volume.value = -8; // reduce volume slightly
+
+            // Using a realistic Acoustic Guitar Sampler via a public CDN 
+            // from Tone.js's standard sound library (Salamander / Guitar)
+            return new Promise((resolve) => {
+                synth = new Tone.Sampler({
+                    urls: {
+                        "A2": "A2.mp3",
+                        "A3": "A3.mp3",
+                        "A4": "A4.mp3",
+                        "C3": "C3.mp3",
+                        "C4": "C4.mp3",
+                        "C5": "C5.mp3",
+                        "E2": "E2.mp3",
+                        "E3": "E3.mp3",
+                        "E4": "E4.mp3"
+                    },
+                    baseUrl: "https://tonejs.github.io/audio/salamander/",
+                    release: 1.5,
+                    onload: () => {
+                        // Add a slight reverb to simulate the guitar body
+                        const reverb = new Tone.Reverb({
+                            decay: 2.5,
+                            preDelay: 0.01
+                        }).toDestination();
+
+                        synth.connect(reverb);
+                        synth.volume.value = -2; // Default piano samples are quiet
+                        resolve(synth);
+                    }
+                });
+            });
         }
         return synth;
     }
@@ -78,7 +89,7 @@
     }
 
     const AudioEngine = {
-        async playSequence(tokens, onStop) {
+        async playSequence(tokens, bpm = 60, onStop) {
             if (isPlaying) {
                 this.stop();
                 if (onStop) onStop();
@@ -90,7 +101,7 @@
 
             const events = [];
             let time = 0;
-            const BEAT_DURATION = 1.0; // 1 second per structural token (chord or slash)
+            const BEAT_DURATION = 60.0 / bpm; // Adjust duration based on BPM
 
             let lastChordNotes = [];
 
@@ -114,10 +125,12 @@
                 }
             }
 
+            Tone.Transport.bpm.value = bpm;
+
             part = new Tone.Part((t, value) => {
-                // Strumming effect (slight delay between notes)
+                // Strumming effect: longer delay between notes for a guitar feel
                 value.notes.forEach((note, i) => {
-                    synth.triggerAttackRelease(note, "2n", t + (i * 0.02));
+                    synth.triggerAttackRelease(note, "2n", t + (i * 0.035));
                 });
             }, events).start(0);
 
