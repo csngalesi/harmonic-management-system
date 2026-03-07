@@ -48,9 +48,10 @@
         capturedChords:  [],
         lastCaptureTime: 0,
         captureInterval: 1500,
-        diatonicSet:     new Set(),  // cached "noteIdx:quality" for selected key
-        secDomSet:       new Set(),  // secondary dominant roots (dom7)
-        iiPrepSet:       new Set(),  // ii preparation roots (m or h)
+        diatonicSet:     new Set(),  // degrees I–VI  → +0.20
+        degVIISet:       new Set(),  // degree VII    → +0.15
+        secDomSet:       new Set(),  // V7/target     → +0.18
+        iiPrepSet:       new Set(),  // ii/target     → +0.18
     };
 
     // ── Build priority sets from the currently selected key ─────────────────
@@ -62,26 +63,33 @@
         const scale   = isMinor ? MINOR_SCALE : MAJOR_SCALE;
         const quals   = isMinor ? MINOR_QUALITY : MAJOR_QUALITY;
 
-        const diatonic  = new Set();
-        const secDom    = new Set();   // dom7 roots that resolve to a diatonic target
-        const iiPrep    = new Set();   // minor/h roots 2 semitones below a dom7
+        const diatonic = new Set();  // degrees I–VI
+        const degVII   = new Set();  // degree VII only
+        const secDom   = new Set();  // dom7 whose root is P5 above a diatonic chord
+        const iiPrep   = new Set();  // m or h chord 2 semitones below a dom7
 
         for (let deg = 1; deg <= 7; deg++) {
             const ni = (rootIdx + scale[deg] + 120) % 12;
             const q  = quals[deg];
-            diatonic.add(`${ni}:${q}`);
 
-            // Secondary dominant: dom7 whose root is P5 above this diatonic chord
+            if (deg === 7) {
+                degVII.add(`${ni}:${q}`);
+            } else {
+                diatonic.add(`${ni}:${q}`);
+            }
+
+            // Secondary dominant: dom7 a P5 above this chord
             const secRoot = (ni + 7) % 12;
             secDom.add(`${secRoot}:7`);
 
-            // ii preparation: minor or h chord 2 semitones below that dom7
+            // ii preparation: m or h chord 2 semitones below the dom7
             const iiRoot = (secRoot - 2 + 12) % 12;
             iiPrep.add(`${iiRoot}:m`);
             iiPrep.add(`${iiRoot}:h`);
         }
 
         _state.diatonicSet = diatonic;
+        _state.degVIISet   = degVII;
         _state.secDomSet   = secDom;
         _state.iiPrepSet   = iiPrep;
     }
@@ -373,7 +381,7 @@
 
                 const confEl = document.getElementById('chord-confidence');
                 if (confEl && result) {
-                    const tag = result.isDiatonic ? ' · diat.' : result.isSecDom ? ' · V7/x' : result.isIIPrep ? ' · ii/x' : '';
+                    const tag = result.isDiatonic ? ' · diat.' : result.isDegVII ? ' · VII' : result.isSecDom ? ' · V7/x' : result.isIIPrep ? ' · ii/x' : '';
                     confEl.textContent = `${Math.round(result.score * 100)}%${tag}`;
                 } else if (confEl) {
                     confEl.textContent = '';
@@ -409,11 +417,12 @@
             return chroma;
         },
 
-        // ── Template Matching with Diatonic / SecDom / ii Bias ────
-        // Bonuses:
-        //   Diatonic chord of selected key  → +0.20
-        //   Secondary dominant V7/target    → +0.10
-        //   ii preparation (m or h)         → +0.08
+        // ── Template Matching with priority bias ──────────────────
+        // Bonuses (mutually exclusive, highest wins):
+        //   Diatonic I–VI of selected key  → +0.20
+        //   Diatonic VII of selected key   → +0.15
+        //   Secondary dominant V7/target   → +0.18
+        //   ii preparation m/h → target    → +0.18
         _detectChord: function (freqData, sampleRate) {
             const chroma = ExtractorComponent._computeChroma(freqData, sampleRate);
             const maxVal = Math.max(...chroma);
@@ -435,23 +444,26 @@
                     }
                     score /= tmpl.iv.length;
 
-                    // Priority bonuses
-                    const key       = `${root}:${tmpl.q}`;
+                    // Priority bonuses (mutually exclusive)
+                    const key        = `${root}:${tmpl.q}`;
                     const isDiatonic = _state.diatonicSet.has(key);
-                    const isSecDom   = !isDiatonic && _state.secDomSet.has(key);
-                    const isIIPrep   = !isDiatonic && !isSecDom && _state.iiPrepSet.has(key);
+                    const isDegVII   = !isDiatonic && _state.degVIISet.has(key);
+                    const isSecDom   = !isDiatonic && !isDegVII && _state.secDomSet.has(key);
+                    const isIIPrep   = !isDiatonic && !isDegVII && !isSecDom && _state.iiPrepSet.has(key);
 
                     if (isDiatonic) score += 0.20;
-                    else if (isSecDom) score += 0.10;
-                    else if (isIIPrep) score += 0.08;
+                    else if (isDegVII) score += 0.15;
+                    else if (isSecDom) score += 0.18;
+                    else if (isIIPrep) score += 0.18;
 
                     if (score > THRESHOLD && (!best || score > best.score)) {
                         best = {
                             name: CHROMATIC[root] + tmpl.q,
                             root,
-                            quality:   tmpl.q,
+                            quality:  tmpl.q,
                             score,
                             isDiatonic,
+                            isDegVII,
                             isSecDom,
                             isIIPrep,
                         };
