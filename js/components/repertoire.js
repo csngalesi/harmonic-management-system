@@ -251,7 +251,12 @@
                                 <span class="form-hint">Use a sintaxe HMS: 1 6m 25(4) !2M! {1 4}x2</span>
                             </div>
                             <div class="form-group form-group-full">
-                                <label class="form-label">Letra</label>
+                                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                                    <label class="form-label" style="margin:0;">Letra</label>
+                                    <button type="button" class="btn btn-secondary btn-sm" id="btn-fetch-lyrics">
+                                        <i class="fa-solid fa-magnifying-glass"></i> Buscar na web
+                                    </button>
+                                </div>
                                 <textarea id="sf-lyrics" class="form-input" rows="4"
                                     placeholder="Letra da música (opcional)">${esc(song?.lyrics || '')}</textarea>
                             </div>
@@ -272,8 +277,40 @@
             document.getElementById('modal-save-btn').addEventListener('click', () => {
                 RepertoireComponent._handleSaveSong(songId);
             });
+            document.getElementById('btn-fetch-lyrics').addEventListener('click', () => {
+                RepertoireComponent._fetchLyrics();
+            });
 
             document.getElementById('sf-title').focus();
+        },
+
+        _fetchLyrics: async function () {
+            const artist = (document.getElementById('sf-artist').value || '').trim();
+            const title  = (document.getElementById('sf-title').value  || '').trim();
+
+            if (!artist || !title) {
+                window.HMSApp.showToast('Preencha Título e Intérprete antes de buscar.', 'warning');
+                return;
+            }
+
+            const btn = document.getElementById('btn-fetch-lyrics');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="btn-spinner"></span> Buscando…';
+
+            try {
+                const url = `https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(title)}`;
+                const res = await fetch(url);
+                if (!res.ok) throw new Error('not_found');
+                const data = await res.json();
+                if (!data.lyrics) throw new Error('not_found');
+                document.getElementById('sf-lyrics').value = data.lyrics.trim();
+                window.HMSApp.showToast('Letra encontrada!', 'success');
+            } catch {
+                window.HMSApp.showToast('Letra não encontrada para este artista/título.', 'warning');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Buscar na web';
+            }
         },
 
         _handleSaveSong: async function (editId) {
