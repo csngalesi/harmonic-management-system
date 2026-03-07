@@ -413,46 +413,72 @@
         return chordStr; // fallback
     }
 
-    // Pattern recognition: detect ii-V-I and compress to 25(target) notation
-    function detectCadencePatterns(degreeArr, noteIdxArr) {
+    // Pattern recognition: detect ii-V-I, ii-V, and secondary dominants
+    function detectCadencePatterns(degreeArr, noteIdxArr, keyState) {
+        const scale    = keyState.isMinor ? MINOR_SCALE    : MAJOR_SCALE;
+        const diatonic = keyState.isMinor ? MINOR_QUALITY  : MAJOR_QUALITY;
+
+        // Note index of the natural V chord in this key
+        const naturalVIdx = ((keyState.rootIdx + scale[5]) % 12 + 12) % 12;
+
+        // Quality of a degree string: explicit if present, else infer from diatonic
+        function getQ(degStr) {
+            const explicit = extractQuality(degStr);
+            if (explicit !== '') return normalizeQ(explicit);
+            const m = degStr.match(/^[b#]?([1-7])$/);
+            if (m) return normalizeQ(diatonic[parseInt(m[1])] ?? '');
+            return '';
+        }
+
+        // Degree number (1-7) for a note index in this key, or null
+        function degForNote(ni) {
+            for (let d = 1; d <= 7; d++) {
+                if (((keyState.rootIdx + scale[d]) % 12 + 12) % 12 === ni) return d;
+            }
+            return null;
+        }
+
         const result = [];
         let i = 0;
 
         while (i < degreeArr.length) {
-            // Look for ii-V pattern: chord[i] minor, chord[i+1] dominant 7th
-            // where chord[i+1]'s root is a perfect 4th above chord[i]'s root
             if (i + 1 < degreeArr.length) {
-                const ni1 = noteIdxArr[i];
-                const ni2 = noteIdxArr[i + 1];
-                const d1 = degreeArr[i];
-                const d2 = degreeArr[i + 1];
-                const q1 = extractQuality(d1);
-                const q2 = extractQuality(d2);
+                const ni1 = noteIdxArr[i], ni2 = noteIdxArr[i + 1];
+                const d1  = degreeArr[i],  d2  = degreeArr[i + 1];
+                const q1  = getQ(d1),      q2  = getQ(d2);
 
                 const isIIchord = (q1 === 'm' || q1 === 'm7' || q1 === 'h');
-                const isVchord = (q2 === '7' || q2 === '');
-                // Root of V should be P4 above root of ii (= 5 semitones up)
-                const isP4up = ((ni1 + 5) % 12 === ni2);
+                const isP4up    = ((ni1 + 5) % 12 === ni2);
 
-                if (isIIchord && isVchord && isP4up && q2 === '7') {
-                    // Predict target: P5 above V = P4 below V = ni2 + 7 (or ni2 - 5)
-                    const targetIdx = (ni2 + 7) % 12;
+                // ii-V detection (V must have dominant 7 quality)
+                if (isIIchord && q2 === '7' && isP4up) {
+                    // V resolves a P4 above its root (= I root)
+                    const targetIdx = (ni2 + 5) % 12;
 
-                    // Check if next chord is the target
                     if (i + 2 < degreeArr.length && noteIdxArr[i + 2] === targetIdx) {
-                        const targetDeg = degreeArr[i + 2];
-                        result.push(`25(${extractBareNumber(targetDeg)}${extractMode(targetDeg)})`);
-                        i += 3; // consume ii-V-I
+                        // ii-V-I: consume 3 chords
+                        const tDeg = degreeArr[i + 2];
+                        result.push(`25(${extractBareNumber(tDeg)}${extractMode(tDeg)})`);
+                        i += 3;
                         continue;
                     } else {
-                        // ii-V without resolution → hidden target notation
-                        const targetDeg = predictTargetDegree(degreeArr[i + 1], noteIdxArr[i + 1], degreeArr);
-                        result.push(`25"${targetDeg}"`);
-                        i += 2; // consume ii-V
+                        // ii-V without immediate resolution: predict hidden target
+                        const tDegNum = degForNote(targetIdx);
+                        result.push(`25"${tDegNum ?? '?'}"`);
+                        i += 2;
                         continue;
                     }
                 }
+
+                // Secondary dominant: non-natural-V chord with dominant quality resolving P4 up
+                if (q1 === '7' && ((ni1 + 5) % 12 === ni2) && ni1 !== naturalVIdx) {
+                    const tDeg = degreeArr[i + 1];
+                    result.push(`5(${extractBareNumber(tDeg)}${extractMode(tDeg)})`);
+                    i += 2; // consume V7 and its target together
+                    continue;
+                }
             }
+
             result.push(degreeArr[i]);
             i++;
         }
@@ -472,14 +498,6 @@
     function extractMode(degStr) {
         const m = degStr.match(/[b#]?[1-7]([mM]?)/);
         return m ? m[1] : '';
-    }
-
-    function predictTargetDegree(vDegStr, vNoteIdx, allDegs) {
-        // The target would resolve a P5 above V (or P4 below)
-        // Return the bare degree number as best guess
-        const targetNoteIdx = (vNoteIdx + 7) % 12;
-        // Try to find this in allDegs
-        return extractBareNumber(vDegStr) || '?';
     }
 
     // ── All Available Keys ───────────────────────────────────────
@@ -566,7 +584,7 @@
             });
 
             // Apply cadence pattern recognition
-            const refined = detectCadencePatterns(degreeArr, noteIdxArr);
+            const refined = detectCadencePatterns(degreeArr, noteIdxArr, keyState);
 
             return refined.join(' ');
         },
