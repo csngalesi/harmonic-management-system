@@ -413,12 +413,13 @@
         return chordStr; // fallback
     }
 
-    // Pattern recognition: detect ii-V-I, ii-V, and secondary dominants
-    function detectCadencePatterns(degreeArr, noteIdxArr, keyState) {
+    // Pattern recognition: detect ii-V-I, ii-V, secondary dominants.
+    // repeatFlags[i] = true when position i had an adjacent duplicate chord in the input.
+    function detectCadencePatterns(degreeArr, noteIdxArr, keyState, repeatFlags) {
         const scale    = keyState.isMinor ? MINOR_SCALE    : MAJOR_SCALE;
         const diatonic = keyState.isMinor ? MINOR_QUALITY  : MAJOR_QUALITY;
+        const rf       = repeatFlags || [];
 
-        // Note index of the natural V chord in this key
         const naturalVIdx = ((keyState.rootIdx + scale[5]) % 12 + 12) % 12;
 
         // Quality of a degree string: explicit if present, else infer from diatonic
@@ -438,6 +439,21 @@
             return null;
         }
 
+        // Build a SEC_DOM token string.
+        // prefix: HMS prefix like "25" or "5"
+        // target: bare target degree like "4" or "1m"
+        // slashBefore: insert "/" between prefix output and target (repeats prefix's last chord)
+        // slashAfter:  insert "/" after target (repeats target chord)
+        // show: true → parens (show target), false → double quotes (hide target)
+        function mkSecDom(prefix, target, slashBefore, slashAfter, show) {
+            const open  = show ? '(' : '"';
+            const close = show ? ')' : '"';
+            return `${prefix}${slashBefore ? '/' : ''}${open}${target}${slashAfter ? '/' : ''}${close}`;
+        }
+
+        // Bare target string: degree number + mode ("4", "1m", etc.)
+        function tgt(d) { return extractBareNumber(d) + extractMode(d); }
+
         const result = [];
         let i = 0;
 
@@ -446,40 +462,52 @@
                 const ni1 = noteIdxArr[i], ni2 = noteIdxArr[i + 1];
                 const d1  = degreeArr[i],  d2  = degreeArr[i + 1];
                 const q1  = getQ(d1),      q2  = getQ(d2);
+                const r0  = rf[i]     ?? false;
+                const r1  = rf[i + 1] ?? false;
 
                 const isIIchord = (q1 === 'm' || q1 === 'm7' || q1 === 'h');
                 const isP4up    = ((ni1 + 5) % 12 === ni2);
 
                 // ii-V detection (V must have dominant 7 quality)
                 if (isIIchord && q2 === '7' && isP4up) {
-                    // V resolves a P4 above its root (= I root)
-                    const targetIdx = (ni2 + 5) % 12;
+                    const targetIdx = (ni2 + 5) % 12; // V resolves P4 above its root
 
                     if (i + 2 < degreeArr.length && noteIdxArr[i + 2] === targetIdx) {
                         // ii-V-I: consume 3 chords
-                        const tDeg = degreeArr[i + 2];
-                        result.push(`25(${extractBareNumber(tDeg)}${extractMode(tDeg)})`);
-                        i += 3;
-                        continue;
+                        const r2 = rf[i + 2] ?? false;
+                        const t  = tgt(degreeArr[i + 2]);
+                        if (r0) {
+                            // ii has its own repeat; V→I as a separate SEC_DOM
+                            result.push('2'); result.push('/');
+                            result.push(mkSecDom('5', t, r1, r2, true));
+                        } else {
+                            result.push(mkSecDom('25', t, r1, r2, true));
+                        }
+                        i += 3; continue;
                     } else {
-                        // ii-V without immediate resolution: predict hidden target
+                        // ii-V without immediate resolution → hidden target
                         const tDegNum = degForNote(targetIdx);
-                        result.push(`25"${tDegNum ?? '?'}"`);
-                        i += 2;
-                        continue;
+                        const t = tDegNum ? String(tDegNum) : '?';
+                        if (r0) {
+                            result.push('2'); result.push('/');
+                            result.push(mkSecDom('5', t, r1, false, false));
+                        } else {
+                            result.push(mkSecDom('25', t, r1, false, false));
+                        }
+                        i += 2; continue;
                     }
                 }
 
                 // Secondary dominant: non-natural-V chord with dominant quality resolving P4 up
                 if (q1 === '7' && ((ni1 + 5) % 12 === ni2) && ni1 !== naturalVIdx) {
-                    const tDeg = degreeArr[i + 1];
-                    result.push(`5(${extractBareNumber(tDeg)}${extractMode(tDeg)})`);
-                    i += 2; // consume V7 and its target together
-                    continue;
+                    result.push(mkSecDom('5', tgt(d2), r0, r1, true));
+                    i += 2; continue;
                 }
             }
 
+            // Regular chord: output as-is; add "/" if it had a repeat in the input
             result.push(degreeArr[i]);
+            if (rf[i] ?? false) result.push('/');
             i++;
         }
         return result;
@@ -568,23 +596,33 @@
             const keyState = makeKeyState(actualRoot, actualMinor);
 
             // Parse chord list (accepts space or dash separators)
-            const chords = chordsStr
+            const allChords = chordsStr
                 .replace(/\s*-\s*/g, ' ')
                 .trim()
                 .split(/\s+/)
                 .filter(Boolean);
 
+            // Deduplicate adjacent identical chords; track which positions had a repeat
+            const chords      = [];
+            const noteIdxArr  = [];
+            const repeatFlags = [];
+            for (const c of allChords) {
+                const parsed = parseChordStr(c);
+                const ni = parsed ? noteToIdx(parsed.root) : -1;
+                if (chords.length > 0 && c === chords[chords.length - 1] && ni === noteIdxArr[noteIdxArr.length - 1]) {
+                    repeatFlags[repeatFlags.length - 1] = true; // mark previous as repeated
+                } else {
+                    chords.push(c);
+                    noteIdxArr.push(ni);
+                    repeatFlags.push(false);
+                }
+            }
+
             // Map chords to degree tokens
             const degreeArr = chords.map(c => analyzeChord(c, keyState));
 
-            // Collect note indices for pattern detection
-            const noteIdxArr = chords.map(c => {
-                const parsed = parseChordStr(c);
-                return parsed ? noteToIdx(parsed.root) : -1;
-            });
-
             // Apply cadence pattern recognition
-            const refined = detectCadencePatterns(degreeArr, noteIdxArr, keyState);
+            const refined = detectCadencePatterns(degreeArr, noteIdxArr, keyState, repeatFlags);
 
             return refined.join(' ');
         },
