@@ -147,8 +147,8 @@
                                 <label class="form-label">Captura automática a cada</label>
                                 <select id="ext-interval" class="form-input form-select" style="width:130px;">
                                     <option value="1000">1 segundo</option>
-                                    <option value="1500" selected>1,5 segundos</option>
-                                    <option value="2000">2 segundos</option>
+                                    <option value="1500">1,5 segundos</option>
+                                    <option value="2000" selected>2 segundos</option>
                                     <option value="3000">3 segundos</option>
                                     <option value="0">Manual</option>
                                 </select>

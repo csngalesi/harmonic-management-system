@@ -79,7 +79,7 @@
                             </button>
                             <div style="display:flex;align-items:center;padding-right:10px;">
                                 <label for="play-bpm" style="font-size:0.8rem;color:var(--text-muted);margin-right:6px;margin-bottom:0;">BPM:</label>
-                                <input type="number" id="play-bpm" value="60" min="20" max="240" step="5" style="width:55px;background:transparent;border:none;color:white;font-family:var(--font-mono);font-size:0.9rem;outline:none;" />
+                                <input type="number" id="play-bpm" value="45" min="20" max="240" step="5" style="width:55px;background:transparent;border:none;color:white;font-family:var(--font-mono);font-size:0.9rem;outline:none;" />
                             </div>
                         </div>
                         <button class="btn btn-secondary" id="btn-back-rep">
