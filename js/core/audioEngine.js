@@ -41,9 +41,8 @@
         await new Promise((resolve, reject) => {
             sampler = new Tone.Sampler({
                 urls: {
-                    A2: 'A2.mp3', A3: 'A3.mp3', A4: 'A4.mp3',
+                    A2: 'A2.mp3', A3: 'A3.mp3', A4: 'A4.mp3', A5: 'A5.mp3',
                     C3: 'C3.mp3', C4: 'C4.mp3', C5: 'C5.mp3',
-                    E2: 'E2.mp3', E3: 'E3.mp3', E4: 'E4.mp3',
                 },
                 baseUrl: 'https://tonejs.github.io/audio/salamander/',
                 release: 1.5,
