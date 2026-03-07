@@ -144,6 +144,15 @@
             if (raw === '[1.') { tokens.push({ type: 'STRUCT', value: '[1.' }); continue; }
             if (raw === '[2.') { tokens.push({ type: 'STRUCT', value: '[2.' }); continue; }
 
+            // Dot notation: X.Y = degree Y rendered in the key rooted at degree X.
+            // E.g.: 5.5 in C major → V of V → D7
+            //       4.5 in C major → V of IV → C7
+            const dotM = raw.match(/^([b#]?[1-7])\.([b#]?[1-7][mMho7]*)$/);
+            if (dotM) {
+                tokens.push({ type: 'DOT_DEGREE', outer: dotM[1], inner: dotM[2] });
+                continue;
+            }
+
             // Secondary dominant: prefix + (target) or "target"
             // E.g.: 25(4), 57(6m), b725"4", 25(6m)
             const sdM = raw.match(/^([b#1-7mMho7]+)\((.+?)\)$/) ||
@@ -233,12 +242,28 @@
                     }
                 }
 
+            } else if (token.type === 'DOT_DEGREE') {
+                // X.Y — render inner degree Y in the temporary key rooted at outer degree X
+                const outerM = token.outer.match(/^([b#]?)([1-7])$/);
+                if (outerM) {
+                    const outerIdx = degreeNoteIdx(keyState, parseInt(outerM[2]), outerM[1]);
+                    const outerKey = {
+                        rootIdx: outerIdx,
+                        isMinor: isMinorDegree(keyState, parseInt(outerM[2])),
+                        useFlats: keyState.useFlats,
+                    };
+                    result.push({ type: 'CHORD', value: renderDegreeToken(token.inner, outerKey) });
+                }
+
             } else if (token.type === 'SECTION') {
-                // Expand {section}xN: process inner content N times
+                // Render section content once; append ×N marker when N > 1.
+                // Expanding N times was wrong for display — musicians write {A}x2 meaning
+                // "play section A twice", not "show all chords twice".
                 const innerTokens = tokenize(token.content);
-                for (let i = 0; i < token.times; i++) {
-                    const innerResults = processTokens(innerTokens, { ...keyState });
-                    result.push(...innerResults);
+                const innerResults = processTokens(innerTokens, { ...keyState });
+                result.push(...innerResults);
+                if (token.times > 1) {
+                    result.push({ type: 'STRUCT', value: '×' + token.times });
                 }
 
             } else if (token.type === 'RAW') {
