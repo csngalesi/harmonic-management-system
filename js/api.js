@@ -9,24 +9,36 @@
 
     // ── Songs ────────────────────────────────────────────────────
     const Songs = {
-        async getAll({ search = '', setlistId = '' } = {}) {
+        async getAll({ search = '', setlistId = '', searchType = 'all' } = {}) {
             let query = db()
                 .from('songs')
-                .select('id, title, artist, composer, genre, original_key, harmony_str, created_at')
+                .select('id, title, artist, composer, genre, original_key, harmony_str, has_lyrics, created_at')
                 .order('title', { ascending: true });
 
             if (search) {
-                query = query.or(`title.ilike.%${search}%,artist.ilike.%${search}%,harmony_str.ilike.%${search}%`);
+                switch (searchType) {
+                    case 'title':   query = query.ilike('title',       `%${search}%`); break;
+                    case 'artist':  query = query.ilike('artist',      `%${search}%`); break;
+                    case 'genre':   query = query.ilike('genre',       `%${search}%`); break;
+                    case 'harmony': query = query.ilike('harmony_str', `%${search}%`); break;
+                    default: // 'all'
+                        query = query.or(`title.ilike.%${search}%,artist.ilike.%${search}%,genre.ilike.%${search}%,harmony_str.ilike.%${search}%`);
+                }
             }
 
             if (setlistId) {
                 const { data: links } = await db()
                     .from('setlist_songs')
-                    .select('song_id')
+                    .select('song_id, position')
                     .eq('setlist_id', setlistId);
-                const ids = (links || []).map(l => l.song_id);
-                if (ids.length === 0) return [];
-                query = query.in('id', ids);
+                const links_ = links || [];
+                if (links_.length === 0) return [];
+                const ids = links_.map(l => l.song_id);
+                const posMap = {};
+                links_.forEach(l => { posMap[l.song_id] = l.position; });
+                const { data, error } = await query.in('id', ids);
+                if (error) throw error;
+                return (data || []).map(s => ({ ...s, _position: posMap[s.id] ?? null }));
             }
 
             const { data, error } = await query;
@@ -73,6 +85,17 @@
                 .eq('id', id);
             if (error) throw error;
         },
+
+        async bulkCreate(rows) {
+            const user = await window.HMSAuth.currentUser();
+            const payload = rows.map(r => ({ ...r, user_id: user.id }));
+            const { data, error } = await db()
+                .from('songs')
+                .insert(payload)
+                .select('id, title, artist');
+            if (error) throw error;
+            return data || [];
+        },
     };
 
     // ── Setlists ─────────────────────────────────────────────────
@@ -113,11 +136,14 @@
             if (error) throw error;
         },
 
-        async addSong(setlistId, songId) {
+        async addSong(setlistId, songId, position = 0) {
             const { error } = await db()
                 .from('setlist_songs')
-                .insert({ setlist_id: setlistId, song_id: songId });
-            if (error && error.code !== '23505') throw error; // 23505 = unique violation
+                .upsert(
+                    { setlist_id: setlistId, song_id: songId, position },
+                    { onConflict: 'setlist_id,song_id' }
+                );
+            if (error) throw error;
         },
 
         async removeSong(setlistId, songId) {

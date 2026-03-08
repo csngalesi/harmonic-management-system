@@ -14,6 +14,9 @@
         setlists:     [],
         activeSetlist: '',
         searchQuery:  '',
+        searchType:   'all',      // 'all' | 'title' | 'artist' | 'genre' | 'harmony'
+        sortBy:       'title',    // 'title' | 'artist' | 'key' | 'position'
+        sortDir:      'asc',      // 'asc' | 'desc'
     };
 
     const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -37,6 +40,13 @@
                         <button class="btn btn-secondary" id="btn-manage-setlists">
                             <i class="fa-solid fa-folder-open"></i> Setlists
                         </button>
+                        <label class="btn btn-secondary" id="label-import-csv" style="cursor:pointer;" title="Importar lista CSV (Título;Artista)">
+                            <i class="fa-solid fa-file-import"></i> Importar CSV
+                            <input type="file" id="input-import-csv" accept=".csv,.txt" style="display:none;" />
+                        </label>
+                        <button class="btn btn-secondary" id="btn-bulk-lyrics" title="Buscar letras em massa via lrclib.net">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> Buscar Letras
+                        </button>
                         <button class="btn btn-primary" id="btn-new-song">
                             <i class="fa-solid fa-plus"></i> Nova Música
                         </button>
@@ -50,14 +60,43 @@
                     </div>
                 </div>
 
-                <!-- Search bar -->
-                <div class="search-bar mb-2">
-                    <input type="text" id="song-search" class="form-input"
-                        placeholder='Buscar por título, artista ou grau (ex: "25(4)")…'
-                        value="${esc(_state.searchQuery)}" />
-                    <button class="btn btn-secondary" id="btn-search">
-                        <i class="fa-solid fa-magnifying-glass"></i>
-                    </button>
+                <!-- Search block: type pills + input -->
+                <div class="search-block mb-2">
+                    <div class="search-type-bar" id="search-type-bar">
+                        <button class="search-type-pill ${_state.searchType === 'all'     ? 'active' : ''}" data-type="all">Tudo</button>
+                        <button class="search-type-pill ${_state.searchType === 'title'   ? 'active' : ''}" data-type="title">Título</button>
+                        <button class="search-type-pill ${_state.searchType === 'artist'  ? 'active' : ''}" data-type="artist">Artista</button>
+                        <button class="search-type-pill ${_state.searchType === 'genre'   ? 'active' : ''}" data-type="genre">Gênero</button>
+                        <button class="search-type-pill ${_state.searchType === 'harmony' ? 'active' : ''}" data-type="harmony">Harmonia</button>
+                    </div>
+                    <div class="search-bar">
+                        <input type="text" id="song-search" class="form-input"
+                            placeholder="Buscar…"
+                            value="${esc(_state.searchQuery)}" />
+                        <button class="btn btn-secondary" id="btn-search">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Sort toolbar -->
+                <div class="sort-toolbar mb-2" id="sort-toolbar">
+                    <span class="sort-label">Ordenar:</span>
+                    ${[
+                        { field: 'title',    label: 'Título'  },
+                        { field: 'artist',   label: 'Artista' },
+                        { field: 'key',      label: 'Tom'     },
+                        { field: 'position', label: 'Posição' },
+                    ].map(({ field, label }) => {
+                        const isActive   = _state.sortBy === field;
+                        const isDisabled = field === 'position' && !_state.activeSetlist;
+                        const icon = isActive
+                            ? (field === 'position'
+                                ? `<i class="fa-solid fa-arrow-${_state.sortDir === 'asc' ? 'up' : 'down'}-1-9"></i>`
+                                : `<i class="fa-solid fa-arrow-${_state.sortDir === 'asc' ? 'up' : 'down'}-a-z"></i>`)
+                            : '';
+                        return `<button class="sort-btn${isActive ? ' active' : ''}${isDisabled ? ' disabled' : ''}" data-sort="${field}"${isDisabled ? ' disabled' : ''}>${label} ${icon}</button>`;
+                    }).join('')}
                 </div>
 
                 <!-- Song list -->
@@ -77,6 +116,15 @@
                 RepertoireComponent.openSetlistsModal();
             });
 
+            document.getElementById('input-import-csv').addEventListener('change', (e) => {
+                if (e.target.files[0]) RepertoireComponent._importCSV(e.target.files[0]);
+                e.target.value = '';
+            });
+
+            document.getElementById('btn-bulk-lyrics').addEventListener('click', () => {
+                RepertoireComponent._bulkFetchLyrics();
+            });
+
             document.getElementById('btn-search').addEventListener('click', () => {
                 _state.searchQuery = document.getElementById('song-search').value.trim();
                 RepertoireComponent._loadSongs();
@@ -87,6 +135,31 @@
                     _state.searchQuery = e.target.value.trim();
                     RepertoireComponent._loadSongs();
                 }
+            });
+
+            // Search type pills
+            document.getElementById('search-type-bar').addEventListener('click', (e) => {
+                const pill = e.target.closest('.search-type-pill');
+                if (!pill) return;
+                _state.searchType = pill.dataset.type;
+                document.querySelectorAll('.search-type-pill')
+                    .forEach(p => p.classList.toggle('active', p.dataset.type === _state.searchType));
+                if (_state.searchQuery) RepertoireComponent._loadSongs();
+            });
+
+            // Sort buttons
+            document.getElementById('sort-toolbar').addEventListener('click', (e) => {
+                const btn = e.target.closest('.sort-btn');
+                if (!btn || btn.disabled) return;
+                const field = btn.dataset.sort;
+                if (_state.sortBy === field) {
+                    _state.sortDir = _state.sortDir === 'asc' ? 'desc' : 'asc';
+                } else {
+                    _state.sortBy  = field;
+                    _state.sortDir = 'asc';
+                }
+                RepertoireComponent._renderSortToolbar();
+                RepertoireComponent._renderSongList();
             });
 
             await Promise.all([
@@ -116,6 +189,11 @@
             el.querySelectorAll('.setlist-chip').forEach(chip => {
                 chip.addEventListener('click', () => {
                     _state.activeSetlist = chip.dataset.setlist;
+                    // Position sort is invalid without an active setlist — fall back to title
+                    if (!_state.activeSetlist && _state.sortBy === 'position') {
+                        _state.sortBy  = 'title';
+                        _state.sortDir = 'asc';
+                    }
                     el.querySelectorAll('.setlist-chip').forEach(c => c.classList.remove('active'));
                     chip.classList.add('active');
                     RepertoireComponent._loadSongs();
@@ -126,20 +204,61 @@
         _loadSongs: async function () {
             try {
                 _state.songs = await window.HMSAPI.Songs.getAll({
-                    search:    _state.searchQuery,
-                    setlistId: _state.activeSetlist,
+                    search:     _state.searchQuery,
+                    setlistId:  _state.activeSetlist,
+                    searchType: _state.searchType,
                 });
+                RepertoireComponent._renderSortToolbar();
                 RepertoireComponent._renderSongList();
             } catch (err) {
                 window.HMSApp.showToast('Erro ao carregar músicas: ' + err.message, 'error');
             }
         },
 
+        _renderSortToolbar: function () {
+            const toolbar = document.getElementById('sort-toolbar');
+            if (!toolbar) return;
+            toolbar.querySelectorAll('.sort-btn').forEach(btn => {
+                const field      = btn.dataset.sort;
+                const isActive   = _state.sortBy === field;
+                const isDisabled = field === 'position' && !_state.activeSetlist;
+                btn.classList.toggle('active', isActive);
+                btn.disabled = isDisabled;
+                btn.classList.toggle('disabled', isDisabled);
+                const icon = btn.querySelector('i');
+                if (icon) icon.remove();
+                if (isActive) {
+                    const i = document.createElement('i');
+                    i.className = field === 'position'
+                        ? `fa-solid fa-arrow-${_state.sortDir === 'asc' ? 'up' : 'down'}-1-9`
+                        : `fa-solid fa-arrow-${_state.sortDir === 'asc' ? 'up' : 'down'}-a-z`;
+                    btn.appendChild(i);
+                }
+            });
+        },
+
         _renderSongList: function () {
             const el = document.getElementById('song-list');
             if (!el) return;
 
-            if (_state.songs.length === 0) {
+            // Client-side sort
+            const sorted = [..._state.songs].sort((a, b) => {
+                if (_state.sortBy === 'position') {
+                    if (a._position === null && b._position === null) return 0;
+                    if (a._position === null) return 1;
+                    if (b._position === null) return -1;
+                    return _state.sortDir === 'asc' ? a._position - b._position : b._position - a._position;
+                }
+                const colMap = { title: 'title', artist: 'artist', key: 'original_key' };
+                const col = colMap[_state.sortBy] || 'title';
+                const va = (a[col] || '').toLowerCase();
+                const vb = (b[col] || '').toLowerCase();
+                if (va < vb) return _state.sortDir === 'asc' ? -1 : 1;
+                if (va > vb) return _state.sortDir === 'asc' ?  1 : -1;
+                return 0;
+            });
+
+            if (sorted.length === 0) {
                 el.innerHTML = `
                     <div class="empty-state">
                         <div class="empty-icon"><i class="fa-solid fa-music"></i></div>
@@ -149,16 +268,26 @@
                 return;
             }
 
-            const cards = _state.songs.map(s => `
+            const cards = sorted.map(s => {
+                const hasHarmony = !!(s.harmony_str && s.harmony_str.trim());
+                const hasLyrics  = !!s.has_lyrics;
+                return `
                 <div class="song-card" data-id="${s.id}">
                     <div class="song-info">
                         <div class="song-title">${esc(s.title)}</div>
                         <div class="song-meta">
                             ${s.artist ? `<span><i class="fa-solid fa-microphone-stand fa-xs"></i> ${esc(s.artist)}</span>` : ''}
                             ${s.genre  ? `<span><i class="fa-solid fa-tag fa-xs"></i> ${esc(s.genre)}</span>` : ''}
+                            ${_state.activeSetlist && s._position !== null ? `<span><i class="fa-solid fa-hashtag fa-xs"></i> ${s._position}</span>` : ''}
                         </div>
                     </div>
                     <span class="song-key-badge">${esc(s.original_key)}</span>
+                    <span class="song-harmony-flag${hasHarmony ? ' has-harmony' : ''}" title="${hasHarmony ? 'Harmonia cadastrada' : 'Sem harmonia'}">
+                        <i class="fa-solid fa-music"></i>
+                    </span>
+                    <span class="song-lyrics-flag${hasLyrics ? ' has-lyrics' : ''}" title="${hasLyrics ? 'Letra cadastrada' : 'Sem letra'}">
+                        <i class="fa-solid fa-align-left"></i>
+                    </span>
                     <div class="song-actions">
                         <button class="btn-icon edit" data-action="play" data-id="${s.id}" title="Abrir no Player">
                             <i class="fa-solid fa-play"></i>
@@ -171,7 +300,7 @@
                         </button>
                     </div>
                 </div>
-            `).join('');
+            `; }).join('');
 
             el.innerHTML = `<div style="display:flex;flex-direction:column;gap:8px;">${cards}</div>`;
 
@@ -228,12 +357,6 @@
                                 <input type="text" id="sf-artist" class="form-input"
                                     placeholder="Artista / Banda"
                                     value="${esc(song?.artist || '')}" />
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Compositor</label>
-                                <input type="text" id="sf-composer" class="form-input"
-                                    placeholder="Compositor"
-                                    value="${esc(song?.composer || '')}" />
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Gênero</label>
@@ -301,14 +424,25 @@
             btn.disabled = true;
 
             try {
-                // 1. Try lrclib.net
+                // 1. Try lrclib.net (plain artist name, then "Grupo " prefix fallback)
                 setStatus('lrclib…');
                 let lyrics = null;
+
+                const _lrclibFetch = async (artistName) => {
+                    const res = await fetch(
+                        `https://lrclib.net/api/get?artist_name=${encodeURIComponent(artistName)}&track_name=${encodeURIComponent(title)}`,
+                        { signal: AbortSignal.timeout(9000) }
+                    );
+                    if (!res.ok) return null;
+                    const data = await res.json();
+                    return data.plainLyrics || data.syncedLyrics || null;
+                };
+
                 try {
-                    const res = await fetch(`https://lrclib.net/api/get?artist_name=${encodeURIComponent(artist)}&track_name=${encodeURIComponent(title)}`);
-                    if (res.ok) {
-                        const data = await res.json();
-                        lyrics = data.plainLyrics || data.syncedLyrics || null;
+                    lyrics = await _lrclibFetch(artist);
+                    // Fallback: try with "Grupo " prefix if the original search failed
+                    if (!lyrics && !artist.startsWith('Grupo ')) {
+                        lyrics = await _lrclibFetch('Grupo ' + artist);
                     }
                 } catch { /* network error, continue */ }
 
@@ -347,7 +481,6 @@
         _handleSaveSong: async function (editId) {
             const title      = (document.getElementById('sf-title').value || '').trim();
             const artist     = (document.getElementById('sf-artist').value || '').trim();
-            const composer   = (document.getElementById('sf-composer').value || '').trim();
             const genre      = (document.getElementById('sf-genre').value || '').trim();
             const originalKey = document.getElementById('sf-key').value;
             const harmonyStr = (document.getElementById('sf-harmony').value || '').trim();
@@ -369,7 +502,7 @@
             saveBtn.innerHTML = '<span class="btn-spinner"></span> Salvando…';
 
             const payload = {
-                title, artist: artist || null, composer: composer || null,
+                title, artist: artist || null,
                 genre: genre || null, original_key: originalKey,
                 harmony_str: harmonyStr, lyrics: lyrics || null,
             };
@@ -461,6 +594,344 @@
                     </button>
                 </div>
             `).join('');
+        },
+
+        // ── CSV Import ────────────────────────────────────────────
+        // Parser for Excel-style semicolon CSV (handles quoted fields + "" escaping)
+        _parseCSVLine: function (line) {
+            const cols = [];
+            let cur = '', inQuote = false;
+            for (let i = 0; i < line.length; i++) {
+                const c = line[i];
+                if (inQuote) {
+                    if (c === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+                    else if (c === '"')                    { inQuote = false; }
+                    else                                   { cur += c; }
+                } else {
+                    if (c === '"')  { inQuote = true; }
+                    else if (c === ';') { cols.push(cur.trim()); cur = ''; }
+                    else            { cur += c; }
+                }
+            }
+            cols.push(cur.trim());
+            return cols;
+        },
+
+        _importCSV: function (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const lines = e.target.result
+                    .split('\n')
+                    .map(l => l.replace(/\r$/, ''))
+                    .filter(Boolean);
+
+                if (lines.length < 2) {
+                    window.HMSApp.showToast('Arquivo vazio ou inválido.', 'warning');
+                    return;
+                }
+
+                // Detect if first row is the header (Nome;Artista…)
+                const firstCols = RepertoireComponent._parseCSVLine(lines[0]);
+                const hasHeader = firstCols[0].toLowerCase() === 'nome' ||
+                                  firstCols[0].toLowerCase() === 'título' ||
+                                  firstCols[0].toLowerCase() === 'titulo';
+                const dataLines = hasHeader ? lines.slice(1) : lines;
+
+                const songs    = [];   // { title, artist, genre, original_key, harmony_str }
+                const setlinks = [];   // { titleKey, setlistName, position }
+
+                for (const line of dataLines) {
+                    if (!line.trim()) continue;
+                    const cols = RepertoireComponent._parseCSVLine(line);
+
+                    const title   = cols[0] || '';
+                    const artist  = cols[1] || '';
+                    const genre   = cols[2] || '';
+                    const playlistRaw = cols[3] || '';
+                    // Rename source playlist to the real setlist name
+                    const playlist = playlistRaw === 'Luquinhas' ? 'Banda Mahalo' : playlistRaw;
+                    const n1      = cols[4] || '';
+                    const key     = cols[5] || '';
+                    const harmony = cols[6] || '';
+
+                    if (!title || !artist) continue;
+
+                    const harmonyUpper = harmony.trim().toUpperCase();
+                    const harmonyStr = (harmonyUpper === 'TIRAR' || harmonyUpper === '-') ? '' : harmony.trim();
+                    const titleKey   = `${title.toLowerCase()}||${artist.toLowerCase()}`;
+
+                    songs.push({
+                        title,
+                        artist,
+                        genre:        genre || null,
+                        original_key: key,
+                        harmony_str:  harmonyStr,
+                        _titleKey:    titleKey,   // used internally, removed before insert
+                    });
+
+                    if (playlist && /^\d+$/.test(n1)) {
+                        setlinks.push({
+                            titleKey,
+                            setlistName: playlist,
+                            position:    parseInt(n1, 10),
+                        });
+                    }
+                }
+
+                if (songs.length === 0) {
+                    window.HMSApp.showToast('Nenhuma música válida encontrada no CSV.', 'warning');
+                    return;
+                }
+
+                // Group setlinks by setlist name
+                const setlistNames = [...new Set(setlinks.map(l => l.setlistName))];
+
+                RepertoireComponent._showImportModal(songs, setlinks, setlistNames);
+            };
+            reader.readAsText(file, 'utf-8');
+        },
+
+        _showImportModal: function (songs, setlinks, setlistNames) {
+            const setlistSummary = setlistNames.length
+                ? setlistNames.map(n => {
+                    const count = setlinks.filter(l => l.setlistName === n).length;
+                    return `<strong>${count}</strong> na setlist <em>${esc(n)}</em>`;
+                  }).join(', ')
+                : 'nenhuma setlist';
+
+            window.HMSApp.openModal(`
+                <div class="modal-header">
+                    <h3><i class="fa-solid fa-file-import"></i> Importar CSV</h3>
+                    <button class="modal-close" id="modal-close-btn"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="modal-body">
+                    <div style="display:flex;gap:16px;margin-bottom:14px;flex-wrap:wrap;">
+                        <div style="flex:1;min-width:120px;background:var(--bg-deep);border-radius:8px;padding:10px 14px;text-align:center;">
+                            <div style="font-size:1.6rem;font-weight:700;color:var(--accent);">${songs.length}</div>
+                            <div style="font-size:.75rem;color:var(--text-muted);">músicas</div>
+                        </div>
+                        <div style="flex:1;min-width:120px;background:var(--bg-deep);border-radius:8px;padding:10px 14px;text-align:center;">
+                            <div style="font-size:1.6rem;font-weight:700;color:var(--chord-blue);">${setlinks.length}</div>
+                            <div style="font-size:.75rem;color:var(--text-muted);">com posição em setlist</div>
+                        </div>
+                    </div>
+                    <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:10px;">
+                        Setlists detectadas: ${setlistSummary}
+                    </p>
+                    <div style="max-height:200px;overflow-y:auto;border:1px solid var(--glass-border);border-radius:6px;padding:8px;font-size:.78rem;line-height:1.7;">
+                        ${songs.map((s, i) => {
+                            const link = setlinks.find(l => l.titleKey === s._titleKey);
+                            const badge = link
+                                ? `<span style="color:var(--chord-blue);margin-left:4px;">#${link.position}</span>`
+                                : '';
+                            return `<div>${i + 1}. <strong>${esc(s.title)}</strong> — ${esc(s.artist)}
+                                <span style="color:var(--text-muted);font-size:.72rem;"> · ${esc(s.original_key)}</span>${badge}</div>`;
+                        }).join('')}
+                    </div>
+                    <div id="import-progress" style="margin-top:14px;display:none;">
+                        <div style="font-size:.85rem;color:var(--text-muted);margin-bottom:6px;" id="import-status">Importando…</div>
+                        <div style="background:var(--glass-border);border-radius:4px;height:6px;">
+                            <div id="import-bar" style="background:var(--accent);height:6px;border-radius:4px;width:0%;transition:width .2s;"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="modal-cancel-btn">Cancelar</button>
+                    <button class="btn btn-primary" id="btn-confirm-import">
+                        <i class="fa-solid fa-cloud-arrow-up"></i> Importar tudo
+                    </button>
+                </div>
+            `);
+
+            document.getElementById('modal-close-btn').addEventListener('click', window.HMSApp.closeModal);
+            document.getElementById('modal-cancel-btn').addEventListener('click', window.HMSApp.closeModal);
+            document.getElementById('btn-confirm-import').addEventListener('click', () => {
+                RepertoireComponent._runImport(songs, setlinks, setlistNames);
+            });
+        },
+
+        _runImport: async function (songs, setlinks, setlistNames) {
+            const progressEl = document.getElementById('import-progress');
+            const statusEl   = document.getElementById('import-status');
+            const barEl      = document.getElementById('import-bar');
+            const confirmBtn = document.getElementById('btn-confirm-import');
+            const cancelBtn  = document.getElementById('modal-cancel-btn');
+
+            progressEl.style.display = 'block';
+            confirmBtn.disabled = true;
+            cancelBtn.disabled  = true;
+
+            const setProgress = (pct, msg) => {
+                barEl.style.width = pct + '%';
+                statusEl.textContent = msg;
+            };
+
+            try {
+                // 1. Insert songs in batches of 50
+                const BATCH = 50;
+                let inserted = [];
+                for (let i = 0; i < songs.length; i += BATCH) {
+                    const batch = songs.slice(i, i + BATCH).map(({ _titleKey, ...s }) => s);
+                    const created = await window.HMSAPI.Songs.bulkCreate(batch);
+                    // Reattach _titleKey for matching (same order as input)
+                    created.forEach((row, j) => {
+                        row._titleKey = songs[i + j]._titleKey;
+                    });
+                    inserted = inserted.concat(created);
+                    setProgress(Math.round(inserted.length / songs.length * 70), `${inserted.length} / ${songs.length} músicas…`);
+                }
+
+                // 2. Create setlists (skip if already exists)
+                if (setlinks.length > 0) {
+                    setProgress(75, 'Criando setlists…');
+                    await RepertoireComponent._loadSetlists();
+                    const setlistMap = {}; // name → id
+
+                    for (const name of setlistNames) {
+                        let sl = _state.setlists.find(s => s.name.toLowerCase() === name.toLowerCase());
+                        if (!sl) sl = await window.HMSAPI.Setlists.create(name);
+                        setlistMap[name] = sl.id;
+                    }
+
+                    // 3. Link songs to setlists with position
+                    setProgress(80, 'Vinculando setlists…');
+                    const titleKeyToId = {};
+                    inserted.forEach(r => { titleKeyToId[r._titleKey] = r.id; });
+
+                    let linked = 0;
+                    for (const link of setlinks) {
+                        const songId = titleKeyToId[link.titleKey];
+                        const slId   = setlistMap[link.setlistName];
+                        if (songId && slId) {
+                            await window.HMSAPI.Setlists.addSong(slId, songId, link.position);
+                            linked++;
+                        }
+                    }
+                    setProgress(100, `${inserted.length} músicas e ${linked} vínculos criados.`);
+                } else {
+                    setProgress(100, `${inserted.length} músicas importadas.`);
+                }
+
+                await new Promise(r => setTimeout(r, 600)); // brief pause to show 100%
+                window.HMSApp.closeModal();
+                window.HMSApp.showToast(`${inserted.length} músicas importadas com sucesso!`, 'success');
+                await RepertoireComponent._loadSetlists();
+                await RepertoireComponent._loadSongs();
+            } catch (err) {
+                statusEl.textContent = 'Erro: ' + err.message;
+                statusEl.style.color = 'var(--danger)';
+                confirmBtn.disabled = false;
+                cancelBtn.disabled  = false;
+            }
+        },
+
+        // ── Bulk Lyrics Fetch ─────────────────────────────────────
+        _bulkFetchLyrics: function () {
+            const withoutLyrics = _state.songs.filter(s => !s.has_lyrics);
+            const total = withoutLyrics.length;
+            const totalAll = _state.songs.length;
+
+            window.HMSApp.openModal(`
+                <div class="modal-header">
+                    <h3><i class="fa-solid fa-wand-magic-sparkles"></i> Buscar Letras em Massa</h3>
+                    <button class="modal-close" id="modal-close-btn"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="modal-body">
+                    <p style="font-size:.875rem;color:var(--text-muted);margin-bottom:14px;">
+                        <strong style="color:var(--text-primary);">${total}</strong> músicas sem letra
+                        de <strong style="color:var(--text-primary);">${totalAll}</strong> no repertório atual.<br>
+                        Fonte: <strong>lrclib.net</strong> (com fallback "Grupo " para pagode/samba). Delay de 300ms entre buscas.
+                    </p>
+                    <div id="bulk-progress" style="display:none;">
+                        <div style="font-size:.82rem;color:var(--text-muted);margin-bottom:6px;" id="bulk-status">Iniciando…</div>
+                        <div style="background:var(--glass-border);border-radius:4px;height:6px;margin-bottom:10px;">
+                            <div id="bulk-bar" style="background:var(--brand);height:6px;border-radius:4px;width:0%;transition:width .2s;"></div>
+                        </div>
+                        <div id="bulk-log" style="max-height:200px;overflow-y:auto;font-size:.75rem;font-family:var(--font-mono);line-height:1.7;color:var(--text-secondary);"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="modal-cancel-btn">Fechar</button>
+                    <button class="btn btn-primary" id="btn-start-bulk" ${total === 0 ? 'disabled' : ''}>
+                        <i class="fa-solid fa-play"></i> Iniciar (${total} músicas)
+                    </button>
+                </div>
+            `);
+
+            document.getElementById('modal-close-btn').addEventListener('click', window.HMSApp.closeModal);
+            document.getElementById('modal-cancel-btn').addEventListener('click', window.HMSApp.closeModal);
+            document.getElementById('btn-start-bulk').addEventListener('click', () => {
+                RepertoireComponent._runBulkFetch(withoutLyrics);
+            });
+        },
+
+        _runBulkFetch: async function (songs) {
+            const progressEl = document.getElementById('bulk-progress');
+            const statusEl   = document.getElementById('bulk-status');
+            const barEl      = document.getElementById('bulk-bar');
+            const logEl      = document.getElementById('bulk-log');
+            const startBtn   = document.getElementById('btn-start-bulk');
+            const cancelBtn  = document.getElementById('modal-cancel-btn');
+
+            progressEl.style.display = 'block';
+            startBtn.disabled = true;
+            cancelBtn.disabled = true;
+
+            const lrclibFetch = async (artistName, title) => {
+                const res = await fetch(
+                    `https://lrclib.net/api/get?artist_name=${encodeURIComponent(artistName)}&track_name=${encodeURIComponent(title)}`,
+                    { signal: AbortSignal.timeout(9000) }
+                );
+                if (!res.ok) return null;
+                const data = await res.json();
+                return data.plainLyrics || data.syncedLyrics || null;
+            };
+
+            const addLog = (msg) => {
+                logEl.textContent += msg + '\n';
+                logEl.scrollTop = logEl.scrollHeight;
+            };
+
+            let found = 0, notFound = 0;
+            const total = songs.length;
+
+            for (let i = 0; i < songs.length; i++) {
+                const s = songs[i];
+                const pct = Math.round((i / total) * 100);
+                barEl.style.width = pct + '%';
+                statusEl.textContent = `${i + 1} / ${total} — ${s.title}`;
+
+                let lyrics = null;
+                try {
+                    lyrics = await lrclibFetch(s.artist || '', s.title);
+                    if (!lyrics && s.artist && !s.artist.startsWith('Grupo ')) {
+                        lyrics = await lrclibFetch('Grupo ' + s.artist, s.title);
+                    }
+                } catch { /* network */ }
+
+                if (lyrics) {
+                    try {
+                        await window.HMSAPI.Songs.update(s.id, { lyrics: lyrics.trim() });
+                        found++;
+                        addLog(`✓ ${s.title} — ${s.artist}`);
+                    } catch (err) {
+                        addLog(`✗ Erro ao salvar "${s.title}": ${err.message}`);
+                    }
+                } else {
+                    notFound++;
+                    addLog(`– Não encontrado: ${s.title} — ${s.artist}`);
+                }
+
+                // Rate limiting: 300ms between requests
+                if (i < songs.length - 1) await new Promise(r => setTimeout(r, 300));
+            }
+
+            barEl.style.width = '100%';
+            statusEl.textContent = `Concluído: ${found} letras encontradas, ${notFound} não encontradas.`;
+            cancelBtn.disabled = false;
+            cancelBtn.textContent = 'Fechar';
+            window.HMSApp.showToast(`${found} letras salvas!`, 'success');
+            await RepertoireComponent._loadSongs();
         },
 
         _bindSetlistDeleteButtons: function () {

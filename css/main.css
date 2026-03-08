@@ -513,6 +513,50 @@ tbody tr:hover td { background: var(--glass-bg); }
 }
 .song-actions { display: flex; gap: 6px; flex-shrink: 0; }
 
+/* ── Harmony Flag ──────────────────────────────────────────── */
+.song-harmony-flag {
+    display: flex; align-items: center; justify-content: center;
+    width: 20px; font-size: .7rem; color: var(--text-muted);
+    opacity: 0.2; flex-shrink: 0; transition: color var(--transition), opacity var(--transition);
+}
+.song-harmony-flag.has-harmony { color: var(--chord-amber); opacity: 1; }
+.song-card:hover .song-harmony-flag.has-harmony { color: var(--chord-green); }
+.song-lyrics-flag {
+    display: flex; align-items: center; justify-content: center;
+    width: 20px; font-size: .7rem; color: var(--text-muted);
+    opacity: 0.2; flex-shrink: 0; transition: color var(--transition), opacity var(--transition);
+}
+.song-lyrics-flag.has-lyrics { color: var(--chord-blue); opacity: 1; }
+.song-card:hover .song-lyrics-flag.has-lyrics { color: var(--chord-green); }
+
+/* ── Search Block (type pills + input) ─────────────────────── */
+.search-block { display: flex; flex-direction: column; gap: 8px; }
+.search-type-bar { display: flex; gap: 6px; flex-wrap: wrap; }
+.search-type-pill {
+    padding: 4px 12px; border-radius: 20px; font-size: .75rem; font-weight: 500;
+    background: var(--glass-bg); border: 1px solid var(--glass-border);
+    color: var(--text-secondary); cursor: pointer; transition: all var(--transition);
+}
+.search-type-pill:hover:not(.active) { border-color: var(--text-secondary); color: var(--text-primary); }
+.search-type-pill.active { background: var(--brand-dim); border-color: var(--brand); color: var(--brand); }
+
+/* ── Sort Toolbar ──────────────────────────────────────────── */
+.sort-toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.sort-label {
+    font-size: .72rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .08em; color: var(--text-muted); white-space: nowrap;
+}
+.sort-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 11px; border-radius: 6px;
+    font-size: .78rem; font-weight: 500;
+    background: var(--glass-bg); border: 1px solid var(--glass-border);
+    color: var(--text-secondary); cursor: pointer; transition: all var(--transition);
+}
+.sort-btn:hover:not(:disabled):not(.active) { background: var(--bg-raised); border-color: var(--text-secondary); color: var(--text-primary); }
+.sort-btn.active { background: var(--brand-dim); border-color: var(--brand); color: var(--brand); }
+.sort-btn.disabled, .sort-btn:disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
+
 /* ── Setlist Sidebar ───────────────────────────────────────── */
 .setlist-filter {
     display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px;
@@ -566,6 +610,8 @@ tbody tr:hover td { background: var(--glass-bg); }
     .chord-cell { font-size: 1.2rem; padding: 10px 14px; }
     .chord-grid.size-lg .chord-cell { font-size: 1.6rem; padding: 14px 20px; }
     .chord-grid.size-xl .chord-cell { font-size: 2rem; padding: 18px 26px; }
+    .search-type-pill { font-size: .72rem; padding: 3px 9px; }
+    .sort-btn { font-size: .75rem; padding: 4px 9px; }
 }
 
 @media (min-width: 769px) {

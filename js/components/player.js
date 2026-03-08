@@ -70,7 +70,7 @@
                         <div class="page-title-icon"><i class="fa-solid fa-play-circle"></i></div>
                         <div>
                             <h2>${esc(s.title)}</h2>
-                            <p>${esc([s.artist, s.composer, s.genre].filter(Boolean).join(' · '))}</p>
+                            <p>${esc([s.artist, s.genre].filter(Boolean).join(' · '))}</p>
                         </div>
                     </div>
                         <div style="display:flex;align-items:center;background:var(--surface);border:1px solid var(--line-color);border-radius:8px;padding:2px;margin-right:8px;">
@@ -140,15 +140,20 @@
                     </div>
                 </div>
 
-                ${s.lyrics ? `
-                <div class="panel">
+                <div class="panel" id="lyrics-panel">
                     <div class="panel-header">
                         <span class="panel-title"><i class="fa-solid fa-align-left"></i> Letra</span>
+                        <button class="btn btn-secondary btn-sm" id="btn-fetch-lyrics-player">
+                            <i class="fa-solid fa-magnifying-glass"></i> ${s.lyrics ? 'Atualizar' : 'Buscar Letra'}
+                        </button>
                     </div>
-                    <div class="panel-body">
-                        <pre style="white-space:pre-wrap;font-family:var(--font-ui);font-size:.9rem;color:var(--text-secondary);line-height:1.7;">${esc(s.lyrics)}</pre>
+                    <div class="panel-body" id="lyrics-body">
+                        ${s.lyrics
+                            ? `<pre style="white-space:pre-wrap;font-family:var(--font-ui);font-size:.9rem;color:var(--text-secondary);line-height:1.7;">${esc(s.lyrics)}</pre>`
+                            : `<p style="color:var(--text-muted);font-size:.875rem;">Nenhuma letra cadastrada. Clique em "Buscar Letra" para pesquisar automaticamente.</p>`
+                        }
                     </div>
-                </div>` : ''}
+                </div>
             `;
 
             // Render chords for default display key
@@ -218,10 +223,61 @@
                     const grid = document.getElementById('chord-grid');
                     if (grid) {
                         grid.className = `chord-grid size-${_state.fontSize}`;
-                        // Re-render to update size class without full reload
                     }
                 });
             });
+
+            document.getElementById('btn-fetch-lyrics-player').addEventListener('click', () => {
+                PlayerComponent._fetchAndSaveLyrics();
+            });
+        },
+
+        _fetchAndSaveLyrics: async function () {
+            const s   = _state.song;
+            const btn = document.getElementById('btn-fetch-lyrics-player');
+            const body = document.getElementById('lyrics-body');
+            if (!btn || !body || !s) return;
+
+            const origLabel = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="btn-spinner"></span> Buscando…';
+
+            const lrclibFetch = async (artistName) => {
+                const res = await fetch(
+                    `https://lrclib.net/api/get?artist_name=${encodeURIComponent(artistName)}&track_name=${encodeURIComponent(s.title)}`,
+                    { signal: AbortSignal.timeout(9000) }
+                );
+                if (!res.ok) return null;
+                const data = await res.json();
+                return data.plainLyrics || data.syncedLyrics || null;
+            };
+
+            let lyrics = null;
+            try {
+                lyrics = await lrclibFetch(s.artist || '');
+                if (!lyrics && s.artist && !s.artist.startsWith('Grupo ')) {
+                    lyrics = await lrclibFetch('Grupo ' + s.artist);
+                }
+            } catch { /* network error */ }
+
+            if (!lyrics) {
+                window.HMSApp.showToast('Letra não encontrada no lrclib.net.', 'warning');
+                btn.disabled = false;
+                btn.innerHTML = origLabel;
+                return;
+            }
+
+            try {
+                await window.HMSAPI.Songs.update(s.id, { lyrics: lyrics.trim() });
+                _state.song.lyrics = lyrics.trim();
+                body.innerHTML = `<pre style="white-space:pre-wrap;font-family:var(--font-ui);font-size:.9rem;color:var(--text-secondary);line-height:1.7;">${esc(lyrics.trim())}</pre>`;
+                btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Atualizar';
+                window.HMSApp.showToast('Letra salva!', 'success');
+            } catch (err) {
+                window.HMSApp.showToast('Erro ao salvar letra: ' + err.message, 'error');
+                btn.innerHTML = origLabel;
+            }
+            btn.disabled = false;
         },
 
         _renderChords: function () {
