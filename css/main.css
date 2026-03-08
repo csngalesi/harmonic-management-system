@@ -617,6 +617,12 @@ tbody tr:hover td { background: var(--glass-bg); }
 .sd-body { padding:16px 20px; max-height:60vh; overflow-y:auto; }
 .sd-pane { display:none; }
 .sd-pane.active { display:block; }
+#sd-pane-letra pre {
+    column-count: 2;
+    column-gap: 24px;
+    column-rule: 1px solid var(--glass-border);
+}
+@media (max-width: 560px) { #sd-pane-letra pre { column-count: 1; } }
 .sd-chords { display:flex; flex-wrap:wrap; gap:6px; }
 .sd-chord {
     display:inline-block; padding:4px 10px;
