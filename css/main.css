@@ -557,6 +557,84 @@ tbody tr:hover td { background: var(--glass-bg); }
 .sort-btn.active { background: var(--brand-dim); border-color: var(--brand); color: var(--brand); }
 .sort-btn.disabled, .sort-btn:disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
 
+/* ── Show Grid ─────────────────────────────────────────────── */
+.show-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+}
+.show-cell {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 10px;
+    gap: 8px;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: filter var(--transition);
+}
+.show-cell:hover { filter: brightness(1.2); }
+.show-cell.status-ok   { background: rgba(74, 222, 128, 0.15); }
+.show-cell.status-warn { background: rgba(251, 191, 36, 0.12); }
+.show-title {
+    font-size: .8rem;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+}
+.show-key {
+    font-size: .75rem;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    color: var(--text-primary);
+    background: rgba(255,255,255,0.1);
+    padding: 1px 7px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+.show-key.key-urgent { background: rgba(239,68,68,0.5); color:#fff; }
+
+/* ── Show Detail Modal ─────────────────────────────────────── */
+.sd-modal { display:flex; flex-direction:column; min-width:320px; max-width:580px; }
+.sd-header {
+    display:flex; align-items:flex-start; justify-content:space-between;
+    gap:12px; padding:16px 20px 12px;
+    border-bottom:1px solid var(--glass-border);
+}
+.sd-title { font-size:1rem; font-weight:600; color:var(--text-primary); }
+.sd-sub   { font-size:.78rem; color:var(--text-muted); margin-top:2px; }
+.sd-tabs  { display:flex; border-bottom:1px solid var(--glass-border); padding:0 16px; }
+.sd-tab {
+    padding:8px 14px; font-size:.8rem; font-weight:500;
+    background:none; border:none; border-bottom:2px solid transparent;
+    color:var(--text-muted); cursor:pointer; transition:all var(--transition);
+    margin-bottom:-1px;
+}
+.sd-tab:hover { color:var(--text-secondary); }
+.sd-tab.active { color:var(--brand); border-bottom-color:var(--brand); }
+.sd-body { padding:16px 20px; max-height:60vh; overflow-y:auto; }
+.sd-pane { display:none; }
+.sd-pane.active { display:block; }
+.sd-chords { display:flex; flex-wrap:wrap; gap:6px; }
+.sd-chord {
+    display:inline-block; padding:4px 10px;
+    background:var(--glass-bg); border:1px solid var(--glass-border);
+    border-radius:var(--radius-sm); font-family:var(--font-mono);
+    font-size:.85rem; color:var(--chord-green);
+}
+.sd-label {
+    display:inline-block; padding:3px 8px; font-size:.72rem; font-weight:600;
+    text-transform:uppercase; letter-spacing:.05em;
+    color:var(--chord-amber); background:rgba(251,191,36,0.1);
+    border-radius:var(--radius-sm);
+}
+.sd-struct { display:block; width:100%; height:0; }
+
+@media (max-width: 900px) { .show-grid { grid-template-columns: repeat(2,1fr); } }
+@media (max-width: 480px) { .show-grid { grid-template-columns: 1fr; } }
+
 /* ── Setlist Sidebar ───────────────────────────────────────── */
 .setlist-filter {
     display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px;

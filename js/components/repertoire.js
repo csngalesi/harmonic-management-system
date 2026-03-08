@@ -17,6 +17,7 @@
         searchType:   'all',      // 'all' | 'title' | 'artist' | 'genre' | 'harmony'
         sortBy:       'title',    // 'title' | 'artist' | 'key' | 'position'
         sortDir:      'asc',      // 'asc' | 'desc'
+        viewMode:     'list',     // 'list' | 'show'
     };
 
     const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -37,6 +38,9 @@
                         </div>
                     </div>
                     <div class="page-actions">
+                        <button class="btn btn-secondary${_state.viewMode === 'show' ? ' active' : ''}" id="btn-toggle-show" title="Modo Show — grid condensado">
+                            <i class="fa-solid fa-table-cells"></i> Show
+                        </button>
                         <button class="btn btn-secondary" id="btn-manage-setlists">
                             <i class="fa-solid fa-folder-open"></i> Setlists
                         </button>
@@ -107,6 +111,12 @@
                     </div>
                 </div>
             `;
+
+            document.getElementById('btn-toggle-show').addEventListener('click', () => {
+                _state.viewMode = _state.viewMode === 'show' ? 'list' : 'show';
+                document.getElementById('btn-toggle-show').classList.toggle('active', _state.viewMode === 'show');
+                RepertoireComponent._renderSongList();
+            });
 
             document.getElementById('btn-new-song').addEventListener('click', () => {
                 RepertoireComponent.openSongModal(null);
@@ -268,6 +278,18 @@
                 return;
             }
 
+            // ── Show mode: condensed 3-column grid ──
+            if (_state.viewMode === 'show') {
+                el.innerHTML = RepertoireComponent._renderShowGrid(sorted);
+                el.querySelectorAll('.show-cell').forEach(cell => {
+                    cell.addEventListener('click', () => {
+                        const song = _state.songs.find(s => s.id === cell.dataset.id);
+                        if (song) RepertoireComponent._openShowDetail(song);
+                    });
+                });
+                return;
+            }
+
             const cards = sorted.map(s => {
                 const hasHarmony = !!(s.harmony_str && s.harmony_str.trim());
                 const hasLyrics  = !!s.has_lyrics;
@@ -313,6 +335,86 @@
                     if (action === 'delete') RepertoireComponent._handleDelete(id);
                 });
             });
+        },
+
+        // ── Show Grid ─────────────────────────────────────────────
+        _renderShowGrid: function (sorted) {
+            const cells = sorted.map(s => {
+                const hasHarmony = !!(s.harmony_str && s.harmony_str.trim());
+                const hasLyrics  = !!s.has_lyrics;
+                const rowCls  = hasHarmony ? 'status-ok' : 'status-warn';
+                const keyCls  = (!hasHarmony && !hasLyrics) ? ' key-urgent' : '';
+                return `<div class="show-cell ${rowCls}" data-id="${s.id}">
+                    <span class="show-title">${esc(s.title)}</span>
+                    <span class="show-key${keyCls}">${esc(s.original_key || '?')}</span>
+                </div>`;
+            }).join('');
+            return `<div class="show-grid">${cells}</div>`;
+        },
+
+        _openShowDetail: function (song) {
+            const origKey  = song.original_key || 'C';
+            const isMinor  = origKey.endsWith('m');
+            const root     = origKey.replace(/m$/, '');
+            const tokens   = window.HarmonyEngine.translate(song.harmony_str || '', root, isMinor);
+
+            const chordsHtml = tokens.length
+                ? tokens.map(t => {
+                    if (t.type === 'LABEL')  return `<span class="sd-label">${esc(t.value)}</span>`;
+                    if (t.type === 'STRUCT') return `<span class="sd-struct"></span>`;
+                    return `<span class="sd-chord">${esc(t.value)}</span>`;
+                  }).join('')
+                : `<span style="color:var(--text-muted);font-size:.85rem;">Sem harmonia cadastrada.</span>`;
+
+            window.HMSApp.openModal(`
+                <div class="sd-modal">
+                    <div class="sd-header">
+                        <div>
+                            <div class="sd-title">${esc(song.title)}</div>
+                            <div class="sd-sub">${esc([song.artist, song.genre].filter(Boolean).join(' · '))}</div>
+                        </div>
+                        <span class="song-key-badge" style="font-size:1rem;flex-shrink:0;">${esc(origKey)}</span>
+                    </div>
+                    <div class="sd-tabs">
+                        <button class="sd-tab active" data-tab="func">Harm Func</button>
+                        <button class="sd-tab" data-tab="acor">Harm Acor</button>
+                        <button class="sd-tab" data-tab="letra">Letra</button>
+                    </div>
+                    <div class="sd-body">
+                        <div class="sd-pane active" id="sd-pane-func">
+                            <div class="harmony-preview">${esc(song.harmony_str || 'Sem harmonia cadastrada.')}</div>
+                        </div>
+                        <div class="sd-pane" id="sd-pane-acor">
+                            <div class="sd-chords">${chordsHtml}</div>
+                        </div>
+                        <div class="sd-pane" id="sd-pane-letra">
+                            <div id="sd-lyrics-content">
+                                ${song.has_lyrics
+                                    ? `<div class="content-loader" style="padding:12px;"><div class="loader-spinner" style="width:20px;height:20px;border-width:2px;"></div></div>`
+                                    : `<p style="color:var(--text-muted);font-size:.85rem;">Sem letra cadastrada.</p>`}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `);
+
+            document.querySelectorAll('.sd-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.sd-tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.sd-pane').forEach(p => p.classList.remove('active'));
+                    tab.classList.add('active');
+                    document.getElementById(`sd-pane-${tab.dataset.tab}`).classList.add('active');
+                });
+            });
+
+            if (song.has_lyrics) {
+                window.HMSAPI.Songs.getById(song.id).then(full => {
+                    const el = document.getElementById('sd-lyrics-content');
+                    if (el) el.innerHTML = full.lyrics
+                        ? `<pre style="white-space:pre-wrap;font-family:var(--font-ui);font-size:.85rem;color:var(--text-secondary);line-height:1.7;">${esc(full.lyrics)}</pre>`
+                        : `<p style="color:var(--text-muted);font-size:.85rem;">Letra não encontrada.</p>`;
+                }).catch(() => {});
+            }
         },
 
         // ── Song Modal ────────────────────────────────────────────
