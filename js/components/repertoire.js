@@ -381,7 +381,7 @@
             const chordsHtml = tokens.length
                 ? tokens.map(t => {
                     if (t.type === 'LABEL')  return `<span class="sd-label">${esc(t.value)}</span>`;
-                    if (t.type === 'STRUCT') return `<span class="sd-struct"></span>`;
+                    if (t.type === 'STRUCT') return `<span class="sd-sep">${esc(t.value) || '·'}</span>`;
                     return `<span class="sd-chord">${esc(t.value)}</span>`;
                   }).join('')
                 : `<span style="color:var(--text-muted);font-size:.85rem;">Sem harmonia cadastrada.</span>`;
