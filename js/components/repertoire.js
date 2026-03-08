@@ -17,7 +17,8 @@
         searchType:   'all',      // 'all' | 'title' | 'artist' | 'genre' | 'harmony'
         sortBy:       'title',    // 'title' | 'artist' | 'key' | 'position'
         sortDir:      'asc',      // 'asc' | 'desc'
-        viewMode:     'list',     // 'list' | 'show'
+        viewMode:        'list',     // 'list' | 'show'
+        headerCollapsed: false,
     };
 
     const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -34,8 +35,11 @@
                         <div class="page-title-icon"><i class="fa-solid fa-list-music"></i></div>
                         <div>
                             <h2>Repertório</h2>
-                            <p>Sua biblioteca de músicas</p>
+                            <p ${_state.headerCollapsed ? 'style="display:none"' : ''}>Sua biblioteca de músicas</p>
                         </div>
+                        <button class="btn-icon" id="btn-collapse-header" title="${_state.headerCollapsed ? 'Expandir controles' : 'Minimizar controles'}" style="margin-left:8px;">
+                            <i class="fa-solid fa-chevron-${_state.headerCollapsed ? 'down' : 'up'}"></i>
+                        </button>
                     </div>
                     <div class="page-actions">
                         <button class="btn btn-secondary${_state.viewMode === 'show' ? ' active' : ''}" id="btn-toggle-show" title="Modo Show — grid condensado">
@@ -56,6 +60,9 @@
                         </button>
                     </div>
                 </div>
+
+                <!-- Collapsible controls -->
+                <div id="rep-controls" ${_state.headerCollapsed ? 'style="display:none"' : ''}>
 
                 <!-- Setlist filter chips -->
                 <div class="setlist-filter" id="setlist-chips">
@@ -103,6 +110,8 @@
                     }).join('')}
                 </div>
 
+                </div><!-- /rep-controls -->
+
                 <!-- Song list -->
                 <div id="song-list">
                     <div class="content-loader">
@@ -111,6 +120,17 @@
                     </div>
                 </div>
             `;
+
+            document.getElementById('btn-collapse-header').addEventListener('click', () => {
+                _state.headerCollapsed = !_state.headerCollapsed;
+                const controls = document.getElementById('rep-controls');
+                const btn      = document.getElementById('btn-collapse-header');
+                const sub      = document.querySelector('.page-title p');
+                controls.style.display = _state.headerCollapsed ? 'none' : '';
+                if (sub) sub.style.display = _state.headerCollapsed ? 'none' : '';
+                btn.querySelector('i').className = `fa-solid fa-chevron-${_state.headerCollapsed ? 'down' : 'up'}`;
+                btn.title = _state.headerCollapsed ? 'Expandir controles' : 'Minimizar controles';
+            });
 
             document.getElementById('btn-toggle-show').addEventListener('click', () => {
                 _state.viewMode = _state.viewMode === 'show' ? 'list' : 'show';
