@@ -1114,8 +1114,13 @@
                                         ${s.artist ? `<span style="font-size:.78rem;color:var(--text-muted);">— ${esc(s.artist)}</span>` : ''}
                                     </div>
                                     <div style="font-size:.72rem;font-family:var(--font-mono);line-height:1.7;">
-                                        <div style="color:#f87171;opacity:.85;">− ${esc(s.harmony_str)}</div>
-                                        <div style="color:var(--brand);">+ ${esc(s._sanitized)}</div>
+                                        <div style="color:#f87171;opacity:.85;margin-bottom:4px;">− ${esc(s.harmony_str)}</div>
+                                        <div style="display:flex;align-items:center;gap:6px;">
+                                            <span style="color:var(--brand);">+</span>
+                                            <input class="hygiene-edit form-input" data-idx="${idx}"
+                                                value="${esc(s._sanitized)}"
+                                                style="flex:1;font-family:var(--font-mono);font-size:.72rem;padding:3px 7px;color:var(--brand);background:var(--bg-raised);border-color:var(--brand);border-radius:4px;" />
+                                        </div>
                                     </div>
                                 </div>
                             `).join('')}
@@ -1144,7 +1149,12 @@
 
                 document.getElementById('btn-apply-hygiene').addEventListener('click', () => {
                     const selected = [...document.querySelectorAll('.hygiene-chk:checked')]
-                        .map(chk => candidates[parseInt(chk.dataset.idx)]);
+                        .map(chk => {
+                            const idx = parseInt(chk.dataset.idx);
+                            const editInput = document.querySelector(`.hygiene-edit[data-idx="${idx}"]`);
+                            return { ...candidates[idx], _sanitized: editInput ? editInput.value.trim() : candidates[idx]._sanitized };
+                        })
+                        .filter(s => s._sanitized);
                     if (selected.length === 0) {
                         window.HMSApp.showToast('Nenhuma música selecionada.', 'warning');
                         return;
