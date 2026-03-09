@@ -58,6 +58,10 @@
                         <button class="btn btn-secondary" id="btn-bulk-hygiene" title="Higienizar harmonias — detecta texto livre e envolve em $...$">
                             <i class="fa-solid fa-broom"></i> Higienizar
                         </button>
+                        <label class="btn btn-secondary" style="cursor:pointer;" title="Atualizar harmony_str a partir de planilha Excel (.xlsx): col A = título, col B = harmonia">
+                            <i class="fa-solid fa-file-excel"></i> Atualizar Harmonias
+                            <input type="file" id="input-update-harmony" accept=".xlsx" style="display:none;" />
+                        </label>
                         <button class="btn btn-primary" id="btn-new-song">
                             <i class="fa-solid fa-plus"></i> Nova Música
                         </button>
@@ -160,6 +164,11 @@
 
             document.getElementById('btn-bulk-hygiene').addEventListener('click', () => {
                 RepertoireComponent._bulkHygienize();
+            });
+
+            document.getElementById('input-update-harmony').addEventListener('change', (e) => {
+                if (e.target.files[0]) RepertoireComponent._importHarmonyXlsx(e.target.files[0]);
+                e.target.value = '';
             });
 
             document.getElementById('btn-search').addEventListener('click', () => {
@@ -1203,6 +1212,175 @@
             cancelBtn.textContent = 'Fechar';
             window.HMSApp.showToast(`${ok} harmonias higienizadas!`, 'success');
             await RepertoireComponent._loadSongs();
+        },
+
+        // ── Import Harmony from Excel (.xlsx) ────────────────────
+        // Expects: col A = song title, col B = harmony_str
+        // Matches by title (case-insensitive), updates harmony_str in DB.
+        _importHarmonyXlsx: function (file) {
+            if (!window.XLSX) {
+                window.HMSApp.showToast('SheetJS não carregado ainda. Tente novamente.', 'error');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const wb   = window.XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+                const ws   = wb.Sheets[wb.SheetNames[0]];
+                const rows = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+                // Skip header row if first cell looks like a label
+                const firstCell = String(rows[0]?.[0] || '').toLowerCase();
+                const dataRows  = /título|titulo|nome|music|song|name/i.test(firstCell)
+                    ? rows.slice(1)
+                    : rows;
+
+                // Build map: title_lower → harmony_str
+                const xlsxMap = {};
+                for (const row of dataRows) {
+                    const title   = String(row[0] || '').trim();
+                    const harmony = String(row[1] || '').trim();
+                    if (title) xlsxMap[title.toLowerCase()] = harmony;
+                }
+
+                // Load all songs to match
+                window.HMSApp.showLoading();
+                let allSongs;
+                try {
+                    allSongs = await window.HMSAPI.Songs.getAll();
+                } catch (err) {
+                    window.HMSApp.hideLoading();
+                    window.HMSApp.showToast('Erro ao carregar músicas: ' + err.message, 'error');
+                    return;
+                }
+                window.HMSApp.hideLoading();
+
+                const matched   = [];
+                const unmatched = [];
+
+                for (const song of allSongs) {
+                    const key = song.title.toLowerCase();
+                    if (xlsxMap[key] !== undefined) {
+                        matched.push({ ...song, _newHarmony: xlsxMap[key] });
+                    }
+                }
+                for (const title of Object.keys(xlsxMap)) {
+                    if (!allSongs.find(s => s.title.toLowerCase() === title)) {
+                        unmatched.push(title);
+                    }
+                }
+
+                const changed = matched.filter(s => s._newHarmony !== (s.harmony_str || ''));
+
+                window.HMSApp.openModal(`
+                    <div class="modal-header">
+                        <h3><i class="fa-solid fa-file-excel"></i> Atualizar Harmonias</h3>
+                        <button class="modal-close" id="modal-close-btn"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div class="modal-body">
+                        <p style="font-size:.875rem;color:var(--text-muted);margin-bottom:12px;">
+                            Planilha: <strong style="color:var(--text-primary);">${Object.keys(xlsxMap).length}</strong> linhas —
+                            <strong style="color:var(--brand);">${changed.length}</strong> músicas com harmonia diferente,
+                            <strong style="color:#f87171;">${unmatched.length}</strong> títulos sem correspondência no banco.
+                        </p>
+                        ${unmatched.length > 0 ? `
+                            <details style="margin-bottom:10px;">
+                                <summary style="font-size:.78rem;color:#f87171;cursor:pointer;">Ver títulos não encontrados (${unmatched.length})</summary>
+                                <div style="font-size:.72rem;font-family:var(--font-mono);color:var(--text-muted);padding:6px 0;line-height:1.8;">
+                                    ${unmatched.map(t => esc(t)).join('<br>')}
+                                </div>
+                            </details>
+                        ` : ''}
+                        ${changed.length === 0 ? `
+                            <div style="text-align:center;padding:20px 0;color:var(--text-muted);">
+                                <i class="fa-solid fa-circle-check" style="font-size:2rem;color:var(--brand);margin-bottom:8px;display:block;"></i>
+                                Nenhuma harmonia diferente encontrada.
+                            </div>
+                        ` : `
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                                <input type="checkbox" id="chk-harmony-all" checked />
+                                <label for="chk-harmony-all" style="font-size:.82rem;color:var(--text-secondary);cursor:pointer;">Selecionar todas (${changed.length})</label>
+                            </div>
+                            <div id="harmony-import-list" style="max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;">
+                                ${changed.map((s, idx) => `
+                                    <div style="background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:8px;padding:10px 12px;">
+                                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+                                            <input type="checkbox" class="harmony-import-chk" data-idx="${idx}" checked />
+                                            <strong style="font-size:.875rem;">${esc(s.title)}</strong>
+                                            ${s.artist ? `<span style="font-size:.78rem;color:var(--text-muted);">— ${esc(s.artist)}</span>` : ''}
+                                        </div>
+                                        <div style="font-size:.72rem;font-family:var(--font-mono);line-height:1.8;display:flex;flex-direction:column;gap:2px;">
+                                            <div style="color:var(--text-muted);">+ ${esc(s.harmony_str || '(vazio)')}</div>
+                                            <div style="color:var(--brand);">− ${esc(s._newHarmony || '(vazio)')}</div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <div id="harmony-import-progress" style="display:none;margin-top:12px;">
+                                <div style="font-size:.82rem;color:var(--text-muted);margin-bottom:6px;" id="harmony-import-status">Iniciando…</div>
+                                <div style="background:var(--glass-border);border-radius:4px;height:6px;">
+                                    <div id="harmony-import-bar" style="background:var(--brand);height:6px;border-radius:4px;width:0%;transition:width .2s;"></div>
+                                </div>
+                            </div>
+                        `}
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" id="modal-cancel-btn">Fechar</button>
+                        ${changed.length > 0 ? `<button class="btn btn-primary" id="btn-apply-harmony-import"><i class="fa-solid fa-floppy-disk"></i> Aplicar selecionadas</button>` : ''}
+                    </div>
+                `);
+
+                document.getElementById('modal-close-btn').addEventListener('click', window.HMSApp.closeModal);
+                document.getElementById('modal-cancel-btn').addEventListener('click', window.HMSApp.closeModal);
+
+                if (changed.length > 0) {
+                    document.getElementById('chk-harmony-all').addEventListener('change', (ev) => {
+                        document.querySelectorAll('.harmony-import-chk').forEach(c => { c.checked = ev.target.checked; });
+                    });
+
+                    document.getElementById('btn-apply-harmony-import').addEventListener('click', async () => {
+                        const selected = [...document.querySelectorAll('.harmony-import-chk:checked')]
+                            .map(chk => changed[parseInt(chk.dataset.idx)]);
+                        if (selected.length === 0) {
+                            window.HMSApp.showToast('Nenhuma música selecionada.', 'warning');
+                            return;
+                        }
+
+                        const progressEl = document.getElementById('harmony-import-progress');
+                        const statusEl   = document.getElementById('harmony-import-status');
+                        const barEl      = document.getElementById('harmony-import-bar');
+                        const applyBtn   = document.getElementById('btn-apply-harmony-import');
+                        const cancelBtn  = document.getElementById('modal-cancel-btn');
+                        const listEl     = document.getElementById('harmony-import-list');
+
+                        progressEl.style.display = 'block';
+                        applyBtn.disabled = true;
+                        cancelBtn.disabled = true;
+                        if (listEl) listEl.style.opacity = '.45';
+
+                        let ok = 0, fail = 0;
+                        for (let i = 0; i < selected.length; i++) {
+                            const s = selected[i];
+                            statusEl.textContent = `${i + 1} / ${selected.length} — ${s.title}`;
+                            barEl.style.width = Math.round((i / selected.length) * 100) + '%';
+                            try {
+                                await window.HMSAPI.Songs.update(s.id, { harmony_str: s._newHarmony });
+                                ok++;
+                            } catch (err) {
+                                fail++;
+                                console.warn(`[HarmonyImport] "${s.title}":`, err.message);
+                            }
+                        }
+
+                        barEl.style.width = '100%';
+                        statusEl.textContent = `Concluído: ${ok} atualizadas${fail > 0 ? `, ${fail} falhas` : ''}.`;
+                        cancelBtn.disabled = false;
+                        cancelBtn.textContent = 'Fechar';
+                        window.HMSApp.showToast(`${ok} harmonias atualizadas!`, 'success');
+                        await RepertoireComponent._loadSongs();
+                    });
+                }
+            };
+            reader.readAsArrayBuffer(file);
         },
 
         _bindSetlistDeleteButtons: function () {
