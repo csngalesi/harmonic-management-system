@@ -35,7 +35,13 @@
         isMinor: false,
         bpm: 80,
         playing: null, // id of currently playing card
+        harmonies: {}, // editable harmony per cadence id
     };
+
+    // Seed harmonies from SECTIONS defaults
+    SECTIONS.forEach(sec => sec.cadences.forEach(cad => {
+        _state.harmonies[cad.id] = cad.harmony;
+    }));
 
     // ── Helpers ──────────────────────────────────────────────────────
     function renderChordBar(harmony) {
@@ -49,18 +55,22 @@
 
     function cadenceCardHtml(cad) {
         const isPlaying = _state.playing === cad.id;
+        const harmony   = _state.harmonies[cad.id];
         return `
         <div class="panel" style="margin-bottom:0.75rem;" id="card-${esc(cad.id)}">
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--line-color);">
-                <span style="font-size:0.95rem;font-weight:600;color:var(--text-primary);">${esc(cad.label)}</span>
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line-color);">
+                <span style="font-size:0.85rem;font-weight:600;color:var(--text-secondary);white-space:nowrap;min-width:90px;">${esc(cad.label)}</span>
+                <input type="text" class="form-input s7-harmony-input" data-cadid="${esc(cad.id)}"
+                    value="${esc(harmony)}"
+                    style="flex:1;font-family:var(--font-mono);font-size:0.82rem;padding:5px 10px;">
                 <button class="btn ${isPlaying ? 'btn-secondary' : 'btn-primary'} s7-play-btn"
-                    data-cadid="${esc(cad.id)}" data-harmony="${esc(cad.harmony)}"
-                    style="padding:5px 16px;font-size:0.85rem;">
+                    data-cadid="${esc(cad.id)}"
+                    style="padding:5px 16px;font-size:0.85rem;flex-shrink:0;">
                     <i class="fa-solid fa-${isPlaying ? 'stop' : 'play'}"></i>
                 </button>
             </div>
             <div class="chord-grid size-md" style="padding:12px 14px;gap:8px;min-height:60px;" id="chords-${esc(cad.id)}">
-                ${renderChordBar(cad.harmony)}
+                ${renderChordBar(harmony)}
             </div>
         </div>`;
     }
@@ -115,7 +125,7 @@
         _refreshAllChords: function () {
             SECTIONS.forEach(sec => sec.cadences.forEach(cad => {
                 const bar = document.getElementById('chords-' + cad.id);
-                if (bar) bar.innerHTML = renderChordBar(cad.harmony);
+                if (bar) bar.innerHTML = renderChordBar(_state.harmonies[cad.id]);
             }));
         },
 
@@ -132,11 +142,20 @@
                 e.target.value = _state.bpm;
             });
 
+            // Editable harmony inputs — update chord bar live on each keystroke
+            document.querySelectorAll('.s7-harmony-input').forEach(inp => {
+                inp.addEventListener('input', e => {
+                    const cadId = e.target.dataset.cadid;
+                    _state.harmonies[cadId] = e.target.value;
+                    const bar = document.getElementById('chords-' + cadId);
+                    if (bar) bar.innerHTML = renderChordBar(_state.harmonies[cadId]);
+                });
+            });
+
             document.querySelectorAll('.s7-play-btn').forEach(btn => {
                 btn.addEventListener('click', e => {
-                    const cadId  = e.currentTarget.dataset.cadid;
-                    const harmony = e.currentTarget.dataset.harmony;
-                    Studies7Component._togglePlay(cadId, harmony);
+                    const cadId = e.currentTarget.dataset.cadid;
+                    Studies7Component._togglePlay(cadId);
                 });
             });
         },
@@ -146,22 +165,20 @@
             if (!btn) return;
             btn.innerHTML = `<i class="fa-solid fa-${playing ? 'stop' : 'play'}"></i>`;
             btn.className = `btn ${playing ? 'btn-secondary' : 'btn-primary'} s7-play-btn`;
-            btn.dataset.cadid    = cadId;
-            btn.dataset.harmony  = btn.dataset.harmony;
         },
 
-        _togglePlay: function (cadId, harmony) {
+        _togglePlay: function (cadId) {
             // Stop current
             if (_state.playing) {
                 window.HMSAudio.stop();
                 Studies7Component._setPlayingUI(_state.playing, false);
                 const wasSame = _state.playing === cadId;
                 _state.playing = null;
-                if (wasSame) return; // just stop if same card
+                if (wasSame) return;
             }
 
-            // Play new card
-            const tokens = window.HarmonyEngine.translate(harmony, _state.key, _state.isMinor);
+            // Play new card using current (possibly edited) harmony
+            const tokens = window.HarmonyEngine.translate(_state.harmonies[cadId], _state.key, _state.isMinor);
             _state.playing = cadId;
             Studies7Component._setPlayingUI(cadId, true);
 
