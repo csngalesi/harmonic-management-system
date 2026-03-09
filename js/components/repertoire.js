@@ -91,6 +91,11 @@
                         <input type="text" id="song-search" class="form-input"
                             placeholder="Buscar…"
                             value="${esc(_state.searchQuery)}" />
+                        <button class="btn btn-icon" id="btn-search-clear"
+                            title="Limpar busca"
+                            style="${_state.searchQuery ? '' : 'display:none'}">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
                         <button class="btn btn-secondary" id="btn-search">
                             <i class="fa-solid fa-magnifying-glass"></i>
                         </button>
@@ -169,6 +174,18 @@
             document.getElementById('input-update-harmony').addEventListener('change', (e) => {
                 if (e.target.files[0]) RepertoireComponent._importHarmonyXlsx(e.target.files[0]);
                 e.target.value = '';
+            });
+
+            document.getElementById('btn-search-clear').addEventListener('click', () => {
+                _state.searchQuery = '';
+                document.getElementById('song-search').value = '';
+                document.getElementById('btn-search-clear').style.display = 'none';
+                RepertoireComponent._loadSongs();
+            });
+
+            document.getElementById('song-search').addEventListener('input', (e) => {
+                const clearBtn = document.getElementById('btn-search-clear');
+                if (clearBtn) clearBtn.style.display = e.target.value ? '' : 'none';
             });
 
             document.getElementById('btn-search').addEventListener('click', () => {
