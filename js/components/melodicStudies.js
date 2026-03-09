@@ -83,19 +83,34 @@
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    // Fretboard constants shared by _noteChips and _fretboardSVG
+    const FB_OPEN_MIDI  = [36, 40, 45, 50, 55, 59, 64]; // C2 E2 A2 D3 G3 B3 E4
+    const FB_STR_LABELS = ['C','E','A','D','G','B','E'];
+    const FB_FRETS = 5;
+
+    function _isOnFretboard(midi) {
+        for (let s = 0; s < 7; s++)
+            for (let f = 0; f <= FB_FRETS; f++)
+                if (FB_OPEN_MIDI[s] + f === midi) return true;
+        return false;
+    }
+
     function _noteChips(melodyStr, root) {
         if (!melodyStr.trim()) return '<span style="color:var(--text-muted);font-size:.8rem;">—</span>';
         try {
             const parsed = window.MelodyEngine.parse(melodyStr);
             if (!parsed.length) return '<span style="color:var(--text-muted);font-size:.8rem;">—</span>';
-            const names = window.MelodyEngine.noteNames(parsed, root);
-            return names.map((n, i) => {
-                const dur  = parsed[i]?.dur || '8n';
+            const translated = window.MelodyEngine.translate(parsed, root);
+            return translated.map((n, i) => {
+                const midi   = Tone.Frequency(n.note).toMidi();
+                const onFb   = _isOnFretboard(midi);
                 const isRoot = parsed[i]?.deg === '1';
-                const color = isRoot ? 'var(--brand,#7c3aed)' : 'var(--chord-blue,#60a5fa)';
+                const color  = !onFb
+                    ? 'var(--chord-red,#f87171)'
+                    : isRoot ? 'var(--brand,#7c3aed)' : 'var(--chord-blue,#60a5fa)';
                 return `<div style="display:inline-flex;flex-direction:column;align-items:center;gap:2px;margin-right:6px;">
-                    <span style="font-family:var(--font-mono);font-size:.82rem;font-weight:600;color:${color};">${esc(n)}</span>
-                    <span style="font-size:.62rem;color:var(--text-muted);">${esc(dur)}</span>
+                    <span style="font-family:var(--font-mono);font-size:.82rem;font-weight:600;color:${color};">${esc(n.note)}</span>
+                    <span style="font-size:.62rem;color:var(--text-muted);">${esc(n.dur)}</span>
                 </div>`;
             }).join('');
         } catch (_) {
@@ -111,31 +126,33 @@
         let translated;
         try { translated = window.MelodyEngine.translate(parsed, root); } catch (_) { return ''; }
 
-        // Unique pitch class (MIDI % 12) → {deg, isRoot}
-        // Using pitch class so that oct=-1 bass notes (e.g. G1) still appear on
-        // the fretboard even though they're below the lowest open string (C2).
-        const pcMap = new Map();
+        // Unique MIDI → {deg, isRoot} — only notes that exist on the fretboard
+        const noteMap = new Map();
         translated.forEach((n, i) => {
-            const pc = Tone.Frequency(n.note).toMidi() % 12;
-            if (!pcMap.has(pc)) pcMap.set(pc, { deg: parsed[i].deg, isRoot: parsed[i].deg === '1' });
+            const midi = Tone.Frequency(n.note).toMidi();
+            if (!noteMap.has(midi)) noteMap.set(midi, { deg: parsed[i].deg, isRoot: parsed[i].deg === '1' });
         });
 
-        // Fretboard config (same tuning as Fretboard7Component)
-        const OPEN_MIDI  = [36, 40, 45, 50, 55, 59, 64]; // C2 E2 A2 D3 G3 B3 E4
-        const STR_LABELS = ['C','E','A','D','G','B','E'];
-        const FRETS = 5;
+        const OPEN_MIDI  = FB_OPEN_MIDI;
+        const STR_LABELS = FB_STR_LABELS;
+        const FRETS = FB_FRETS;
         const W = 300, H = 128, mL = 26, mR = 8, mT = 10, mB = 18;
         const neckW = W - mL - mR;
         const fretSp = neckW / FRETS;
         const strSp  = (H - mT - mB) / 6;
 
-        // Find all positions within 5 frets that match any melody pitch class
+        // One position per unique MIDI — lowest fret first, then lowest string
+        const candidates = [];
+        for (const [midi, info] of noteMap) {
+            for (let s = 0; s < 7; s++)
+                for (let f = 0; f <= FRETS; f++)
+                    if (OPEN_MIDI[s] + f === midi) candidates.push({ s, f, midi, ...info });
+        }
+        candidates.sort((a, b) => a.f - b.f || a.s - b.s);
+        const seen = new Set();
         const hits = [];
-        for (let f = 0; f <= FRETS; f++) {
-            for (let s = 0; s < 7; s++) {
-                const pc = (OPEN_MIDI[s] + f) % 12;
-                if (pcMap.has(pc)) hits.push({ s, f, ...pcMap.get(pc) });
-            }
+        for (const c of candidates) {
+            if (!seen.has(c.midi)) { seen.add(c.midi); hits.push(c); }
         }
 
         const p = [];
