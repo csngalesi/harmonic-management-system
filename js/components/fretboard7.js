@@ -6,20 +6,25 @@
 (function () {
     'use strict';
 
-    const KEYS      = window.HarmonyEngine.allKeys();
-    const esc       = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    const esc        = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+    const NOTE_LABELS = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 
-    // Afinação padrão 7 cordas: string 0 = mais aguda (E4), string 6 = mais grave (B1)
+    // Afinação: string 0 = mais aguda (E4), string 6 = mais grave (C)
     const OPEN_NOTES    = [4, 11, 7, 2, 9, 4, 0]; // E B G D A E C
     const STRING_LABELS = ['E','B','G','D','A','E','C'];
 
-    const MAJOR_INTERVALS = [0, 2, 4, 5, 7, 9, 11];
-    const MINOR_INTERVALS = [0, 2, 3, 5, 7, 8, 10];
+    // ── Escalas ───────────────────────────────────────────────────────────────
+    const SCALES = {
+        major:     { label: 'Maior',           intervals: [0, 2, 4, 5, 7, 9, 11] },
+        nat_minor: { label: 'Menor Natural',    intervals: [0, 2, 3, 5, 7, 8, 10] },
+        har_minor: { label: 'Menor Harmônica',  intervals: [0, 2, 3, 5, 7, 8, 11] },
+        mel_minor: { label: 'Menor Melódica',   intervals: [0, 2, 3, 5, 7, 9, 11] },
+    };
 
     const _state = {
-        key:         'C',
-        isMinor:     false,
+        root:        'C',
+        scaleKey:    'major',
         degreesInput: '1 3 5',
         highlights:  [],
     };
@@ -38,19 +43,16 @@
         get fretSpacing()  { return this.neckW / this.FRETS; },
         get stringSpacing(){ return (this.H - this.marginTop - this.marginBottom) / (this.STRINGS - 1); },
         stringY(s)         { return this.marginTop + s * this.stringSpacing; },
-        fretX(f)           { return this.marginLeft + f * this.fretSpacing; },
-        // Center x between two fret bars (for note dot placement)
         dotX(fret)         {
-            if (fret === 0) return this.marginLeft - 14; // open string: left of nut
+            if (fret === 0) return this.marginLeft - 14;
             return this.marginLeft + (fret - 0.5) * this.fretSpacing;
         },
     };
 
-    function _resolveHighlights(key, isMinor, degreesStr) {
-        const rootIdx = NOTE_NAMES.indexOf(key);
+    function _resolveHighlights(root, scaleKey, degreesStr) {
+        const rootIdx   = NOTE_NAMES.indexOf(root);
         if (rootIdx === -1) return [];
-
-        const intervals = isMinor ? MINOR_INTERVALS : MAJOR_INTERVALS;
+        const intervals = SCALES[scaleKey].intervals;
         const degrees   = degreesStr.split(/[\s,]+/)
             .map(d => parseInt(d, 10))
             .filter(d => d >= 1 && d <= 7);
@@ -74,7 +76,7 @@
     }
 
     function _buildSVG(highlights) {
-        const { W, H, marginLeft, marginTop, marginBottom, marginRight, FRETS, STRINGS,
+        const { W, H, marginLeft, marginTop, marginBottom, FRETS, STRINGS,
                 neckW, fretSpacing, stringSpacing } = FB;
         const nutX    = marginLeft;
         const neckEnd = nutX + neckW;
@@ -87,30 +89,28 @@
         // Neck background
         parts.push(`<rect x="${nutX}" y="${topY - 4}" width="${neckW}" height="${botY - topY + 8}" fill="var(--bg-raised)" rx="3" opacity="0.4"/>`);
 
-        // Position markers (dots on neck at frets 3 and 5)
+        // Position markers at frets 3 and 5
         for (const mf of [3, 5]) {
             const mx = nutX + (mf - 0.5) * fretSpacing;
             const my = topY + (STRINGS - 1) * stringSpacing / 2;
             parts.push(`<circle cx="${mx}" cy="${my}" r="5" fill="var(--text-muted)" opacity="0.2"/>`);
         }
 
-        // Strings (horizontal)
+        // Strings
         for (let s = 0; s < STRINGS; s++) {
             const y  = FB.stringY(s);
-            const sw = (0.6 + (STRINGS - 1 - s) * 0.25).toFixed(2); // string 6 (B1) thickest
+            const sw = (0.6 + (STRINGS - 1 - s) * 0.25).toFixed(2);
             parts.push(`<line x1="${nutX}" y1="${y}" x2="${neckEnd}" y2="${y}" stroke="var(--text-secondary)" stroke-width="${sw}" opacity="0.7"/>`);
-            // String label
             parts.push(`<text x="${nutX - 8}" y="${y + 4}" text-anchor="end" font-size="11" font-family="var(--font-mono)" fill="var(--text-muted)">${STRING_LABELS[s]}</text>`);
         }
 
         // Nut
         parts.push(`<line x1="${nutX}" y1="${topY - 6}" x2="${nutX}" y2="${botY + 6}" stroke="var(--text-primary)" stroke-width="3" stroke-linecap="round"/>`);
 
-        // Fret bars
+        // Fret bars + numbers
         for (let f = 1; f <= FRETS; f++) {
             const x = nutX + f * fretSpacing;
             parts.push(`<line x1="${x}" y1="${topY - 4}" x2="${x}" y2="${botY + 4}" stroke="var(--line-color)" stroke-width="1.2"/>`);
-            // Fret number at bottom
             parts.push(`<text x="${x - fretSpacing / 2}" y="${H - 6}" text-anchor="middle" font-size="10" fill="var(--text-muted)">${f}</text>`);
         }
 
@@ -118,17 +118,13 @@
         for (const h of highlights) {
             const cx   = FB.dotX(h.fret);
             const cy   = FB.stringY(h.string);
-            const fill = h.isRoot
-                ? 'var(--brand, #7c3aed)'
-                : 'var(--chord-blue, #60a5fa)';
-            const r    = 10;
+            const fill = h.isRoot ? 'var(--brand,#7c3aed)' : 'var(--chord-blue,#60a5fa)';
 
             if (h.fret === 0) {
-                // Open string: hollow circle
-                parts.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${fill}" stroke-width="2"/>`);
+                parts.push(`<circle cx="${cx}" cy="${cy}" r="10" fill="none" stroke="${fill}" stroke-width="2"/>`);
                 parts.push(`<text x="${cx}" y="${cy + 4}" text-anchor="middle" font-size="9" font-weight="700" fill="${fill}">${h.degree}</text>`);
             } else {
-                parts.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}" opacity="0.92"/>`);
+                parts.push(`<circle cx="${cx}" cy="${cy}" r="10" fill="${fill}" opacity="0.92"/>`);
                 parts.push(`<text x="${cx}" y="${cy + 4}" text-anchor="middle" font-size="10" font-weight="700" fill="white">${h.degree}</text>`);
             }
         }
@@ -141,9 +137,14 @@
     const Fretboard7Component = {
 
         render: function () {
-            const content    = document.getElementById('main-content');
-            const keyOptions = KEYS.map(k =>
-                `<option value="${esc(k.value)}" ${k.value === (_state.key + (_state.isMinor ? 'm' : '')) ? 'selected' : ''}>${esc(k.label)}</option>`
+            const content = document.getElementById('main-content');
+
+            const rootOptions = NOTE_LABELS.map((n, i) =>
+                `<option value="${n}" ${n === _state.root ? 'selected' : ''}>${n}</option>`
+            ).join('');
+
+            const scaleOptions = Object.entries(SCALES).map(([k, v]) =>
+                `<option value="${k}" ${k === _state.scaleKey ? 'selected' : ''}>${esc(v.label)}</option>`
             ).join('');
 
             content.innerHTML = `
@@ -177,13 +178,17 @@
                         <div class="panel-body">
                             <div class="form-group">
                                 <label class="form-label">Tom</label>
-                                <select id="fb7-key" class="form-input form-select">${keyOptions}</select>
+                                <select id="fb7-root" class="form-input form-select">${rootOptions}</select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Escala</label>
+                                <select id="fb7-scale" class="form-input form-select">${scaleOptions}</select>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Graus</label>
                                 <input type="text" id="fb7-degrees" class="form-input"
                                     value="${esc(_state.degreesInput)}"
-                                    placeholder="Ex: 1 3 5  ou  1 2 3 5 6" />
+                                    placeholder="Ex: 1 3 5  ou  1 2 3 4 5 6 7" />
                                 <span class="form-hint">Números 1–7 separados por espaço</span>
                             </div>
                             <button class="btn btn-primary btn-full" id="btn-fb7-apply">
@@ -222,7 +227,8 @@
             }
 
             document.getElementById('btn-fb7-apply').addEventListener('click', () => Fretboard7Component._apply());
-            document.getElementById('fb7-key').addEventListener('change', () => Fretboard7Component._apply());
+            document.getElementById('fb7-root').addEventListener('change',  () => Fretboard7Component._apply());
+            document.getElementById('fb7-scale').addEventListener('change', () => Fretboard7Component._apply());
             document.getElementById('fb7-degrees').addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') Fretboard7Component._apply();
             });
@@ -231,14 +237,15 @@
         },
 
         _apply: function () {
-            const keyVal = document.getElementById('fb7-key').value;
-            const degStr = (document.getElementById('fb7-degrees').value || '1 3 5').trim();
+            const root     = document.getElementById('fb7-root').value;
+            const scaleKey = document.getElementById('fb7-scale').value;
+            const degStr   = (document.getElementById('fb7-degrees').value || '1 3 5').trim();
 
-            _state.isMinor      = keyVal.endsWith('m');
-            _state.key          = keyVal.replace(/m$/, '');
+            _state.root        = root;
+            _state.scaleKey    = scaleKey;
             _state.degreesInput = degStr;
 
-            _state.highlights = _resolveHighlights(_state.key, _state.isMinor, degStr);
+            _state.highlights = _resolveHighlights(root, scaleKey, degStr);
 
             const svgEl = document.getElementById('fretboard-svg');
             if (svgEl) svgEl.innerHTML = _buildSVG(_state.highlights);
@@ -247,14 +254,14 @@
             const listEl = document.getElementById('fb7-notes-list');
             if (!listEl) return;
 
-            const rootIdx  = NOTE_NAMES.indexOf(_state.key);
-            const intervals = _state.isMinor ? MINOR_INTERVALS : MAJOR_INTERVALS;
+            const rootIdx   = NOTE_NAMES.indexOf(root);
+            const intervals = SCALES[scaleKey].intervals;
             const degrees   = degStr.split(/[\s,]+/).map(d => parseInt(d, 10)).filter(d => d >= 1 && d <= 7);
 
             if (!degrees.length || rootIdx === -1) { listEl.innerHTML = ''; return; }
 
             const rows = degrees.map(d => {
-                const pc = (rootIdx + intervals[d - 1]) % 12;
+                const pc    = (rootIdx + intervals[d - 1]) % 12;
                 const color = d === 1 ? 'var(--brand,#7c3aed)' : 'var(--chord-blue,#60a5fa)';
                 return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--line-color);">
                     <span style="font-size:.8rem;color:var(--text-muted);">Grau ${d}</span>
