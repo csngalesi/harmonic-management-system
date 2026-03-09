@@ -153,6 +153,11 @@
 
         str = str.replace(/\//g, ' / '); // Ensure slashes are distinct structural tokens
 
+        // Ensure bare [ and ] that survived section extraction become their own tokens.
+        // Preserve [1. and [2. (volta brackets) — they stay as a single token.
+        str = str.replace(/\[(?![12]\.)/g, ' [ ');
+        str = str.replace(/\]/g, ' ] ');
+
         // 3. Split by whitespace
         const rawTokens = str.split(/\s+/).filter(Boolean);
 
