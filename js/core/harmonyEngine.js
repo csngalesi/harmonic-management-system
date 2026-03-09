@@ -187,9 +187,10 @@
                 continue;
             }
 
-            // SEC_DOM with trailing chord: 5(4/)4m/ → SEC_DOM(5→4/) + CHORD(4m/)
-            // Happens when sec-dom and its resolution are written without a space.
-            const sdTrailM = raw.match(/^([b#1-7mMho7]+)\((.+?)\)([b#]?[1-7][mMho7]*\/?)$/);
+            // SEC_DOM with trailing chord(s): 5///(4///)4m/// → SEC_DOM + CHORD(s)
+            // Also handles 5/(3/)251 → SEC_DOM + three CHORDs.
+            // Slash chars are allowed in the prefix (e.g. 5///).
+            const sdTrailM = raw.match(/^([b#1-7mMho7/]+)\((.+?)\)(.+)$/);
             if (sdTrailM && sdTrailM[3]) {
                 tokens.push({
                     type: 'SEC_DOM',
@@ -197,14 +198,20 @@
                     target: sdTrailM[2],
                     showTarget: true,
                 });
-                tokens.push({ type: 'CHORD', value: sdTrailM[3] });
+                const trailParts = parsePrefixStr(sdTrailM[3]);
+                if (trailParts.length > 0 && trailParts.join('') === sdTrailM[3]) {
+                    for (const p of trailParts) tokens.push({ type: 'CHORD', value: p });
+                } else {
+                    tokens.push({ type: 'CHORD', value: sdTrailM[3] });
+                }
                 continue;
             }
 
             // Secondary dominant: prefix + (target) or "target"
-            // E.g.: 25(4), 57(6m), b725"4", 25(6m)
-            const sdM = raw.match(/^([b#1-7mMho7]+)\((.+?)\)$/) ||
-                raw.match(/^([b#1-7mMho7]+)"(.+?)"$/);
+            // E.g.: 25(4), 57(6m), 5///"6", 5/"2"
+            // Slash chars allowed in prefix (e.g. 5///).
+            const sdM = raw.match(/^([b#1-7mMho7/]+)\((.+?)\)$/) ||
+                raw.match(/^([b#1-7mMho7/]+)"(.+?)"$/);
             if (sdM) {
                 const showTarget = raw.includes('(');
                 const prefixTokens = parsePrefixStr(sdM[1]);
@@ -268,7 +275,8 @@
 
     // Parse a run of degree tokens from a string like "25" or "b725"
     function parsePrefixStr(str) {
-        return str.match(/[b#]?[1-7][mMho7]*/g) || [];
+        // Include trailing slashes so "5///" stays "5///" and round-trips correctly.
+        return str.match(/[b#]?[1-7][mMho7]*\/*/g) || [];
     }
 
     // ── State Machine Processor ──────────────────────────────────
