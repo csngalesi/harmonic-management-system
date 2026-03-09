@@ -111,11 +111,13 @@
         let translated;
         try { translated = window.MelodyEngine.translate(parsed, root); } catch (_) { return ''; }
 
-        // Unique MIDI → {deg, isRoot}
-        const noteMap = new Map();
+        // Unique pitch class (MIDI % 12) → {deg, isRoot}
+        // Using pitch class so that oct=-1 bass notes (e.g. G1) still appear on
+        // the fretboard even though they're below the lowest open string (C2).
+        const pcMap = new Map();
         translated.forEach((n, i) => {
-            const midi = Tone.Frequency(n.note).toMidi();
-            if (!noteMap.has(midi)) noteMap.set(midi, { deg: parsed[i].deg, isRoot: parsed[i].deg === '1' });
+            const pc = Tone.Frequency(n.note).toMidi() % 12;
+            if (!pcMap.has(pc)) pcMap.set(pc, { deg: parsed[i].deg, isRoot: parsed[i].deg === '1' });
         });
 
         // Fretboard config (same tuning as Fretboard7Component)
@@ -127,20 +129,13 @@
         const fretSp = neckW / FRETS;
         const strSp  = (H - mT - mB) / 6;
 
-        // Find positions — deduplicated by MIDI (lowest fret first)
-        const candidates = [];
-        for (const [midi, info] of noteMap) {
-            for (let s = 0; s < 7; s++) {
-                for (let f = 0; f <= FRETS; f++) {
-                    if (OPEN_MIDI[s] + f === midi) candidates.push({ s, f, midi, ...info });
-                }
-            }
-        }
-        candidates.sort((a, b) => a.f - b.f || a.s - b.s);
-        const seen = new Set();
+        // Find all positions within 5 frets that match any melody pitch class
         const hits = [];
-        for (const c of candidates) {
-            if (!seen.has(c.midi)) { seen.add(c.midi); hits.push(c); }
+        for (let f = 0; f <= FRETS; f++) {
+            for (let s = 0; s < 7; s++) {
+                const pc = (OPEN_MIDI[s] + f) % 12;
+                if (pcMap.has(pc)) hits.push({ s, f, ...pcMap.get(pc) });
+            }
         }
 
         const p = [];
