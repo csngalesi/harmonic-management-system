@@ -73,6 +73,7 @@
         player: window.PlayerComponent,
         analyzer: window.AnalyzerComponent,
         extractor: window.ExtractorComponent,
+        studies7: window.Studies7Component,
     };
 
     // ── App Controller ───────────────────────────────────────────
