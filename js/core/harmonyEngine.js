@@ -109,6 +109,23 @@
             .replace(/\s*-\s*/g, ' ')
             .trim();
 
+        // 2a. Extract [...]Nx sections BEFORE secDomSlash substitution so the
+        // stored content is the raw original string (no ¶N¶ artifacts), enabling
+        // correct recursive tokenize() and round-trip sanitize() output.
+        const sections = [];
+        str = str.replace(/\[([^\]]*)\](\d+)x/gi, (_, content, n) => {
+            const i = sections.length;
+            sections.push({ content: content.trim(), times: parseInt(n, 10), style: '[' });
+            return `§${i}§`;
+        });
+
+        // 2b. Extract {section}xN blocks (same reason — raw content preserved)
+        str = str.replace(/\{([^}]*)\}x(\d+)/g, (_, content, n) => {
+            const i = sections.length;
+            sections.push({ content: content.trim(), times: parseInt(n, 10), style: '{' });
+            return `§${i}§`;
+        });
+
         // Pre-process SEC_DOM patterns that contain slashes (e.g. 5/(3/)) BEFORE
         // the global slash injection, which would otherwise break them.
         const secDomSlash = [];
@@ -136,17 +153,6 @@
 
         str = str.replace(/\//g, ' / '); // Ensure slashes are distinct structural tokens
 
-        // 2a. Normalize [...]Nx repeat notation → {…}xN (spreadsheet alias)
-        str = str.replace(/\[([^\]]*)\](\d+)x/gi, (_, content, n) => `{${content.trim()}}x${n}`);
-
-        // 2. Extract {section}xN blocks (may contain spaces inside)
-        const sections = [];
-        str = str.replace(/\{([^}]*)\}x(\d+)/g, (_, content, n) => {
-            const i = sections.length;
-            sections.push({ content: content.trim(), times: parseInt(n, 10) });
-            return `§${i}§`;
-        });
-
         // 3. Split by whitespace
         const rawTokens = str.split(/\s+/).filter(Boolean);
 
@@ -163,7 +169,7 @@
             const secM = raw.match(/^§(\d+)§$/);
             if (secM) {
                 const s = sections[parseInt(secM[1], 10)];
-                tokens.push({ type: 'SECTION', content: s.content, times: s.times });
+                tokens.push({ type: 'SECTION', content: s.content, times: s.times, style: s.style || '{' });
                 continue;
             }
 
@@ -715,7 +721,10 @@
                         parts.push(`${prefix}${slashB}${open}${t.target}${slashA}${close}`);
                         break;
                     }
-                    case 'SECTION':    parts.push(`{${t.content}}x${t.times}`); break;
+                    case 'SECTION':
+                        if (t.style === '[') parts.push(`[${t.content}]${t.times}x`);
+                        else                 parts.push(`{${t.content}}x${t.times}`);
+                        break;
                     case 'DOT_DEGREE': parts.push(`${t.outer}.${t.inner}`); break;
                 }
             }
