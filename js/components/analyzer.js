@@ -10,6 +10,7 @@
     const esc  = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
     let _lastResult = '';
+    let _isPlaying  = false;
 
     const AnalyzerComponent = {
 
@@ -58,9 +59,14 @@
                     <div class="panel">
                         <div class="panel-header">
                             <span class="panel-title"><i class="fa-solid fa-output"></i> Graus Funcionais</span>
-                            <button class="btn btn-secondary btn-sm" id="btn-copy-degrees" title="Copiar">
-                                <i class="fa-solid fa-copy"></i> Copiar
-                            </button>
+                            <div style="display:flex;gap:6px;">
+                                <button class="btn btn-primary btn-sm" id="btn-play-degrees" title="Executar" disabled>
+                                    <i class="fa-solid fa-play"></i>
+                                </button>
+                                <button class="btn btn-secondary btn-sm" id="btn-copy-degrees" title="Copiar">
+                                    <i class="fa-solid fa-copy"></i> Copiar
+                                </button>
+                            </div>
                         </div>
                         <div class="panel-body">
                             <div class="degree-output" id="degree-output" style="min-height:120px;">
@@ -107,6 +113,10 @@
                 AnalyzerComponent._handleAnalyze();
             });
 
+            document.getElementById('btn-play-degrees').addEventListener('click', () => {
+                AnalyzerComponent._handlePlay();
+            });
+
             document.getElementById('btn-copy-degrees').addEventListener('click', () => {
                 if (!_lastResult) return;
                 navigator.clipboard.writeText(_lastResult).then(() => {
@@ -138,6 +148,9 @@
             const outputEl = document.getElementById('degree-output');
             outputEl.textContent = degrees || '(sem resultado)';
 
+            const playBtn = document.getElementById('btn-play-degrees');
+            if (playBtn) playBtn.disabled = !degrees;
+
             // Verify by re-translating the degrees
             if (degrees) {
                 const backTokens = window.HarmonyEngine.translate(degrees, root, isMinor);
@@ -163,6 +176,43 @@
                 const keySelect = document.getElementById('analyzer-key');
                 if (keySelect) keySelect.value = keyVal;
             }
+        },
+
+        _handlePlay: function () {
+            const playBtn = document.getElementById('btn-play-degrees');
+
+            if (_isPlaying) {
+                window.HMSAudio.stop();
+                _isPlaying = false;
+                if (playBtn) {
+                    playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+                    playBtn.className = 'btn btn-primary btn-sm';
+                }
+                return;
+            }
+
+            if (!_lastResult) return;
+
+            const keyVal  = document.getElementById('analyzer-key').value;
+            const kObj    = KEYS.find(k => k.value === keyVal) || KEYS[0];
+            const root    = kObj.value.replace(/m$/, '');
+            const isMinor = kObj.isMinor;
+
+            const tokens = window.HarmonyEngine.translate(_lastResult, root, isMinor);
+            _isPlaying = true;
+
+            if (playBtn) {
+                playBtn.innerHTML = '<i class="fa-solid fa-stop"></i>';
+                playBtn.className = 'btn btn-secondary btn-sm';
+            }
+
+            window.HMSAudio.playSequence(tokens, 80, () => {
+                _isPlaying = false;
+                if (playBtn) {
+                    playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+                    playBtn.className = 'btn btn-primary btn-sm';
+                }
+            });
         },
 
         _handleSaveToRepertoire: async function () {
