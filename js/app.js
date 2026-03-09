@@ -74,7 +74,8 @@
         analyzer: window.AnalyzerComponent,
         extractor: window.ExtractorComponent,
         studies7:   window.Studies7Component,
-        fretboard7: window.Fretboard7Component,
+        fretboard7:     window.Fretboard7Component,
+        melodicStudies: window.MelodicStudiesComponent,
     };
 
     // ── App Controller ───────────────────────────────────────────

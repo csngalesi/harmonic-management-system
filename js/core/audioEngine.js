@@ -179,6 +179,46 @@
             }, totalDuration);
         },
 
+        /**
+         * Play a processed melody array from MelodyEngine.translate().
+         * @param {Array}    notes      [{note:'C2', dur:'8n'}, ...]
+         * @param {number}   bpm        beats per minute
+         * @param {Function} onFinished called when playback ends naturally
+         */
+        async playMelody(notes, bpm = 80, onFinished) {
+            AudioEngine.stop();
+            await ensureSynth();
+
+            if (!notes || notes.length === 0) return;
+
+            // Build events with absolute timestamps (seconds from t=0)
+            const events = [];
+            let t = 0;
+            for (const n of notes) {
+                events.push({ time: t, note: n.note, dur: n.dur });
+                t += window.MelodyEngine.durToSeconds(n.dur, bpm);
+            }
+
+            Tone.Transport.cancel();
+            Tone.Transport.stop();
+            Tone.Transport.position = 0;
+            Tone.Transport.bpm.value = bpm;
+
+            part = new Tone.Part((audioTime, value) => {
+                sampler.triggerAttackRelease(value.note, value.dur, audioTime);
+            }, events);
+            part.start(0);
+
+            _isPlaying = true;
+            Tone.Transport.start('+0.05');
+
+            // Auto-stop after last note + release tail
+            Tone.Transport.scheduleOnce(() => {
+                AudioEngine.stop();
+                if (onFinished) onFinished();
+            }, t + 2.0);
+        },
+
         stop() {
             _isPlaying = false;
             if (part) { part.stop(); part.dispose(); part = null; }
