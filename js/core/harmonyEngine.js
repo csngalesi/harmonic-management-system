@@ -215,6 +215,22 @@
                 continue;
             }
 
+            // Parenthesized bare degree: (2), (4m), (b3) → treat as chord
+            // Handles standalone tokens like "(2)" that appear in section notation
+            const parenDegM = raw.match(/^\(([b#]?[1-7][mMho7]*(?:\/[b#]?[1-7][mMho7]*)?)\)$/);
+            if (parenDegM) {
+                tokens.push({ type: 'CHORD', value: parenDegM[1] });
+                continue;
+            }
+
+            // Parenthesized degree followed immediately by another degree: (4)4m → two chords
+            const parenPlusDegM = raw.match(/^\(([b#]?[1-7][mMho7]*)\)([b#]?[1-7][mMho7]*)$/);
+            if (parenPlusDegM) {
+                tokens.push({ type: 'CHORD', value: parenPlusDegM[1] });
+                tokens.push({ type: 'CHORD', value: parenPlusDegM[2] });
+                continue;
+            }
+
             // Regular chord degree(s).
             // A run like "251" (no spaces) must be split into ["2","5","1"].
             // Guard: only split when parsePrefixStr reconstructs the exact raw
