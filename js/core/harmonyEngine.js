@@ -179,6 +179,8 @@
             if (raw === ']') { tokens.push({ type: 'STRUCT', value: ']' }); continue; }
             if (raw === '[1.') { tokens.push({ type: 'STRUCT', value: '[1.' }); continue; }
             if (raw === '[2.') { tokens.push({ type: 'STRUCT', value: '[2.' }); continue; }
+            if (raw === '-') { tokens.push({ type: 'STRUCT', value: '-' }); continue; }
+            if (raw === '+') { tokens.push({ type: 'STRUCT', value: '+' }); continue; }
 
             // 5.5 = V of V (dominant of the dominant).
             // E.g.: in C major → V of G → D7
@@ -263,6 +265,13 @@
                 } else {
                     tokens.push({ type: 'CHORD', value: raw });
                 }
+                continue;
+            }
+
+            // Safety net: any token containing harmonic punctuation is never plain text.
+            // Rule: ( ) / [ ] " { } together signal harmonic notation, not free text.
+            if (/[()\/"\[\]{}]/.test(raw)) {
+                tokens.push({ type: 'CHORD', value: raw });
                 continue;
             }
 
