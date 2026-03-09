@@ -188,7 +188,7 @@
         async getAll() {
             const { data, error } = await db()
                 .from('melodic_phrases')
-                .select('id, user_id, title, description, melody, root, bpm, created_at')
+                .select('id, user_id, title, description, melody, root, scale_key, bpm, created_at')
                 .order('created_at', { ascending: false });
             if (error) throw error;
             return data || [];

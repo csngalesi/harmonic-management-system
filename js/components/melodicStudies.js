@@ -285,6 +285,7 @@
         const pPlayId   = 'rp_' + p.id;
         const isPlaying = _state.playing === pPlayId;
         const root      = p.root || 'C';
+        const pScaleKey = p.scale_key || 'major';
         return `
         <div class="panel" style="margin-bottom:.75rem;" id="rp-card-${esc(p.id)}">
             <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line-color);">
@@ -292,7 +293,7 @@
                     <span style="font-size:.9rem;font-weight:600;color:var(--text-primary);">${esc(p.title)}</span>
                     ${p.description ? `<span style="font-size:.78rem;color:var(--text-muted);margin-left:10px;">${esc(p.description)}</span>` : ''}
                 </div>
-                <span style="font-size:.72rem;color:var(--text-muted);flex-shrink:0;">${esc(root)} · ${p.bpm || 80} BPM</span>
+                <span style="font-size:.72rem;color:var(--text-muted);flex-shrink:0;">${esc(root)} · ${esc(SCALES[pScaleKey]?.label || 'Maior')} · ${p.bpm || 80} BPM</span>
                 <button class="btn ${isPlaying ? 'btn-secondary' : 'btn-primary'} rp-play-btn"
                     data-id="${esc(p.id)}" style="padding:5px 14px;font-size:.85rem;flex-shrink:0;">
                     <i class="fa-solid fa-${isPlaying ? 'stop' : 'play'}"></i>
@@ -309,17 +310,21 @@
             </div>
             <div style="display:flex;gap:14px;align-items:flex-start;padding:10px 14px;">
                 <div style="flex:1;min-width:0;display:flex;align-items:center;flex-wrap:wrap;gap:4px;min-height:44px;">
-                    ${_noteChips(p.melody, root, _state.scaleKey)}
+                    ${_noteChips(p.melody, root, pScaleKey)}
                 </div>
-                <div style="flex-shrink:0;width:260px;">${_fretboardSVG(p.melody, root, _state.scaleKey)}</div>
+                <div style="flex-shrink:0;width:260px;">${_fretboardSVG(p.melody, root, pScaleKey)}</div>
             </div>
         </div>`;
     }
 
     function _phraseCardEditHtml(p) {
-        const root = p.root || 'C';
+        const root      = p.root || 'C';
+        const pScaleKey = p.scale_key || 'major';
         const rootOptions = NOTE_NAMES.map(n =>
             `<option value="${n}" ${n === root ? 'selected' : ''}>${n}</option>`
+        ).join('');
+        const scaleOptions = Object.entries(SCALES).map(([k, v]) =>
+            `<option value="${k}" ${k === pScaleKey ? 'selected' : ''}>${esc(v.label)}</option>`
         ).join('');
         return `
         <div class="panel" style="margin-bottom:.75rem;border:1px solid var(--brand,#7c3aed);" id="rp-card-${esc(p.id)}">
@@ -336,12 +341,13 @@
                     style="font-family:var(--font-mono);font-size:.8rem;" />
                 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
                     <select class="form-select" id="rp-edit-root-${esc(p.id)}" style="width:auto;">${rootOptions}</select>
+                    <select class="form-select" id="rp-edit-scale-${esc(p.id)}" style="width:auto;">${scaleOptions}</select>
                     <input type="number" class="form-input" id="rp-edit-bpm-${esc(p.id)}"
                         value="${p.bpm || 80}" min="20" max="300"
                         style="width:68px;text-align:center;" title="BPM" />
                     <div style="flex:1;min-width:100px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;min-height:36px;"
                         id="rp-edit-chips-${esc(p.id)}">
-                        ${_noteChips(p.melody, root, _state.scaleKey)}
+                        ${_noteChips(p.melody, root, pScaleKey)}
                     </div>
                 </div>
                 <div style="display:flex;gap:8px;justify-content:flex-end;">
@@ -354,7 +360,7 @@
             <div style="display:flex;gap:14px;align-items:flex-start;padding:0 14px 12px;">
                 <div style="flex:1;"></div>
                 <div style="flex-shrink:0;width:260px;" id="rp-edit-fb-${esc(p.id)}">
-                    ${_fretboardSVG(p.melody, root, _state.scaleKey)}
+                    ${_fretboardSVG(p.melody, root, pScaleKey)}
                 </div>
             </div>
         </div>`;
@@ -591,22 +597,26 @@
             listEl.addEventListener('input', e => {
                 const mel = e.target.closest('.rp-edit-melody');
                 if (!mel) return;
-                const id   = mel.dataset.id;
-                const root = document.getElementById('rp-edit-root-' + id)?.value || _state.root;
+                const id    = mel.dataset.id;
+                const root  = document.getElementById('rp-edit-root-'  + id)?.value || _state.root;
+                const scale = document.getElementById('rp-edit-scale-' + id)?.value || _state.scaleKey;
                 const chips = document.getElementById('rp-edit-chips-' + id);
                 const fb    = document.getElementById('rp-edit-fb-'    + id);
-                if (chips) chips.innerHTML = _noteChips(mel.value, root, _state.scaleKey);
-                if (fb)    fb.innerHTML    = _fretboardSVG(mel.value, root, _state.scaleKey);
+                if (chips) chips.innerHTML = _noteChips(mel.value, root, scale);
+                if (fb)    fb.innerHTML    = _fretboardSVG(mel.value, root, scale);
             });
             listEl.addEventListener('change', e => {
-                const rootSel = e.target.id?.startsWith('rp-edit-root-') ? e.target : null;
-                if (!rootSel) return;
-                const id  = rootSel.id.replace('rp-edit-root-', '');
-                const mel = document.getElementById('rp-edit-melody-' + id)?.value || '';
+                const isRoot  = e.target.id?.startsWith('rp-edit-root-');
+                const isScale = e.target.id?.startsWith('rp-edit-scale-');
+                if (!isRoot && !isScale) return;
+                const id    = e.target.id.replace(/^rp-edit-(root|scale)-/, '');
+                const mel   = document.getElementById('rp-edit-melody-' + id)?.value || '';
+                const root  = document.getElementById('rp-edit-root-'   + id)?.value || _state.root;
+                const scale = document.getElementById('rp-edit-scale-'  + id)?.value || _state.scaleKey;
                 const chips = document.getElementById('rp-edit-chips-' + id);
                 const fb    = document.getElementById('rp-edit-fb-'    + id);
-                if (chips) chips.innerHTML = _noteChips(mel, rootSel.value, _state.scaleKey);
-                if (fb)    fb.innerHTML    = _fretboardSVG(mel, rootSel.value, _state.scaleKey);
+                if (chips) chips.innerHTML = _noteChips(mel, root, scale);
+                if (fb)    fb.innerHTML    = _fretboardSVG(mel, root, scale);
             });
 
             C._loadPhrases().then(() => C._renderPhraseList());
@@ -658,6 +668,9 @@
             const rootOptions = NOTE_NAMES.map(n =>
                 `<option value="${n}" ${n === _state.root ? 'selected' : ''}>${n}</option>`
             ).join('');
+            const scaleOptions = Object.entries(SCALES).map(([k, v]) =>
+                `<option value="${k}" ${k === _state.scaleKey ? 'selected' : ''}>${esc(v.label)}</option>`
+            ).join('');
 
             container.innerHTML = `
             <div class="panel" style="margin-bottom:1.25rem;border:1px solid var(--brand,#7c3aed);">
@@ -671,6 +684,7 @@
                         style="font-family:var(--font-mono);font-size:.8rem;" />
                     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
                         <select class="form-select" id="rp-root" style="width:auto;">${rootOptions}</select>
+                        <select class="form-select" id="rp-scale" style="width:auto;">${scaleOptions}</select>
                         <input type="number" class="form-input" id="rp-bpm" value="${_state.bpm}"
                             min="20" max="300" style="width:68px;text-align:center;" title="BPM" />
                         <div style="flex:1;min-width:100px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;min-height:36px;"
@@ -689,16 +703,16 @@
                 </div>
             </div>`;
 
-            document.getElementById('rp-melody').addEventListener('input', e => {
-                const root = document.getElementById('rp-root').value;
-                document.getElementById('rp-new-chips').innerHTML = _noteChips(e.target.value, root, _state.scaleKey);
-                document.getElementById('rp-new-fb').innerHTML    = _fretboardSVG(e.target.value, root, _state.scaleKey);
-            });
-            document.getElementById('rp-root').addEventListener('change', e => {
-                const mel = document.getElementById('rp-melody').value;
-                document.getElementById('rp-new-chips').innerHTML = _noteChips(mel, e.target.value, _state.scaleKey);
-                document.getElementById('rp-new-fb').innerHTML    = _fretboardSVG(mel, e.target.value, _state.scaleKey);
-            });
+            const updateNewPreview = () => {
+                const mel   = document.getElementById('rp-melody').value;
+                const root  = document.getElementById('rp-root').value;
+                const scale = document.getElementById('rp-scale').value;
+                document.getElementById('rp-new-chips').innerHTML = _noteChips(mel, root, scale);
+                document.getElementById('rp-new-fb').innerHTML    = _fretboardSVG(mel, root, scale);
+            };
+            document.getElementById('rp-melody').addEventListener('input',  updateNewPreview);
+            document.getElementById('rp-root').addEventListener('change',   updateNewPreview);
+            document.getElementById('rp-scale').addEventListener('change',  updateNewPreview);
             document.getElementById('rp-cancel-new').addEventListener('click', () => {
                 _state.newForm = false;
                 C._renderNewForm();
@@ -708,15 +722,16 @@
 
         _saveNewPhrase: async function () {
             const C     = MelodicStudiesComponent;
-            const title  = (document.getElementById('rp-title')?.value  || '').trim();
-            const desc   = (document.getElementById('rp-desc')?.value   || '').trim();
-            const melody = (document.getElementById('rp-melody')?.value || '').trim();
-            const root   = document.getElementById('rp-root')?.value   || 'C';
-            const bpm    = parseInt(document.getElementById('rp-bpm')?.value) || 80;
+            const title    = (document.getElementById('rp-title')?.value  || '').trim();
+            const desc     = (document.getElementById('rp-desc')?.value   || '').trim();
+            const melody   = (document.getElementById('rp-melody')?.value || '').trim();
+            const root     = document.getElementById('rp-root')?.value    || 'C';
+            const scaleKey = document.getElementById('rp-scale')?.value   || _state.scaleKey;
+            const bpm      = parseInt(document.getElementById('rp-bpm')?.value) || 80;
             if (!title)  { window.HMSApp.showToast('Título obrigatório.', 'warning');  return; }
             if (!melody) { window.HMSApp.showToast('Melodia obrigatória.', 'warning'); return; }
             try {
-                const saved = await window.HMSAPI.MelodicPhrases.create({ title, description: desc, melody, root, bpm });
+                const saved = await window.HMSAPI.MelodicPhrases.create({ title, description: desc, melody, root, scale_key: scaleKey, bpm });
                 _state.phrases.unshift(saved);
                 _state.newForm = false;
                 C._renderNewForm();
@@ -729,15 +744,16 @@
 
         _updatePhrase: async function (id) {
             const C      = MelodicStudiesComponent;
-            const title  = (document.getElementById('rp-edit-title-'  + id)?.value || '').trim();
-            const desc   = (document.getElementById('rp-edit-desc-'   + id)?.value || '').trim();
-            const melody = (document.getElementById('rp-edit-melody-' + id)?.value || '').trim();
-            const root   = document.getElementById('rp-edit-root-' + id)?.value || 'C';
-            const bpm    = parseInt(document.getElementById('rp-edit-bpm-' + id)?.value) || 80;
+            const title    = (document.getElementById('rp-edit-title-'  + id)?.value || '').trim();
+            const desc     = (document.getElementById('rp-edit-desc-'   + id)?.value || '').trim();
+            const melody   = (document.getElementById('rp-edit-melody-' + id)?.value || '').trim();
+            const root     = document.getElementById('rp-edit-root-'  + id)?.value || 'C';
+            const scaleKey = document.getElementById('rp-edit-scale-' + id)?.value || 'major';
+            const bpm      = parseInt(document.getElementById('rp-edit-bpm-' + id)?.value) || 80;
             if (!title)  { window.HMSApp.showToast('Título obrigatório.', 'warning');  return; }
             if (!melody) { window.HMSApp.showToast('Melodia obrigatória.', 'warning'); return; }
             try {
-                const updated = await window.HMSAPI.MelodicPhrases.update(id, { title, description: desc, melody, root, bpm });
+                const updated = await window.HMSAPI.MelodicPhrases.update(id, { title, description: desc, melody, root, scale_key: scaleKey, bpm });
                 const idx = _state.phrases.findIndex(p => p.id === id);
                 if (idx !== -1) _state.phrases[idx] = updated;
                 _state.editingId = null;
