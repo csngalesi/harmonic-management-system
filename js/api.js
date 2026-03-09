@@ -183,7 +183,49 @@
         },
     };
 
-    window.HMSAPI = { Songs, Setlists, Profile };
+    // ── Melodic Phrases ──────────────────────────────────────────
+    const MelodicPhrases = {
+        async getAll() {
+            const { data, error } = await db()
+                .from('melodic_phrases')
+                .select('id, user_id, title, description, melody, root, bpm, created_at')
+                .order('created_at', { ascending: false });
+            if (error) throw error;
+            return data || [];
+        },
+
+        async create(payload) {
+            const user = await window.HMSAuth.currentUser();
+            const { data, error } = await db()
+                .from('melodic_phrases')
+                .insert({ ...payload, user_id: user.id })
+                .select()
+                .single();
+            if (error) throw error;
+            return data;
+        },
+
+        async update(id, payload) {
+            const { data, error } = await db()
+                .from('melodic_phrases')
+                .update(payload)
+                .eq('id', id)
+                .select()
+                .single();
+            if (error) throw error;
+            return data;
+        },
+
+        async delete(id) {
+            const { error } = await db()
+                .from('melodic_phrases')
+                .delete()
+                .eq('id', id);
+            if (error) throw error;
+        },
+    };
+
+    window.HMSAPI = { Songs, Setlists, Profile, MelodicPhrases };
 
     console.info('[HMS] API module loaded.');
 })();
