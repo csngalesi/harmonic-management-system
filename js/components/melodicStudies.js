@@ -103,6 +103,77 @@
         }
     }
 
+    function _fretboardSVG(melodyStr, root) {
+        if (!melodyStr || !melodyStr.trim()) return '';
+        let parsed;
+        try { parsed = window.MelodyEngine.parse(melodyStr); } catch (_) { return ''; }
+        if (!parsed.length) return '';
+        let translated;
+        try { translated = window.MelodyEngine.translate(parsed, root); } catch (_) { return ''; }
+
+        // Unique MIDI → {deg, isRoot}
+        const noteMap = new Map();
+        translated.forEach((n, i) => {
+            const midi = Tone.Frequency(n.note).toMidi();
+            if (!noteMap.has(midi)) noteMap.set(midi, { deg: parsed[i].deg, isRoot: parsed[i].deg === '1' });
+        });
+
+        // Fretboard config (same tuning as Fretboard7Component)
+        const OPEN_MIDI  = [36, 40, 45, 50, 55, 59, 64]; // C2 E2 A2 D3 G3 B3 E4
+        const STR_LABELS = ['C','E','A','D','G','B','E'];
+        const FRETS = 5;
+        const W = 300, H = 128, mL = 26, mR = 8, mT = 10, mB = 18;
+        const neckW = W - mL - mR;
+        const fretSp = neckW / FRETS;
+        const strSp  = (H - mT - mB) / 6;
+
+        // Find positions — deduplicated by MIDI (lowest fret first)
+        const candidates = [];
+        for (const [midi, info] of noteMap) {
+            for (let s = 0; s < 7; s++) {
+                for (let f = 0; f <= FRETS; f++) {
+                    if (OPEN_MIDI[s] + f === midi) candidates.push({ s, f, midi, ...info });
+                }
+            }
+        }
+        candidates.sort((a, b) => a.f - b.f || a.s - b.s);
+        const seen = new Set();
+        const hits = [];
+        for (const c of candidates) {
+            if (!seen.has(c.midi)) { seen.add(c.midi); hits.push(c); }
+        }
+
+        const p = [];
+        p.push(`<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;">`);
+        p.push(`<rect x="${mL}" y="${mT-3}" width="${neckW}" height="${H-mT-mB+6}" fill="var(--bg-raised)" rx="2" opacity="0.4"/>`);
+        for (let s = 0; s < 7; s++) {
+            const y  = mT + s * strSp;
+            const sw = (0.55 + (6 - s) * 0.22).toFixed(2);
+            p.push(`<line x1="${mL}" y1="${y}" x2="${mL+neckW}" y2="${y}" stroke="var(--text-secondary)" stroke-width="${sw}" opacity="0.6"/>`);
+            p.push(`<text x="${mL-4}" y="${y+4}" text-anchor="end" font-size="9" font-family="var(--font-mono)" fill="var(--text-muted)">${STR_LABELS[s]}</text>`);
+        }
+        p.push(`<line x1="${mL}" y1="${mT-5}" x2="${mL}" y2="${H-mB+5}" stroke="var(--text-primary)" stroke-width="2.5" stroke-linecap="round"/>`);
+        for (let f = 1; f <= FRETS; f++) {
+            const x = mL + f * fretSp;
+            p.push(`<line x1="${x}" y1="${mT-3}" x2="${x}" y2="${H-mB+3}" stroke="var(--line-color)" stroke-width="1"/>`);
+            p.push(`<text x="${x - fretSp/2}" y="${H-3}" text-anchor="middle" font-size="9" fill="var(--text-muted)">${f}</text>`);
+        }
+        for (const h of hits) {
+            const cy   = mT + h.s * strSp;
+            const cx   = h.f === 0 ? mL - 13 : mL + (h.f - 0.5) * fretSp;
+            const fill = h.isRoot ? 'var(--brand,#7c3aed)' : 'var(--chord-blue,#60a5fa)';
+            if (h.f === 0) {
+                p.push(`<circle cx="${cx}" cy="${cy}" r="8" fill="none" stroke="${fill}" stroke-width="1.8"/>`);
+                p.push(`<text x="${cx}" y="${cy+3}" text-anchor="middle" font-size="8" font-weight="700" fill="${fill}">${h.deg}</text>`);
+            } else {
+                p.push(`<circle cx="${cx}" cy="${cy}" r="8" fill="${fill}" opacity="0.9"/>`);
+                p.push(`<text x="${cx}" y="${cy+3}" text-anchor="middle" font-size="8" font-weight="700" fill="white">${h.deg}</text>`);
+            }
+        }
+        p.push(`</svg>`);
+        return p.join('');
+    }
+
     function _studyCardHtml(s) {
         const isPlaying = _state.playing === s.id;
         const melody    = _state.melodies[s.id];
@@ -120,9 +191,14 @@
                     <i class="fa-solid fa-${isPlaying ? 'stop' : 'play'}"></i>
                 </button>
             </div>
-            <div style="padding:10px 14px;min-height:44px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;"
-                id="ms-notes-${esc(s.id)}">
-                ${_noteChips(melody, _state.root)}
+            <div style="display:flex;gap:14px;align-items:flex-start;padding:10px 14px;">
+                <div style="flex:1;min-width:0;display:flex;align-items:center;flex-wrap:wrap;gap:4px;min-height:44px;"
+                    id="ms-notes-${esc(s.id)}">
+                    ${_noteChips(melody, _state.root)}
+                </div>
+                <div style="flex-shrink:0;width:260px;" id="ms-fb-${esc(s.id)}">
+                    ${_fretboardSVG(melody, _state.root)}
+                </div>
             </div>
         </div>`;
     }
@@ -186,6 +262,8 @@
             SECTIONS.forEach(sec => sec.studies.forEach(s => {
                 const el = document.getElementById('ms-notes-' + s.id);
                 if (el) el.innerHTML = _noteChips(_state.melodies[s.id], _state.root);
+                const fbEl = document.getElementById('ms-fb-' + s.id);
+                if (fbEl) fbEl.innerHTML = _fretboardSVG(_state.melodies[s.id], _state.root);
             }));
         },
 
@@ -245,6 +323,8 @@
                     _state.melodies[sid] = e.target.value;
                     const el = document.getElementById('ms-notes-' + sid);
                     if (el) el.innerHTML = _noteChips(_state.melodies[sid], _state.root);
+                    const fbEl = document.getElementById('ms-fb-' + sid);
+                    if (fbEl) fbEl.innerHTML = _fretboardSVG(_state.melodies[sid], _state.root);
                 });
             });
 
