@@ -500,13 +500,17 @@
 
         _bindToolbarEvents: function () {
             const C = MelodicStudiesComponent;
+            const refresh = () => {
+                if (_state.tab === 'exemplos') C._refreshAllNotes();
+                else C._refreshRepositorioCards();
+            };
             document.getElementById('ms-global-root')?.addEventListener('change', e => {
                 _state.root = e.target.value;
-                C._refreshAllNotes();
+                refresh();
             });
             document.getElementById('ms-global-scale')?.addEventListener('change', e => {
                 _state.scaleKey = e.target.value;
-                C._refreshAllNotes();
+                refresh();
             });
             document.getElementById('ms-global-bpm')?.addEventListener('change', e => {
                 _state.bpm = Math.max(20, Math.min(300, parseInt(e.target.value) || 80));
