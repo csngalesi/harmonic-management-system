@@ -11,7 +11,8 @@
     const NOTE_LABELS = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 
     // Afinação: string 0 = mais grave (C) em cima, string 6 = mais aguda (E4) embaixo
-    const OPEN_NOTES    = [0, 4, 9, 2, 7, 11, 4]; // C E A D G B E
+    const OPEN_NOTES    = [0, 4, 9, 2, 7, 11, 4]; // C E A D G B E  (pitch class)
+    const OPEN_MIDI     = [36, 40, 45, 50, 55, 59, 64]; // C2 E2 A2 D3 G3 B3 E4
     const STRING_LABELS = ['C','E','A','D','G','B','E'];
 
     // ── Escalas ───────────────────────────────────────────────────────────────
@@ -61,19 +62,29 @@
         const degToPc = {};
         for (const d of degrees) degToPc[d] = (rootIdx + intervals[d - 1]) % 12;
 
-        const hits = [];
+        // Coleta todos os candidatos com nota MIDI exata
+        const candidates = [];
         for (let s = 0; s < 7; s++) {
             for (let f = 0; f <= FB.FRETS; f++) {
-                const pc = (OPEN_NOTES[s] + f) % 12;
-                let found = false;
+                const pc   = (OPEN_NOTES[s] + f) % 12;
+                const midi = OPEN_MIDI[s] + f;
                 for (const d of degrees) {
                     if (pc === degToPc[d]) {
-                        hits.push({ string: s, fret: f, degree: d, isRoot: d === 1 });
-                        found = true;
-                        break;
+                        candidates.push({ string: s, fret: f, degree: d, isRoot: d === 1, midi });
+                        break; // um grau por posição
                     }
                 }
-                if (found) break; // só a casa mais baixa por corda
+            }
+        }
+
+        // Prioridade: menor fret, depois menor string; deduplica por MIDI exato
+        candidates.sort((a, b) => a.fret - b.fret || a.string - b.string);
+        const seen = new Set();
+        const hits = [];
+        for (const c of candidates) {
+            if (!seen.has(c.midi)) {
+                seen.add(c.midi);
+                hits.push(c);
             }
         }
         return hits;
