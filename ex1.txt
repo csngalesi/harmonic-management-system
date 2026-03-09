@@ -1,0 +1,26 @@
+// Exemplo 1: Subida cromática de E7 para Am (Tônica A na 5ª corda solta)
+// Usa a 6ª corda solta (Mi grave) e sobe até a 5ª solta
+// Notas: Mi (6ª solta) -> Fá -> Sol# -> Lá (5ª solta)
+5(-1):8n b6(-1):8n 7(-1):8n 1:4n
+
+// Exemplo 2: A famosa ladeira caindo no famoso Dó da 7ª Corda (G7 -> C)
+// O alvo aqui é tônica na 7ª corda solta (C2)
+// Notas: Sol (6ª corda 3ª casa) -> Fá -> Mi (6ª solta) -> Ré (7ª corda 2ª casa) -> Dó (7ª corda solta)
+5(-1):16n 4(-1):16n 3(-1):16n 2(-1):16n 1(-1):8n
+
+// Exemplo 3: Clichê de Retorno em A menor (Tônica -> Diminuto -> Subdominante)
+// Am -> A7 -> Dm
+// Aproveita o Lá (5ª solta) descendo para o Ré (4ª solta ou na 5ª corda)
+// Notas descendo: Lá (5ª solta) -> Sol# -> Sol -> Fá -> Mi (6ª solta) -> Ré
+5:8n 4#(-1):8n 4(-1):8n 3b(-1):8n 2(-1):8n 1(-1):4n
+
+// Exemplo 4: Preparação V7 -> I com salto de oitava do 7 cordas (C7 -> F)
+// Dó grave na 7ª corda para marcar o dominante
+// Notas: Dó (7ª solta) -> Ré (passagem) -> Mi (6ª solta) -> Fá (6ª corda)
+5(-2):8n 6(-2):8n 7(-2):8n 1(-1):4n
+
+// Exemplo 5: "Pedal" de bordão típico de Choro
+// Alterna notas melódicas com uma corda solta grave no contratempo
+// Usado sobre um Am, usando o Mi solto (6ª corda) como pedal
+// Lá (5ª solta) > Mi (6ª solta) > Dó (5ª corda) > Mi (6ª solta) > Si > Mi (6ª solta) > Lá
+1:16n 5(-1):16n 3b:16n 5(-1):16n 2:16n 5(-1):16n 1:8n
