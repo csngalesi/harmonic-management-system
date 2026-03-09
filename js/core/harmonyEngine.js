@@ -187,6 +187,20 @@
                 continue;
             }
 
+            // SEC_DOM with trailing chord: 5(4/)4m/ → SEC_DOM(5→4/) + CHORD(4m/)
+            // Happens when sec-dom and its resolution are written without a space.
+            const sdTrailM = raw.match(/^([b#1-7mMho7]+)\((.+?)\)([b#]?[1-7][mMho7]*\/?)$/);
+            if (sdTrailM && sdTrailM[3]) {
+                tokens.push({
+                    type: 'SEC_DOM',
+                    prefix: parsePrefixStr(sdTrailM[1]),
+                    target: sdTrailM[2],
+                    showTarget: true,
+                });
+                tokens.push({ type: 'CHORD', value: sdTrailM[3] });
+                continue;
+            }
+
             // Secondary dominant: prefix + (target) or "target"
             // E.g.: 25(4), 57(6m), b725"4", 25(6m)
             const sdM = raw.match(/^([b#1-7mMho7]+)\((.+?)\)$/) ||
