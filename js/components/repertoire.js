@@ -1114,13 +1114,13 @@
                                         ${s.artist ? `<span style="font-size:.78rem;color:var(--text-muted);">— ${esc(s.artist)}</span>` : ''}
                                     </div>
                                     <div style="font-size:.72rem;font-family:var(--font-mono);line-height:1.7;">
-                                        <div style="color:#f87171;opacity:.85;margin-bottom:4px;">− ${esc(s.harmony_str)}</div>
-                                        <div style="display:flex;align-items:center;gap:6px;">
+                                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
                                             <span style="color:var(--brand);">+</span>
                                             <input class="hygiene-edit form-input" data-idx="${idx}"
                                                 value="${esc(s._sanitized)}"
                                                 style="flex:1;font-family:var(--font-mono);font-size:.72rem;padding:3px 7px;color:var(--brand);background:var(--bg-raised);border-color:var(--brand);border-radius:4px;" />
                                         </div>
+                                        <div style="color:#f87171;opacity:.65;">− ${esc(s.harmony_str)}</div>
                                     </div>
                                 </div>
                             `).join('')}
