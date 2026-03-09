@@ -35,7 +35,7 @@
     const _state = {
         key: 'C',
         isMinor: false,
-        bpm: 80,
+        bpm: 45,
         playing: null, // id of currently playing card
         harmonies: {}, // editable harmony per cadence id
     };
@@ -111,7 +111,7 @@
                             ${keyOptions}
                         </select>
                         <input type="number" class="form-input" id="s7-global-bpm"
-                            value="${_state.bpm}" min="40" max="300"
+                            value="${_state.bpm}" min="20" max="300"
                             style="width:68px;text-align:center;" title="BPM">
                     </div>
                 </div>

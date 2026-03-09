@@ -59,7 +59,10 @@
                     <div class="panel">
                         <div class="panel-header">
                             <span class="panel-title"><i class="fa-solid fa-output"></i> Graus Funcionais</span>
-                            <div style="display:flex;gap:6px;">
+                            <div style="display:flex;align-items:center;gap:6px;">
+                                <label style="font-size:0.8rem;color:var(--text-muted);margin:0;">BPM:</label>
+                                <input type="number" id="analyzer-bpm" value="45" min="20" max="240" step="5"
+                                    style="width:55px;background:transparent;border:none;color:white;font-family:var(--font-mono);font-size:0.9rem;outline:none;" />
                                 <button class="btn btn-primary btn-sm" id="btn-play-degrees" title="Executar" disabled>
                                     <i class="fa-solid fa-play"></i>
                                 </button>
@@ -206,7 +209,10 @@
                 playBtn.className = 'btn btn-secondary btn-sm';
             }
 
-            window.HMSAudio.playSequence(tokens, 80, () => {
+            const bpmInput = document.getElementById('analyzer-bpm');
+            const bpm = bpmInput ? parseInt(bpmInput.value, 10) || 45 : 45;
+
+            window.HMSAudio.playSequence(tokens, bpm, () => {
                 _isPlaying = false;
                 if (playBtn) {
                     playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
