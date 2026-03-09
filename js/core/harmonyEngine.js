@@ -379,7 +379,8 @@
                 result.push({ type: 'LABEL', value: token.value });
 
             } else if (token.type === 'RAW') {
-                result.push({ type: 'STRUCT', value: token.value });
+                // Text tokens render as plain inline text, not inside a chord box.
+                result.push({ type: 'LABEL', value: token.value });
             }
         }
 
@@ -706,12 +707,9 @@
                 switch (t.type) {
                     case 'CHORD':    parts.push(t.value); break;
                     case 'STRUCT':   parts.push(t.value); break;
-                    case 'LABEL':    parts.push(`$${t.value}$`); break;
+                    case 'LABEL':    parts.push(t.value); break;  // strip legacy $…$ wrappers
                     case 'MOD':      parts.push(`!${t.value}!`); break;
-                    case 'RAW':
-                        // Repeat markers (2x, 3x) are intentional — keep as-is
-                        parts.push(/^\d+x$/i.test(t.value) ? t.value : `$${t.value}$`);
-                        break;
+                    case 'RAW':      parts.push(t.value); break;  // plain text, no $ wrapping
                     case 'SEC_DOM': {
                         const prefix = t.prefix.join('');
                         const open   = t.showTarget ? '(' : '"';

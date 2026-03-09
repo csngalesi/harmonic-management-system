@@ -297,7 +297,8 @@
 
             grid.innerHTML = tokens.map(t => {
                 if (t.type === 'LABEL') {
-                    return `<div class="chord-cell label">${esc(t.value)}</div>`;
+                    // Plain text annotation — rendered outside the chord box
+                    return `<span class="harmony-text">${esc(t.value)}</span>`;
                 }
                 if (t.type === 'STRUCT') {
                     return `<div class="chord-cell struct">${esc(t.value)}</div>`;
