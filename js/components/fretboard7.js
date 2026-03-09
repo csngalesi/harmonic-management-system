@@ -65,11 +65,15 @@
         for (let s = 0; s < 7; s++) {
             for (let f = 0; f <= FB.FRETS; f++) {
                 const pc = (OPEN_NOTES[s] + f) % 12;
+                let found = false;
                 for (const d of degrees) {
                     if (pc === degToPc[d]) {
                         hits.push({ string: s, fret: f, degree: d, isRoot: d === 1 });
+                        found = true;
+                        break;
                     }
                 }
+                if (found) break; // só a casa mais baixa por corda
             }
         }
         return hits;
