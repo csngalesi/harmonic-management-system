@@ -636,6 +636,42 @@
             return refined.join(' ');
         },
 
+        /**
+         * Sanitize a harmony string: wraps unrecognized (RAW) tokens in $...$
+         * so they become LABEL tokens on next parse.
+         * @param {string} harmonyStr
+         * @returns {string} sanitized string
+         */
+        sanitize(harmonyStr) {
+            if (!harmonyStr || !harmonyStr.trim()) return harmonyStr;
+            const tokens = tokenize(harmonyStr);
+            const parts = [];
+            for (const t of tokens) {
+                switch (t.type) {
+                    case 'CHORD':    parts.push(t.value); break;
+                    case 'STRUCT':   parts.push(t.value); break;
+                    case 'LABEL':    parts.push(`$${t.value}$`); break;
+                    case 'MOD':      parts.push(`!${t.value}!`); break;
+                    case 'RAW':
+                        // Repeat markers (2x, 3x) are intentional — keep as-is
+                        parts.push(/^\d+x$/i.test(t.value) ? t.value : `$${t.value}$`);
+                        break;
+                    case 'SEC_DOM': {
+                        const prefix = t.prefix.join('');
+                        const open   = t.showTarget ? '(' : '"';
+                        const close  = t.showTarget ? ')' : '"';
+                        const slashB = t.slashBeforeTarget ? '/' : '';
+                        const slashA = t.slashAfterTarget  ? '/' : '';
+                        parts.push(`${prefix}${slashB}${open}${t.target}${slashA}${close}`);
+                        break;
+                    }
+                    case 'SECTION':    parts.push(`{${t.content}}x${t.times}`); break;
+                    case 'DOT_DEGREE': parts.push(`${t.outer}.${t.inner}`); break;
+                }
+            }
+            return parts.join(' ');
+        },
+
         allKeys,
 
         // For unit testing

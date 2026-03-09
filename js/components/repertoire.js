@@ -55,6 +55,9 @@
                         <button class="btn btn-secondary" id="btn-bulk-lyrics" title="Buscar letras em massa via lrclib.net">
                             <i class="fa-solid fa-wand-magic-sparkles"></i> Buscar Letras
                         </button>
+                        <button class="btn btn-secondary" id="btn-bulk-hygiene" title="Higienizar harmonias — detecta texto livre e envolve em $...$">
+                            <i class="fa-solid fa-broom"></i> Higienizar
+                        </button>
                         <button class="btn btn-primary" id="btn-new-song">
                             <i class="fa-solid fa-plus"></i> Nova Música
                         </button>
@@ -153,6 +156,10 @@
 
             document.getElementById('btn-bulk-lyrics').addEventListener('click', () => {
                 RepertoireComponent._bulkFetchLyrics();
+            });
+
+            document.getElementById('btn-bulk-hygiene').addEventListener('click', () => {
+                RepertoireComponent._bulkHygienize();
             });
 
             document.getElementById('btn-search').addEventListener('click', () => {
@@ -1053,6 +1060,134 @@
             cancelBtn.disabled = false;
             cancelBtn.textContent = 'Fechar';
             window.HMSApp.showToast(`${found} letras salvas!`, 'success');
+            await RepertoireComponent._loadSongs();
+        },
+
+        // ── Bulk Hygienize ────────────────────────────────────────
+        _bulkHygienize: async function () {
+            window.HMSApp.showLoading();
+            let allSongs;
+            try {
+                allSongs = await window.HMSAPI.Songs.getAll();
+            } catch (err) {
+                window.HMSApp.hideLoading();
+                window.HMSApp.showToast('Erro ao carregar músicas: ' + err.message, 'error');
+                return;
+            }
+            window.HMSApp.hideLoading();
+
+            const candidates = allSongs
+                .filter(s => s.harmony_str && s.harmony_str.trim())
+                .map(s => ({ ...s, _sanitized: window.HarmonyEngine.sanitize(s.harmony_str) }))
+                .filter(s => s._sanitized !== s.harmony_str);
+
+            const total    = candidates.length;
+            const totalAll = allSongs.filter(s => s.harmony_str && s.harmony_str.trim()).length;
+
+            window.HMSApp.openModal(`
+                <div class="modal-header">
+                    <h3><i class="fa-solid fa-broom"></i> Higienização de Harmonias</h3>
+                    <button class="modal-close" id="modal-close-btn"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="modal-body">
+                    <p style="font-size:.875rem;color:var(--text-muted);margin-bottom:14px;">
+                        <strong style="color:var(--text-primary);">${total}</strong> músicas com texto não-harmônico
+                        de <strong style="color:var(--text-primary);">${totalAll}</strong> com harmonia cadastrada.
+                        Texto livre será envolvido em <code style="background:var(--glass-bg);padding:1px 5px;border-radius:4px;">$...$</code>.
+                    </p>
+                    ${total === 0 ? `
+                        <div style="text-align:center;padding:24px 0;color:var(--text-muted);">
+                            <i class="fa-solid fa-circle-check" style="font-size:2rem;color:var(--brand);margin-bottom:8px;display:block;"></i>
+                            Todas as harmonias estão higienizadas!
+                        </div>
+                    ` : `
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                            <input type="checkbox" id="chk-select-all" checked />
+                            <label for="chk-select-all" style="font-size:.82rem;color:var(--text-secondary);cursor:pointer;">Selecionar todas (${total})</label>
+                        </div>
+                        <div id="hygiene-list" style="max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;">
+                            ${candidates.map((s, idx) => `
+                                <div style="background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:8px;padding:10px 12px;">
+                                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+                                        <input type="checkbox" class="hygiene-chk" data-idx="${idx}" checked />
+                                        <strong style="font-size:.875rem;">${esc(s.title)}</strong>
+                                        ${s.artist ? `<span style="font-size:.78rem;color:var(--text-muted);">— ${esc(s.artist)}</span>` : ''}
+                                    </div>
+                                    <div style="font-size:.72rem;font-family:var(--font-mono);line-height:1.7;">
+                                        <div style="color:#f87171;opacity:.85;">− ${esc(s.harmony_str)}</div>
+                                        <div style="color:var(--brand);">+ ${esc(s._sanitized)}</div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div id="hygiene-progress" style="display:none;margin-top:12px;">
+                            <div style="font-size:.82rem;color:var(--text-muted);margin-bottom:6px;" id="hygiene-status">Iniciando…</div>
+                            <div style="background:var(--glass-border);border-radius:4px;height:6px;">
+                                <div id="hygiene-bar" style="background:var(--brand);height:6px;border-radius:4px;width:0%;transition:width .2s;"></div>
+                            </div>
+                        </div>
+                    `}
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="modal-cancel-btn">Fechar</button>
+                    ${total > 0 ? `<button class="btn btn-primary" id="btn-apply-hygiene"><i class="fa-solid fa-broom"></i> Aplicar selecionadas</button>` : ''}
+                </div>
+            `);
+
+            document.getElementById('modal-close-btn').addEventListener('click', window.HMSApp.closeModal);
+            document.getElementById('modal-cancel-btn').addEventListener('click', window.HMSApp.closeModal);
+
+            if (total > 0) {
+                document.getElementById('chk-select-all').addEventListener('change', (e) => {
+                    document.querySelectorAll('.hygiene-chk').forEach(chk => { chk.checked = e.target.checked; });
+                });
+
+                document.getElementById('btn-apply-hygiene').addEventListener('click', () => {
+                    const selected = [...document.querySelectorAll('.hygiene-chk:checked')]
+                        .map(chk => candidates[parseInt(chk.dataset.idx)]);
+                    if (selected.length === 0) {
+                        window.HMSApp.showToast('Nenhuma música selecionada.', 'warning');
+                        return;
+                    }
+                    RepertoireComponent._runBulkHygienize(selected);
+                });
+            }
+        },
+
+        _runBulkHygienize: async function (selected) {
+            const progressEl = document.getElementById('hygiene-progress');
+            const statusEl   = document.getElementById('hygiene-status');
+            const barEl      = document.getElementById('hygiene-bar');
+            const applyBtn   = document.getElementById('btn-apply-hygiene');
+            const cancelBtn  = document.getElementById('modal-cancel-btn');
+            const listEl     = document.getElementById('hygiene-list');
+
+            progressEl.style.display = 'block';
+            applyBtn.disabled = true;
+            cancelBtn.disabled = true;
+            if (listEl) listEl.style.opacity = '.45';
+
+            let ok = 0, fail = 0;
+            const total = selected.length;
+
+            for (let i = 0; i < selected.length; i++) {
+                const s = selected[i];
+                statusEl.textContent = `${i + 1} / ${total} — ${s.title}`;
+                barEl.style.width = Math.round((i / total) * 100) + '%';
+                try {
+                    await window.HMSAPI.Songs.update(s.id, { harmony_str: s._sanitized });
+                    ok++;
+                } catch (err) {
+                    fail++;
+                    console.warn(`[Hygienize] "${s.title}":`, err.message);
+                }
+            }
+
+            barEl.style.width = '100%';
+            statusEl.textContent = `Concluído: ${ok} atualizadas${fail > 0 ? `, ${fail} falhas` : ''}.`;
+            cancelBtn.disabled = false;
+            cancelBtn.textContent = 'Fechar';
+            window.HMSApp.showToast(`${ok} harmonias higienizadas!`, 'success');
             await RepertoireComponent._loadSongs();
         },
 
