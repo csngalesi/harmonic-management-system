@@ -9,6 +9,13 @@
     const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
     const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
+    const SCALES = {
+        major:     { label: 'Maior',           intervals: [0, 2, 4, 5, 7, 9, 11] },
+        nat_minor: { label: 'Menor Natural',    intervals: [0, 2, 3, 5, 7, 8, 10] },
+        har_minor: { label: 'Menor Harmônica',  intervals: [0, 2, 3, 5, 7, 8, 11] },
+        mel_minor: { label: 'Menor Melódica',   intervals: [0, 2, 3, 5, 7, 9, 11] },
+    };
+
     // ── Estudos base ─────────────────────────────────────────────────────────
     const SECTIONS = [
         {
@@ -70,10 +77,11 @@
 
     // ── Global state ─────────────────────────────────────────────────────────
     const _state = {
-        root:    'C',
-        bpm:     80,
-        playing: null,        // id of currently playing study / 'rp_<uuid>'
-        melodies: {},         // editable melody string per study id
+        root:     'C',
+        scaleKey: 'major',
+        bpm:      80,
+        playing:  null,        // id of currently playing study / 'rp_<uuid>'
+        melodies: {},          // editable melody string per study id
         // Repositório
         tab:           'exemplos',   // 'exemplos' | 'repositorio'
         phrases:       [],           // loaded from DB
@@ -101,19 +109,39 @@
         return false;
     }
 
-    function _noteChips(melodyStr, root) {
+    function _scalePCs(root, scaleKey) {
+        const rootIdx = NOTE_NAMES.indexOf(root);
+        if (rootIdx === -1) return new Set();
+        const intervals = (SCALES[scaleKey] || SCALES.major).intervals;
+        return new Set(intervals.map(iv => (rootIdx + iv) % 12));
+    }
+
+    function _noteChips(melodyStr, root, scaleKey) {
         if (!melodyStr.trim()) return '<span style="color:var(--text-muted);font-size:.8rem;">—</span>';
         try {
             const parsed = window.MelodyEngine.parse(melodyStr);
             if (!parsed.length) return '<span style="color:var(--text-muted);font-size:.8rem;">—</span>';
             const translated = window.MelodyEngine.translate(parsed, root);
+            const scalePCs   = _scalePCs(root, scaleKey);
+
             return translated.map((n, i) => {
-                const midi   = Tone.Frequency(n.note).toMidi();
-                const onFb   = _isOnFretboard(midi);
-                const isRoot = parsed[i]?.deg === '1';
-                const color  = !onFb
-                    ? 'var(--chord-red,#f87171)'
-                    : isRoot ? 'var(--brand,#7c3aed)' : 'var(--chord-blue,#60a5fa)';
+                const midi    = Tone.Frequency(n.note).toMidi();
+                const pc      = ((midi % 12) + 12) % 12;
+                const onFb    = _isOnFretboard(midi);
+                const isRoot  = parsed[i]?.deg === '1';
+                const inScale = scalePCs.has(pc);
+
+                let color;
+                if (isRoot) {
+                    color = 'var(--brand,#7c3aed)';
+                } else if (!onFb) {
+                    color = 'var(--chord-red,#f87171)';         // fora do braço
+                } else if (inScale) {
+                    color = 'var(--chord-blue,#60a5fa)';        // diatônica
+                } else {
+                    color = 'var(--chord-amber,#fbbf24)';       // cromática / passing tone
+                }
+
                 return `<div style="display:inline-flex;flex-direction:column;align-items:center;gap:2px;margin-right:6px;">
                     <span style="font-family:var(--font-mono);font-size:.82rem;font-weight:600;color:${color};">${esc(n.note)}</span>
                     <span style="font-size:.62rem;color:var(--text-muted);">${esc(n.dur)}</span>
@@ -124,7 +152,7 @@
         }
     }
 
-    function _fretboardSVG(melodyStr, root) {
+    function _fretboardSVG(melodyStr, root, scaleKey) {
         if (!melodyStr || !melodyStr.trim()) return '';
         let parsed;
         try { parsed = window.MelodyEngine.parse(melodyStr); } catch (_) { return ''; }
@@ -132,12 +160,15 @@
         let translated;
         try { translated = window.MelodyEngine.translate(parsed, root); } catch (_) { return ''; }
 
-        // Unique MIDI → {deg, isRoot} — only notes that exist on the fretboard
+        // Unique MIDI → {deg, isRoot} — melody hits
         const noteMap = new Map();
         translated.forEach((n, i) => {
             const midi = Tone.Frequency(n.note).toMidi();
             if (!noteMap.has(midi)) noteMap.set(midi, { deg: parsed[i].deg, isRoot: parsed[i].deg === '1' });
         });
+
+        // Scale pitch classes (for background dots)
+        const scalePCSet = _scalePCs(root, scaleKey);
 
         const OPEN_MIDI  = FB_OPEN_MIDI;
         const STR_LABELS = FB_STR_LABELS;
@@ -176,6 +207,21 @@
             p.push(`<line x1="${x}" y1="${mT-3}" x2="${x}" y2="${H-mB+3}" stroke="var(--line-color)" stroke-width="1"/>`);
             p.push(`<text x="${x - fretSp/2}" y="${H-3}" text-anchor="middle" font-size="9" fill="var(--text-muted)">${f}</text>`);
         }
+
+        // Background scale dots (not melody hits)
+        for (let s = 0; s < 7; s++) {
+            for (let f = 0; f <= FRETS; f++) {
+                const midi = OPEN_MIDI[s] + f;
+                const pc   = ((midi % 12) + 12) % 12;
+                if (scalePCSet.has(pc) && !noteMap.has(midi)) {
+                    const cy = mT + s * strSp;
+                    const cx = f === 0 ? mL - 13 : mL + (f - 0.5) * fretSp;
+                    p.push(`<circle cx="${cx}" cy="${cy}" r="5" fill="var(--chord-blue,#60a5fa)" opacity="0.18"/>`);
+                }
+            }
+        }
+
+        // Melody hit dots (foreground)
         for (const h of hits) {
             const cy   = mT + h.s * strSp;
             const cx   = h.f === 0 ? mL - 13 : mL + (h.f - 0.5) * fretSp;
@@ -212,10 +258,10 @@
             <div style="display:flex;gap:14px;align-items:flex-start;padding:10px 14px;">
                 <div style="flex:1;min-width:0;display:flex;align-items:center;flex-wrap:wrap;gap:4px;min-height:44px;"
                     id="ms-notes-${esc(s.id)}">
-                    ${_noteChips(melody, _state.root)}
+                    ${_noteChips(melody, _state.root, _state.scaleKey)}
                 </div>
                 <div style="flex-shrink:0;width:260px;" id="ms-fb-${esc(s.id)}">
-                    ${_fretboardSVG(melody, _state.root)}
+                    ${_fretboardSVG(melody, _state.root, _state.scaleKey)}
                 </div>
             </div>
         </div>`;
@@ -263,9 +309,9 @@
             </div>
             <div style="display:flex;gap:14px;align-items:flex-start;padding:10px 14px;">
                 <div style="flex:1;min-width:0;display:flex;align-items:center;flex-wrap:wrap;gap:4px;min-height:44px;">
-                    ${_noteChips(p.melody, root)}
+                    ${_noteChips(p.melody, root, _state.scaleKey)}
                 </div>
-                <div style="flex-shrink:0;width:260px;">${_fretboardSVG(p.melody, root)}</div>
+                <div style="flex-shrink:0;width:260px;">${_fretboardSVG(p.melody, root, _state.scaleKey)}</div>
             </div>
         </div>`;
     }
@@ -295,7 +341,7 @@
                         style="width:68px;text-align:center;" title="BPM" />
                     <div style="flex:1;min-width:100px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;min-height:36px;"
                         id="rp-edit-chips-${esc(p.id)}">
-                        ${_noteChips(p.melody, root)}
+                        ${_noteChips(p.melody, root, _state.scaleKey)}
                     </div>
                 </div>
                 <div style="display:flex;gap:8px;justify-content:flex-end;">
@@ -308,10 +354,28 @@
             <div style="display:flex;gap:14px;align-items:flex-start;padding:0 14px 12px;">
                 <div style="flex:1;"></div>
                 <div style="flex-shrink:0;width:260px;" id="rp-edit-fb-${esc(p.id)}">
-                    ${_fretboardSVG(p.melody, root)}
+                    ${_fretboardSVG(p.melody, root, _state.scaleKey)}
                 </div>
             </div>
         </div>`;
+    }
+
+    // ── Toolbar HTML ──────────────────────────────────────────────────────────
+
+    function _toolbarHtml() {
+        const rootOptions = NOTE_NAMES.map(n =>
+            `<option value="${n}" ${n === _state.root ? 'selected' : ''}>${n}</option>`
+        ).join('');
+        const scaleOptions = Object.entries(SCALES).map(([k, v]) =>
+            `<option value="${k}" ${k === _state.scaleKey ? 'selected' : ''}>${esc(v.label)}</option>`
+        ).join('');
+        return `
+            <select class="form-select" id="ms-global-root" style="width:auto;">${rootOptions}</select>
+            <select class="form-select" id="ms-global-scale" style="width:auto;">${scaleOptions}</select>
+            <input type="number" class="form-input" id="ms-global-bpm"
+                value="${_state.bpm}" min="20" max="300"
+                style="width:68px;text-align:center;" title="BPM">
+        `;
     }
 
     // ── Component ─────────────────────────────────────────────────────────────
@@ -357,9 +421,6 @@
 
         _renderExemplos: function () {
             const C = MelodicStudiesComponent;
-            const rootOptions = NOTE_NAMES.map(n =>
-                `<option value="${n}" ${n === _state.root ? 'selected' : ''}>${n}</option>`
-            ).join('');
 
             document.getElementById('ms-tab-content').innerHTML = `
                 <div class="page-header">
@@ -371,10 +432,7 @@
                         </div>
                     </div>
                     <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-                        <select class="form-select" id="ms-global-root" style="width:auto;">${rootOptions}</select>
-                        <input type="number" class="form-input" id="ms-global-bpm"
-                            value="${_state.bpm}" min="20" max="300"
-                            style="width:68px;text-align:center;" title="BPM">
+                        ${_toolbarHtml()}
                     </div>
                 </div>
                 <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:1.25rem;padding:8px 12px;
@@ -384,18 +442,24 @@
                     &nbsp;·&nbsp; Graus: <code>1 b2 2 b3 3 4 #4 5 b6 6 b7 7</code>
                     &nbsp;·&nbsp; Oitava: <code>(-1)</code>=grave <code>(0)</code>=base <code>(1)</code>=agudo
                     &nbsp;·&nbsp; Dur: <code>16n 8n 4n 2n 1n 8n. 4t…</code>
+                    &nbsp;·&nbsp;
+                    <span style="color:var(--brand,#7c3aed);">●</span> tônica
+                    <span style="color:var(--chord-blue,#60a5fa);margin-left:6px;">●</span> diatônica
+                    <span style="color:var(--chord-amber,#fbbf24);margin-left:6px;">●</span> cromática
+                    <span style="color:var(--chord-red,#f87171);margin-left:6px;">●</span> fora do braço
                 </div>
                 <div id="ms-sections">${SECTIONS.map(_sectionHtml).join('')}</div>
             `;
+            C._bindToolbarEvents();
             C._bindExemplosEvents();
         },
 
         _refreshAllNotes: function () {
             SECTIONS.forEach(sec => sec.studies.forEach(s => {
                 const el = document.getElementById('ms-notes-' + s.id);
-                if (el) el.innerHTML = _noteChips(_state.melodies[s.id], _state.root);
+                if (el) el.innerHTML = _noteChips(_state.melodies[s.id], _state.root, _state.scaleKey);
                 const fbEl = document.getElementById('ms-fb-' + s.id);
-                if (fbEl) fbEl.innerHTML = _fretboardSVG(_state.melodies[s.id], _state.root);
+                if (fbEl) fbEl.innerHTML = _fretboardSVG(_state.melodies[s.id], _state.root, _state.scaleKey);
             }));
         },
 
@@ -434,24 +498,32 @@
             });
         },
 
-        _bindExemplosEvents: function () {
+        _bindToolbarEvents: function () {
             const C = MelodicStudiesComponent;
-            document.getElementById('ms-global-root').addEventListener('change', e => {
+            document.getElementById('ms-global-root')?.addEventListener('change', e => {
                 _state.root = e.target.value;
                 C._refreshAllNotes();
             });
-            document.getElementById('ms-global-bpm').addEventListener('change', e => {
+            document.getElementById('ms-global-scale')?.addEventListener('change', e => {
+                _state.scaleKey = e.target.value;
+                C._refreshAllNotes();
+            });
+            document.getElementById('ms-global-bpm')?.addEventListener('change', e => {
                 _state.bpm = Math.max(20, Math.min(300, parseInt(e.target.value) || 80));
                 e.target.value = _state.bpm;
             });
+        },
+
+        _bindExemplosEvents: function () {
+            const C = MelodicStudiesComponent;
             document.querySelectorAll('.ms-melody-input').forEach(inp => {
                 inp.addEventListener('input', e => {
                     const sid = e.target.dataset.sid;
                     _state.melodies[sid] = e.target.value;
                     const el = document.getElementById('ms-notes-' + sid);
-                    if (el) el.innerHTML = _noteChips(_state.melodies[sid], _state.root);
+                    if (el) el.innerHTML = _noteChips(_state.melodies[sid], _state.root, _state.scaleKey);
                     const fbEl = document.getElementById('ms-fb-' + sid);
-                    if (fbEl) fbEl.innerHTML = _fretboardSVG(_state.melodies[sid], _state.root);
+                    if (fbEl) fbEl.innerHTML = _fretboardSVG(_state.melodies[sid], _state.root, _state.scaleKey);
                 });
             });
             document.querySelectorAll('.ms-play-btn').forEach(btn => {
@@ -463,9 +535,6 @@
 
         _renderRepositorio: function () {
             const C = MelodicStudiesComponent;
-            const rootOptions = NOTE_NAMES.map(n =>
-                `<option value="${n}" ${n === _state.root ? 'selected' : ''}>${n}</option>`
-            ).join('');
 
             document.getElementById('ms-tab-content').innerHTML = `
                 <div class="page-header">
@@ -477,10 +546,7 @@
                         </div>
                     </div>
                     <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-                        <select class="form-select" id="ms-global-root" style="width:auto;">${rootOptions}</select>
-                        <input type="number" class="form-input" id="ms-global-bpm"
-                            value="${_state.bpm}" min="20" max="300"
-                            style="width:68px;text-align:center;" title="BPM">
+                        ${_toolbarHtml()}
                     </div>
                 </div>
                 <div style="margin-bottom:1rem;">
@@ -496,14 +562,8 @@
                 </div>
             `;
 
-            document.getElementById('ms-global-root').addEventListener('change', e => {
-                _state.root = e.target.value;
-                C._refreshRepositorioCards();
-            });
-            document.getElementById('ms-global-bpm').addEventListener('change', e => {
-                _state.bpm = Math.max(20, Math.min(300, parseInt(e.target.value) || 80));
-                e.target.value = _state.bpm;
-            });
+            C._bindToolbarEvents();
+
             document.getElementById('rp-btn-new').addEventListener('click', () => {
                 _state.newForm = !_state.newForm;
                 C._renderNewForm();
@@ -531,8 +591,8 @@
                 const root = document.getElementById('rp-edit-root-' + id)?.value || _state.root;
                 const chips = document.getElementById('rp-edit-chips-' + id);
                 const fb    = document.getElementById('rp-edit-fb-'    + id);
-                if (chips) chips.innerHTML = _noteChips(mel.value, root);
-                if (fb)    fb.innerHTML    = _fretboardSVG(mel.value, root);
+                if (chips) chips.innerHTML = _noteChips(mel.value, root, _state.scaleKey);
+                if (fb)    fb.innerHTML    = _fretboardSVG(mel.value, root, _state.scaleKey);
             });
             listEl.addEventListener('change', e => {
                 const rootSel = e.target.id?.startsWith('rp-edit-root-') ? e.target : null;
@@ -541,8 +601,8 @@
                 const mel = document.getElementById('rp-edit-melody-' + id)?.value || '';
                 const chips = document.getElementById('rp-edit-chips-' + id);
                 const fb    = document.getElementById('rp-edit-fb-'    + id);
-                if (chips) chips.innerHTML = _noteChips(mel, rootSel.value);
-                if (fb)    fb.innerHTML    = _fretboardSVG(mel, rootSel.value);
+                if (chips) chips.innerHTML = _noteChips(mel, rootSel.value, _state.scaleKey);
+                if (fb)    fb.innerHTML    = _fretboardSVG(mel, rootSel.value, _state.scaleKey);
             });
 
             C._loadPhrases().then(() => C._renderPhraseList());
@@ -627,13 +687,13 @@
 
             document.getElementById('rp-melody').addEventListener('input', e => {
                 const root = document.getElementById('rp-root').value;
-                document.getElementById('rp-new-chips').innerHTML = _noteChips(e.target.value, root);
-                document.getElementById('rp-new-fb').innerHTML    = _fretboardSVG(e.target.value, root);
+                document.getElementById('rp-new-chips').innerHTML = _noteChips(e.target.value, root, _state.scaleKey);
+                document.getElementById('rp-new-fb').innerHTML    = _fretboardSVG(e.target.value, root, _state.scaleKey);
             });
             document.getElementById('rp-root').addEventListener('change', e => {
                 const mel = document.getElementById('rp-melody').value;
-                document.getElementById('rp-new-chips').innerHTML = _noteChips(mel, e.target.value);
-                document.getElementById('rp-new-fb').innerHTML    = _fretboardSVG(mel, e.target.value);
+                document.getElementById('rp-new-chips').innerHTML = _noteChips(mel, e.target.value, _state.scaleKey);
+                document.getElementById('rp-new-fb').innerHTML    = _fretboardSVG(mel, e.target.value, _state.scaleKey);
             });
             document.getElementById('rp-cancel-new').addEventListener('click', () => {
                 _state.newForm = false;
