@@ -136,6 +136,9 @@
 
         str = str.replace(/\//g, ' / '); // Ensure slashes are distinct structural tokens
 
+        // 2a. Normalize [...]Nx repeat notation → {…}xN (spreadsheet alias)
+        str = str.replace(/\[([^\]]*)\](\d+)x/gi, (_, content, n) => `{${content.trim()}}x${n}`);
+
         // 2. Extract {section}xN blocks (may contain spaces inside)
         const sections = [];
         str = str.replace(/\{([^}]*)\}x(\d+)/g, (_, content, n) => {
