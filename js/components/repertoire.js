@@ -1113,14 +1113,15 @@
                                         <strong style="font-size:.875rem;">${esc(s.title)}</strong>
                                         ${s.artist ? `<span style="font-size:.78rem;color:var(--text-muted);">— ${esc(s.artist)}</span>` : ''}
                                     </div>
-                                    <div style="font-size:.72rem;font-family:var(--font-mono);line-height:1.7;">
-                                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-                                            <span style="color:var(--brand);">+</span>
+                                    <div style="font-size:.72rem;font-family:var(--font-mono);line-height:1.9;display:flex;flex-direction:column;gap:3px;">
+                                        <div style="color:var(--text-secondary);">+ ${esc(s.harmony_str)}</div>
+                                        <div style="color:#f87171;opacity:.75;">− ${esc(s._sanitized)}</div>
+                                        <div style="display:flex;align-items:center;gap:6px;">
+                                            <span style="color:var(--text-muted);">--</span>
                                             <input class="hygiene-edit form-input" data-idx="${idx}"
                                                 value="${esc(s._sanitized)}"
-                                                style="flex:1;font-family:var(--font-mono);font-size:.72rem;padding:3px 7px;color:var(--brand);background:var(--bg-raised);border-color:var(--brand);border-radius:4px;" />
+                                                style="flex:1;font-family:var(--font-mono);font-size:.72rem;padding:3px 7px;background:var(--bg-raised);border-radius:4px;" />
                                         </div>
-                                        <div style="color:#f87171;opacity:.65;">− ${esc(s.harmony_str)}</div>
                                     </div>
                                 </div>
                             `).join('')}
