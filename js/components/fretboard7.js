@@ -11,8 +11,8 @@
     const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 
     // Afinação padrão 7 cordas: string 0 = mais aguda (E4), string 6 = mais grave (B1)
-    const OPEN_NOTES    = [4, 11, 7, 2, 9, 4, 11]; // E B G D A E B
-    const STRING_LABELS = ['E','B','G','D','A','E','B'];
+    const OPEN_NOTES    = [4, 11, 7, 2, 9, 4, 0]; // E B G D A E C
+    const STRING_LABELS = ['E','B','G','D','A','E','C'];
 
     const MAJOR_INTERVALS = [0, 2, 4, 5, 7, 9, 11];
     const MINOR_INTERVALS = [0, 2, 3, 5, 7, 8, 10];
