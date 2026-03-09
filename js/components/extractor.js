@@ -44,6 +44,8 @@
         { q: 'sus2', iv: [0, 2, 7]        },
     ];
 
+    let _lastDraftDegrees = '';
+
     let _state = {
         audioCtx:        null,
         analyser:        null,
@@ -231,6 +233,28 @@
                         <div id="draft-result" style="margin-top:12px;"></div>
                     </div>
                 </div>
+
+                <!-- Save to Repertoire -->
+                <div class="panel" style="margin-top:20px;">
+                    <div class="panel-header">
+                        <span class="panel-title"><i class="fa-solid fa-floppy-disk"></i> Salvar no Repertório</span>
+                    </div>
+                    <div class="panel-body">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Título *</label>
+                                <input type="text" id="ext-save-title" class="form-input" placeholder="Nome da música" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Artista</label>
+                                <input type="text" id="ext-save-artist" class="form-input" placeholder="Intérprete" />
+                            </div>
+                        </div>
+                        <button class="btn btn-secondary" id="btn-ext-save-song">
+                            <i class="fa-solid fa-plus"></i> Adicionar ao Repertório
+                        </button>
+                    </div>
+                </div>
             `;
 
             if (window.innerWidth <= 768) {
@@ -266,6 +290,7 @@
                 _resetDetectionState();
             });
             document.getElementById('btn-analyze-draft').addEventListener('click', () => ExtractorComponent._analyzeDraft());
+            document.getElementById('btn-ext-save-song').addEventListener('click', () => ExtractorComponent._handleSaveToRepertoire());
             document.getElementById('btn-reset-key').addEventListener('click', () => ExtractorComponent._resetKeyDetect());
 
             document.addEventListener('keydown', (e) => {
@@ -645,6 +670,7 @@
             const root    = kObj.value.replace(/m$/, '');
             const isMinor = kObj.isMinor;
             const degrees = window.HarmonyEngine.analyze(chordsStr, root, isMinor);
+            _lastDraftDegrees = degrees || '';
 
             const resultEl = document.getElementById('draft-result');
             resultEl.innerHTML = `
@@ -671,6 +697,43 @@
                     if (ka) ka.value = keyVal;
                 }, 100);
             });
+        },
+        _handleSaveToRepertoire: async function () {
+            if (!_lastDraftDegrees) {
+                window.HMSApp.showToast('Analise o draft antes de salvar.', 'warning');
+                return;
+            }
+
+            const title  = (document.getElementById('ext-save-title').value  || '').trim();
+            const artist = (document.getElementById('ext-save-artist').value || '').trim();
+            const keyVal = document.getElementById('ext-key').value;
+
+            if (!title) {
+                window.HMSApp.showToast('Informe o título da música.', 'warning');
+                document.getElementById('ext-save-title').focus();
+                return;
+            }
+
+            const saveBtn = document.getElementById('btn-ext-save-song');
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<span class="btn-spinner"></span> Salvando…';
+
+            try {
+                await window.HMSAPI.Songs.create({
+                    title,
+                    artist:       artist || null,
+                    original_key: keyVal,
+                    harmony_str:  _lastDraftDegrees,
+                });
+                window.HMSApp.showToast(`"${title}" adicionada ao Repertório!`, 'success');
+                document.getElementById('ext-save-title').value  = '';
+                document.getElementById('ext-save-artist').value = '';
+            } catch (err) {
+                window.HMSApp.showToast('Erro ao salvar: ' + err.message, 'error');
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '<i class="fa-solid fa-plus"></i> Adicionar ao Repertório';
+            }
         },
     };
 
