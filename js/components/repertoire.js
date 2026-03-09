@@ -737,9 +737,12 @@
                     else if (c === '"')                    { inQuote = false; }
                     else                                   { cur += c; }
                 } else {
-                    if (c === '"')  { inQuote = true; }
-                    else if (c === ';') { cols.push(cur.trim()); cur = ''; }
-                    else            { cur += c; }
+                    // Only treat " as field delimiter when at the very start of a field.
+                    // Mid-field " (e.g. HMS hidden-target notation 5/"3") is kept literal.
+                    if (c === '"' && cur.trim() === '') { inQuote = true; }
+                    else if (c === '"')                 { cur += '"'; }
+                    else if (c === ';')                 { cols.push(cur.trim()); cur = ''; }
+                    else                                { cur += c; }
                 }
             }
             cols.push(cur.trim());
