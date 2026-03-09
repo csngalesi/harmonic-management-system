@@ -669,7 +669,11 @@
                     case 'DOT_DEGREE': parts.push(`${t.outer}.${t.inner}`); break;
                 }
             }
-            return parts.join(' ');
+            // Merge adjacent $...$ tokens: "$A$ $B$" → "$A B$"
+            return parts.join(' ').replace(/\$([^$]*)\$(\s+\$([^$]*)\$)+/g, (match) => {
+                const texts = match.match(/\$([^$]*)\$/g).map(s => s.slice(1, -1));
+                return `$${texts.join(' ')}$`;
+            });
         },
 
         allKeys,
