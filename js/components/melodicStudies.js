@@ -14,27 +14,56 @@
         {
             id: 'conduções',
             title: 'Conduções Diatônicas',
+            desc: 'Movimentos escalares de marcação, I→IV e retornos.',
             studies: [
-                { id: 'm_walk_up',   label: 'Ascendente Maior',  melody: '1:4n 2:4n 3:4n 4:4n 5:2n' },
-                { id: 'm_walk_down', label: 'Descendente Maior', melody: '5:4n 4:4n 3:4n 2:4n 1:2n' },
-                { id: 'm_walk_min',  label: 'Ascendente Menor',  melody: '1:4n 2:4n b3:4n 4:4n 5:2n' },
+                { id: 'm_cond_maj_up',   label: 'Maior — Ascendente',   melody: '1:4n 2:4n 3:4n 4:4n 5:2n' },
+                { id: 'm_cond_maj_down', label: 'Maior — Descendente',  melody: '5:4n 4:4n 3:4n 2:4n 1:2n' },
+                { id: 'm_cond_min_up',   label: 'Menor — Ascendente',   melody: '1:4n 2:4n b3:4n 4:4n 5:2n' },
+                { id: 'm_cond_min_down', label: 'Menor — Descendente',  melody: '5:4n 4:4n b3:4n 2:4n 1:2n' },
+            ],
+        },
+        {
+            id: 'walking',
+            title: 'Walking Bass — Dino 7 Cordas',
+            desc: 'Caminhada I→IV em colcheias com cromatismo e baixo grave. (2/4 Choro)',
+            studies: [
+                {
+                    id: 'm_walking_bass',
+                    label: 'Walking Bass I→IV',
+                    melody: '1:8n 2:8n b3:8n 3:8n 4:4n 1:8n 6(-1):8n 1(-1):2n',
+                },
             ],
         },
         {
             id: 'baixarias',
             title: 'Baixarias (7ª Corda)',
+            desc: 'Conduções na corda grave usando oct=-1.',
             studies: [
-                { id: 'm_cinco_um',  label: '5 → 1 (diat.)',     melody: '5(-1):8n 6(-1):8n 7(-1):8n 1:4n' },
-                { id: 'm_crom_up',   label: 'Cromática → 1 (↑)', melody: 'b7(-1):8n 7(-1):8n 1:4n' },
-                { id: 'm_crom_down', label: 'Cromática → 1 (↓)', melody: 'b3:8n 2:8n b2:8n 1:4n' },
-                { id: 'm_25_prep',   label: '25 Condução',        melody: '2(-1):8n 3(-1):8n 4(-1):8n 5(-1):4n' },
+                { id: 'm_cinco_um',  label: '5 → 1 diatônica',    melody: '5(-1):8n 6(-1):8n 7(-1):8n 1:4n' },
+                { id: 'm_crom_up',   label: 'Cromática → 1 (↑)',  melody: 'b7(-1):8n 7(-1):8n 1:4n' },
+                { id: 'm_crom_down', label: 'Cromática → 1 (↓)',  melody: 'b3:8n 2:8n b2:8n 1:4n' },
+                { id: 'm_25_prep',   label: 'Prep. 25 (↑)',       melody: '2(-1):8n 3(-1):8n 4(-1):8n 5(-1):4n' },
+            ],
+        },
+        {
+            id: 'breque',
+            title: 'Breque em Semicolcheias — Dino 7 Cordas',
+            desc: 'Frase rápida síncopada IIm→V7→I com arpejo, descida e cromatismo final.',
+            studies: [
+                {
+                    id: 'm_breque',
+                    label: 'Breque IIm→V7→I',
+                    melody: '1:16n b3:16n 5:16n b3:16n 4:16n 2:16n 6(-1):16n 4(-1):16n 3:16n b3:16n 2:16n #1:16n 1(-1):8n',
+                },
             ],
         },
         {
             id: 'livre',
             title: 'Livre',
+            desc: '',
             studies: [
-                { id: 'm_livre', label: 'Livre', melody: '' },
+                { id: 'm_livre_1', label: 'Livre 1', melody: '' },
+                { id: 'm_livre_2', label: 'Livre 2', melody: '' },
             ],
         },
     ];
