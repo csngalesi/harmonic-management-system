@@ -10,9 +10,9 @@
     const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
     const NOTE_LABELS = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 
-    // Afinação: string 0 = mais aguda (E4), string 6 = mais grave (C)
-    const OPEN_NOTES    = [4, 11, 7, 2, 9, 4, 0]; // E B G D A E C
-    const STRING_LABELS = ['E','B','G','D','A','E','C'];
+    // Afinação: string 0 = mais grave (C) em cima, string 6 = mais aguda (E4) embaixo
+    const OPEN_NOTES    = [0, 4, 9, 2, 7, 11, 4]; // C E A D G B E
+    const STRING_LABELS = ['C','E','A','D','G','B','E'];
 
     // ── Escalas ───────────────────────────────────────────────────────────────
     const SCALES = {
