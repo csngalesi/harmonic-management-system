@@ -23,7 +23,7 @@
             title: 'Cadências Secundárias',
             cadences: [
                 { id: 'c_25_4', label: '25 do 4',     harmony: '25(4) 4m' },
-                { id: 'c_25_6', label: '25 do 6',     harmony: '25(6m) 6m' },
+                { id: 'c_25_6', label: '25 do 6',     harmony: '25(6/)' },
                 { id: 'c_25_3', label: '25 do 3',     harmony: '25(3)' },
                 { id: 'c_5525', label: '5.5 / 251',   harmony: '5.5 25 1' },
                 { id: 'c_free', label: 'Livre',        harmony: '' },
