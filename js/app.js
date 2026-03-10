@@ -162,7 +162,7 @@
             if (emailEl && user) emailEl.textContent = user.email || 'Músico';
 
             App._setupSidebar();
-            App.navigate('repertoire');
+            if (!App._currentRoute) App.navigate('repertoire');
         },
 
         // ── Sidebar ──────────────────────────────────────────────
