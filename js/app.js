@@ -113,6 +113,7 @@
             const ls = document.getElementById('login-screen');
             ls.classList.remove('hidden');
             App._currentRoute = null;
+            App._sidebarReady = false;
 
             const form = document.getElementById('login-form');
             const loginBtn = document.getElementById('login-btn');
@@ -161,7 +162,10 @@
             const emailEl = document.getElementById('user-email');
             if (emailEl && user) emailEl.textContent = user.email || 'Músico';
 
-            App._setupSidebar();
+            if (!App._sidebarReady) {
+                App._setupSidebar();
+                App._sidebarReady = true;
+            }
             if (!App._currentRoute) App.navigate('repertoire');
         },
 
