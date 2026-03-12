@@ -1,6 +1,7 @@
 /**
- * HMS — Estudo Harmônico Melódico (v3)
- * Um input de melodia por acorde · partitura real (clave + armadura) · braço 7 cordas animado.
+ * HMS — Estudo Harmônico Melódico (v3.1)
+ * Um input de melodia por acorde · partitura real (clave + armadura) · braço 7 cordas C-tuning.
+ * Radio chips de dur/oitava por acorde com auto-expand no Space.
  * Exposed via window.HarmonicMelodicComponent
  */
 (function () {
@@ -93,6 +94,7 @@
         bpm:           80,
         chords:        [],   // string[] from HarmonyEngine
         melodies:      [],   // string[] — one melody input per chord
+        chordDefaults: [],   // {dur:'4n', oct:0}[] — defaults per chord for auto-expand
         focusedCi:     null, // chord index with focused input
         playingIdx:    null, // absolute index in flatSeq during playback
         playing:       false,
@@ -106,6 +108,9 @@
     function _ensureMelodies() {
         while (_st.melodies.length < _st.chords.length) _st.melodies.push('');
         _st.melodies.length = _st.chords.length;
+        while (_st.chordDefaults.length < _st.chords.length)
+            _st.chordDefaults.push({ dur: '4n', oct: 0 });
+        _st.chordDefaults.length = _st.chords.length;
     }
 
     function _parseHarmony() {
@@ -149,8 +154,8 @@
 
     // ── Fretboard SVG (unchanged from v2) ────────────────────────────────────
 
-    const FB_OPEN  = [35, 40, 45, 50, 55, 59, 64]; // B1 E2 A2 D3 G3 B3 E4
-    const FB_STR   = ['B', 'E', 'A', 'D', 'G', 'B', 'E'];
+    const FB_OPEN  = [36, 40, 45, 50, 55, 59, 64]; // C2 E2 A2 D3 G3 B3 E4
+    const FB_STR   = ['C', 'E', 'A', 'D', 'G', 'B', 'E'];
     const FB_FRETS = 7;
 
     function _fretboardSVG(midi) {
@@ -219,8 +224,8 @@
     function _staffSVG(flatSeq, playingAbsIdx) {
         const LS     = 10;  // line spacing (px)
         const HLS    = 5;   // half line spacing = one diatonic step
-        const H      = 118;
-        const botY   = 82;  // Y of bottom staff line (E3)
+        const H      = 152; // taller: guitar uses many ledger lines below
+        const botY   = 78;  // Y of bottom staff line (E3) — less top margin
         const topY   = botY - 4 * LS; // Y of top staff line (F4)
 
         const ks      = _keySharps();
@@ -251,8 +256,8 @@
             p.push(`<line x1="4" y1="${y}" x2="${W - 4}" y2="${y}" stroke="var(--text-secondary)" stroke-width="0.9" opacity="0.45"/>`);
         }
 
-        // Treble clef 𝄞 — positioned so the curl sits on the G line (offset 2 = G3)
-        const clefBaseY = botY + 10;
+        // Treble clef 𝄞 — curl on the G line (offset 2 = G3 = botY - LS)
+        const clefBaseY = botY + 12;
         p.push(`<text x="3" y="${clefBaseY}" font-size="72" font-family="Bravura,FreeSerif,Times New Roman,serif" fill="var(--text-primary)" opacity="0.8">𝄞</text>`);
 
         // Key signature accidentals
@@ -377,6 +382,16 @@
         return 'var(--chord-blue,#60a5fa)';
     }
 
+    function _chipBtn(label, active, extraAttrs, title) {
+        const bg  = active ? 'var(--brand,#7c3aed)' : 'var(--bg-raised)';
+        const col = active ? '#fff' : 'var(--text-muted)';
+        const brd = active ? 'var(--brand,#7c3aed)' : 'var(--glass-border,rgba(255,255,255,.08))';
+        return `<button ${extraAttrs} title="${esc(title || label)}"
+            style="padding:1px 6px;font-size:.68rem;font-family:var(--font-mono);border-radius:4px;
+            border:1px solid ${brd};background:${bg};color:${col};cursor:pointer;line-height:1.5;
+            font-weight:${active ? '700' : '400'};">${esc(label)}</button>`;
+    }
+
     function _chordCardHtml(chord, ci) {
         _ensureMelodies();
         const { suffix } = _parseChordName(chord);
@@ -385,6 +400,7 @@
         const isFocused  = _st.focusedCi === ci;
         const border     = isFocused ? 'var(--brand,#7c3aed)' : 'var(--glass-border,rgba(255,255,255,.08))';
         const bg         = isFocused ? 'var(--brand-dim,rgba(124,58,237,.08))' : 'var(--bg-surface)';
+        const def        = _st.chordDefaults[ci] || { dur: '4n', oct: 0 };
 
         const notes   = _resolveMelody(melody, chord);
         const preview = notes.length
@@ -394,9 +410,21 @@
               ).join(' ')
             : `<span style="font-size:.6rem;color:var(--text-muted);">—</span>`;
 
+        // Dur chips: 2n 4n 8n
+        const durChips = ['2n', '4n', '8n'].map(d =>
+            _chipBtn(d, def.dur === d, `class="hm-dur-btn" data-ci="${ci}" data-dur="${d}"`,
+                { '2n': 'Mínima', '4n': 'Semínima', '8n': 'Colcheia' }[d])
+        ).join('');
+
+        // Oct chips: -1  0  +1
+        const octChips = [[-1, '-1'], [0, '0'], [1, '+1']].map(([v, label]) =>
+            _chipBtn(label, def.oct === v, `class="hm-oct-btn" data-ci="${ci}" data-oct="${v}"`,
+                { '-1': 'Oitava grave', '0': 'Oitava padrão', '1': 'Oitava aguda' }[v])
+        ).join('');
+
         return `
         <div class="hm-chord-card" data-ci="${ci}"
-            style="flex-shrink:0;min-width:155px;max-width:270px;border-radius:8px;
+            style="flex-shrink:0;min-width:172px;max-width:280px;border-radius:8px;
             border:1px solid ${border};background:${bg};overflow:hidden;
             transition:border-color .12s,background .12s;">
             <div style="padding:7px 10px 5px;display:flex;align-items:center;gap:8px;
@@ -408,10 +436,10 @@
                     <i class="fa-solid fa-play"></i>
                 </button>
             </div>
-            <div style="padding:7px 8px 5px;">
+            <div style="padding:7px 8px 3px;">
                 <input class="hm-melody-input" data-ci="${ci}"
                     value="${esc(melody)}"
-                    placeholder="ex: 1:4n b3:8n 5:8n"
+                    placeholder="ex: 1 b3 5  (Space expande)"
                     style="width:100%;box-sizing:border-box;background:transparent;
                     border:none;outline:none;font-family:var(--font-mono);font-size:.8rem;
                     font-weight:600;color:var(--text-primary);padding:2px 0;" />
@@ -419,6 +447,13 @@
                     style="display:flex;flex-wrap:wrap;gap:2px;margin-top:4px;min-height:16px;">
                     ${preview}
                 </div>
+            </div>
+            <div style="padding:4px 8px 7px;display:flex;align-items:center;gap:4px;
+                border-top:1px solid var(--line-color);margin-top:3px;">
+                <span style="font-size:.6rem;color:var(--text-muted);margin-right:1px;">Dur</span>
+                ${durChips}
+                <span style="font-size:.6rem;color:var(--text-muted);margin-left:6px;margin-right:1px;">8va</span>
+                ${octChips}
             </div>
         </div>`;
     }
@@ -607,6 +642,31 @@
                 C._updateFretboard();
             });
 
+            // Auto-expand bare degree on Space: "b3" → "b3(-1):4n"
+            grid?.addEventListener('keydown', e => {
+                if (e.key !== ' ') return;
+                const inp = e.target.closest('.hm-melody-input');
+                if (!inp) return;
+                const ci  = +inp.dataset.ci;
+                const pos = inp.selectionStart;
+                const before = inp.value.slice(0, pos);
+                const lastTok = before.trimEnd().split(/\s+/).pop() || '';
+                if (!/^[b#]?[1-7]$/.test(lastTok)) return;
+                e.preventDefault();
+                const def    = _st.chordDefaults[ci] || { dur: '4n', oct: 0 };
+                const octStr = def.oct !== 0 ? `(${def.oct > 0 ? '+' : ''}${def.oct})` : '';
+                const expanded = lastTok + octStr + ':' + def.dur;
+                const insertAt = before.lastIndexOf(lastTok);
+                const newVal   = inp.value.slice(0, insertAt) + expanded + ' ' + inp.value.slice(pos);
+                inp.value = newVal;
+                inp.selectionStart = inp.selectionEnd = insertAt + expanded.length + 1;
+                _ensureMelodies();
+                _st.melodies[ci] = newVal;
+                C._updateNotesPreview(ci);
+                C._updateStaff();
+                C._updateFretboard();
+            });
+
             grid?.addEventListener('focusin', e => {
                 const inp = e.target.closest('.hm-melody-input');
                 if (!inp) return;
@@ -630,8 +690,24 @@
             });
 
             grid?.addEventListener('click', e => {
-                const btn = e.target.closest('.hm-play-chord');
-                if (btn) C._playChord(+btn.dataset.ci);
+                const playBtn = e.target.closest('.hm-play-chord');
+                const durBtn  = e.target.closest('.hm-dur-btn');
+                const octBtn  = e.target.closest('.hm-oct-btn');
+                if (playBtn) { C._playChord(+playBtn.dataset.ci); return; }
+                if (durBtn) {
+                    const ci = +durBtn.dataset.ci;
+                    _ensureMelodies();
+                    _st.chordDefaults[ci].dur = durBtn.dataset.dur;
+                    C._refreshCardDefaults(ci);
+                    return;
+                }
+                if (octBtn) {
+                    const ci = +octBtn.dataset.ci;
+                    _ensureMelodies();
+                    _st.chordDefaults[ci].oct = +octBtn.dataset.oct;
+                    C._refreshCardDefaults(ci);
+                    return;
+                }
             });
 
             document.getElementById('hm-save-title')?.addEventListener('input', e => {
@@ -674,6 +750,26 @@
             const isFoc      = _st.focusedCi === ci;
             el.style.borderColor = isFoc ? 'var(--brand,#7c3aed)' : 'var(--glass-border,rgba(255,255,255,.08))';
             el.style.background  = isFoc ? 'var(--brand-dim,rgba(124,58,237,.08))' : 'var(--bg-surface)';
+        },
+
+        _refreshCardDefaults(ci) {
+            const def = _st.chordDefaults[ci] || { dur: '4n', oct: 0 };
+            // Update dur chips
+            document.querySelectorAll(`.hm-dur-btn[data-ci="${ci}"]`).forEach(btn => {
+                const active = btn.dataset.dur === def.dur;
+                btn.style.background   = active ? 'var(--brand,#7c3aed)' : 'var(--bg-raised)';
+                btn.style.color        = active ? '#fff' : 'var(--text-muted)';
+                btn.style.borderColor  = active ? 'var(--brand,#7c3aed)' : 'var(--glass-border,rgba(255,255,255,.08))';
+                btn.style.fontWeight   = active ? '700' : '400';
+            });
+            // Update oct chips
+            document.querySelectorAll(`.hm-oct-btn[data-ci="${ci}"]`).forEach(btn => {
+                const active = +btn.dataset.oct === def.oct;
+                btn.style.background   = active ? 'var(--brand,#7c3aed)' : 'var(--bg-raised)';
+                btn.style.color        = active ? '#fff' : 'var(--text-muted)';
+                btn.style.borderColor  = active ? 'var(--brand,#7c3aed)' : 'var(--glass-border,rgba(255,255,255,.08))';
+                btn.style.fontWeight   = active ? '700' : '400';
+            });
         },
 
         _updateStaff(playingAbsIdx) {
@@ -863,6 +959,7 @@
                 _st.melodies = [];
             }
             _parseHarmony();
+            _ensureMelodies(); // re-sync chordDefaults to new chord count
             _st.tab = 'editor';
             C.render();
             window.HMSApp.showToast(`"${study.title}" carregado.`, 'success');
@@ -906,5 +1003,5 @@
     };
 
     window.HarmonicMelodicComponent = C;
-    console.info('[HMS] HarmonicMelodicComponent v3 loaded.');
+    console.info('[HMS] HarmonicMelodicComponent v3.1 loaded.');
 })();
