@@ -230,7 +230,7 @@
         async getAll() {
             const { data, error } = await db()
                 .from('harmonic_melodic_studies')
-                .select('id, user_id, title, root, is_minor, harmony, bpm, half_measures, created_at')
+                .select('id, user_id, title, root, is_minor, harmony, bpm, note_dur, slots, created_at')
                 .order('created_at', { ascending: false });
             if (error) throw error;
             return data || [];

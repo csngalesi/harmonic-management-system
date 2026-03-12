@@ -10,9 +10,9 @@ CREATE TABLE IF NOT EXISTS public.harmonic_melodic_studies (
     is_minor      BOOLEAN     NOT NULL DEFAULT FALSE,
     harmony       TEXT        NOT NULL,
     bpm           INTEGER     NOT NULL DEFAULT 80,
-    half_measures JSONB       NOT NULL DEFAULT '[]',
-    created_at    TIMESTAMPTZ DEFAULT NOW(),
-    updated_at    TIMESTAMPTZ DEFAULT NOW()
+    note_dur      TEXT        NOT NULL DEFAULT '8n',
+    slots         JSONB       NOT NULL DEFAULT '[]',
+    created_at    TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- RLS
