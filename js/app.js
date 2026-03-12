@@ -75,7 +75,8 @@
         extractor: window.ExtractorComponent,
         studies7:   window.Studies7Component,
         fretboard7:     window.Fretboard7Component,
-        melodicStudies: window.MelodicStudiesComponent,
+        melodicStudies:   window.MelodicStudiesComponent,
+        harmonicMelodic:  window.HarmonicMelodicComponent,
     };
 
     // ── App Controller ───────────────────────────────────────────

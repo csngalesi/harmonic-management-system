@@ -225,7 +225,38 @@
         },
     };
 
-    window.HMSAPI = { Songs, Setlists, Profile, MelodicPhrases };
+    // ── Harmonic Melodic Studies ─────────────────────────────────
+    const HarmonicStudies = {
+        async getAll() {
+            const { data, error } = await db()
+                .from('harmonic_melodic_studies')
+                .select('id, user_id, title, root, is_minor, harmony, bpm, half_measures, created_at')
+                .order('created_at', { ascending: false });
+            if (error) throw error;
+            return data || [];
+        },
+
+        async create(payload) {
+            const user = await window.HMSAuth.currentUser();
+            const { data, error } = await db()
+                .from('harmonic_melodic_studies')
+                .insert({ ...payload, user_id: user.id })
+                .select()
+                .single();
+            if (error) throw error;
+            return data;
+        },
+
+        async delete(id) {
+            const { error } = await db()
+                .from('harmonic_melodic_studies')
+                .delete()
+                .eq('id', id);
+            if (error) throw error;
+        },
+    };
+
+    window.HMSAPI = { Songs, Setlists, Profile, MelodicPhrases, HarmonicStudies };
 
     console.info('[HMS] API module loaded.');
 })();
