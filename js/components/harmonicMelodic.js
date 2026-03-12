@@ -1,7 +1,6 @@
 /**
- * HMS — Estudo Harmônico Melódico (v2)
- * Frases melódicas sobre progressões harmônicas.
- * 8 slots por acorde · braço 7 cordas animado · pentagrama de contorno.
+ * HMS — Estudo Harmônico Melódico (v3)
+ * Um input de melodia por acorde · partitura real (clave + armadura) · braço 7 cordas animado.
  * Exposed via window.HarmonicMelodicComponent
  */
 (function () {
@@ -41,61 +40,72 @@
         return (!m[1] && qMap[m[2]]) ? qMap[m[2]] : deg;
     }
 
-    // Parse slot text: "1", "b3", "#4", "5(-1)", "b3(1)"
-    function _parseSlot(str) {
-        if (!str || !str.trim()) return null;
-        const m = str.trim().match(/^([b#]?[1-7])(?:\(([+-]?\d+)\))?$/);
-        if (!m) return null;
-        return { deg: m[1], oct: m[2] !== undefined ? parseInt(m[2]) : 0 };
+    // Parse melody string: "1:4n b3:8n 5(-1):4n"
+    // Token format: [b#]degree[(±oct)]:dur
+    function _parseMelodyStr(str, chordName) {
+        if (!str || !str.trim()) return [];
+        return str.trim().split(/\s+/).map(token => {
+            const m = token.match(/^([b#]?[1-7])(?:\(([+-]?\d+)\))?:(1n|2n|4n|8n|16n)$/);
+            if (!m) return null;
+            const deg = _normalizeDeg(m[1], chordName);
+            const oct = m[2] !== undefined ? parseInt(m[2]) : 0;
+            const dur = m[3];
+            return { deg, oct, dur };
+        }).filter(Boolean);
     }
 
-    // Resolve slot to absolute {note, dur} using chord-relative mapping
-    function _resolveNote(slotStr, chordName, noteDur) {
-        const parsed = _parseSlot(slotStr);
-        if (!parsed) return null;
+    function _resolveMelody(str, chordName) {
+        const parsed = _parseMelodyStr(str, chordName);
+        if (!parsed.length) return [];
         try {
             const { root } = _parseChordName(chordName);
-            const normDeg = _normalizeDeg(parsed.deg, chordName);
-            const notes = window.MelodyEngine.translate(
-                [{ deg: normDeg, oct: parsed.oct, dur: noteDur }], root
-            );
-            return notes[0] || null;
-        } catch (_) { return null; }
+            return window.MelodyEngine.translate(parsed, root) || [];
+        } catch (_) { return []; }
     }
 
     function _durToMs(dur, bpm) {
         const beat = 60000 / bpm;
-        return ({ '16n': beat / 4, '8n': beat / 2, '4n': beat, '2n': beat * 2 })[dur] ?? beat / 2;
+        return ({ '1n': beat * 4, '2n': beat * 2, '4n': beat, '8n': beat / 2, '16n': beat / 4 })[dur] ?? beat / 2;
     }
 
-    // ── Constants ────────────────────────────────────────────────────────────
+    // ── Key Signature ─────────────────────────────────────────────────────────
 
-    const SLOTS = 8;
+    const KEY_SHARPS   = { C: 0, G: 1, D: 2, A: 3, E: 4, B: 5, 'F#': 6, F: -1, Bb: -2, Eb: -3, Ab: -4, Db: -5, Gb: -6 };
+    const MINOR_SHARPS = { A: 0, E: 1, B: 2, 'F#': 3, 'C#': 4, 'G#': 5, 'D#': 6, D: -1, G: -2, C: -3, F: -4, Bb: -5, Eb: -6 };
+
+    function _keySharps() {
+        return (_st.isMinor ? MINOR_SHARPS : KEY_SHARPS)[_st.root] ?? 0;
+    }
+
+    // Staff diatonic offsets for accidentals in treble clef (guitar sounding pitch)
+    // Reference: E3 = offset 0 (bottom line), each diatonic step = halfLineSpacing up
+    // Sharps order: F C G D A E B  (F4, C4, G4, D4, A3, E4, B3)
+    const SHARP_OFFS = [8, 5, 9, 6, 3, 7, 4];
+    // Flats order:  B E A D G C F  (B3, E4, A3, D4, G3, C4, F3)
+    const FLAT_OFFS  = [4, 7, 3, 6, 2, 5, 1];
 
     // ── State ────────────────────────────────────────────────────────────────
 
     const _st = {
-        root:        'C',
-        isMinor:     false,
-        harmonyStr:  '',
-        noteDur:     '8n',
-        bpm:         80,
-        chords:      [],   // string[] from HarmonyEngine
-        slots:       [],   // string[][] [chordIdx][slotIdx]
-        focusedSlot: null, // { ci, si }
-        playingSlot: null, // { ci, si } — during playback
-        playing:     false,
-        playTimers:  [],
-        tab:         'editor',
-        studies:     [],
+        root:          'C',
+        isMinor:       false,
+        harmonyStr:    '',
+        bpm:           80,
+        chords:        [],   // string[] from HarmonyEngine
+        melodies:      [],   // string[] — one melody input per chord
+        focusedCi:     null, // chord index with focused input
+        playingIdx:    null, // absolute index in flatSeq during playback
+        playing:       false,
+        playTimers:    [],
+        tab:           'editor',
+        studies:       [],
         currentUserId: null,
-        savingTitle: '',
+        savingTitle:   '',
     };
 
-    function _ensureSlots() {
-        while (_st.slots.length < _st.chords.length)
-            _st.slots.push(Array(SLOTS).fill(''));
-        _st.slots.length = _st.chords.length;
+    function _ensureMelodies() {
+        while (_st.melodies.length < _st.chords.length) _st.melodies.push('');
+        _st.melodies.length = _st.chords.length;
     }
 
     function _parseHarmony() {
@@ -106,64 +116,65 @@
         } catch (_) { _st.chords = []; }
     }
 
-    // Build flat sequence: { ci, si, note|null } for all slots
-    function _buildSequence() {
-        _ensureSlots();
+    function _buildFlatSeq() {
+        _ensureMelodies();
         const seq = [];
         for (let ci = 0; ci < _st.chords.length; ci++) {
-            for (let si = 0; si < SLOTS; si++) {
-                const s = _st.slots[ci]?.[si] || '';
-                seq.push({ ci, si, note: s.trim() ? _resolveNote(s, _st.chords[ci], _st.noteDur) : null });
+            const notes = _resolveMelody(_st.melodies[ci] || '', _st.chords[ci]);
+            for (let ni = 0; ni < notes.length; ni++) {
+                seq.push({ ci, ni, note: notes[ni] });
             }
         }
         return seq;
     }
 
     function _currentFretMidi() {
-        const active = _st.playingSlot || _st.focusedSlot;
-        if (!active) return null;
-        const chord = _st.chords[active.ci];
-        if (!chord) return null;
-        const s = _st.slots[active.ci]?.[active.si] || '';
-        if (!s.trim()) return null;
-        const n = _resolveNote(s, chord, _st.noteDur);
-        return n ? Tone.Frequency(n.note).toMidi() : null;
+        if (_st.playingIdx != null) {
+            const seq = _buildFlatSeq();
+            if (seq[_st.playingIdx]) {
+                try { return Tone.Frequency(seq[_st.playingIdx].note.note).toMidi(); } catch (_) {}
+            }
+        }
+        if (_st.focusedCi != null) {
+            const chord = _st.chords[_st.focusedCi];
+            if (chord) {
+                const notes = _resolveMelody(_st.melodies[_st.focusedCi] || '', chord);
+                if (notes.length) {
+                    try { return Tone.Frequency(notes[0].note).toMidi(); } catch (_) {}
+                }
+            }
+        }
+        return null;
     }
 
-    // ── Fretboard SVG (single note) ──────────────────────────────────────────
+    // ── Fretboard SVG (unchanged from v2) ────────────────────────────────────
 
-    const FB_OPEN = [35, 40, 45, 50, 55, 59, 64]; // B1 E2 A2 D3 G3 B3 E4
-    const FB_STR  = ['B', 'E', 'A', 'D', 'G', 'B', 'E'];
+    const FB_OPEN  = [35, 40, 45, 50, 55, 59, 64]; // B1 E2 A2 D3 G3 B3 E4
+    const FB_STR   = ['B', 'E', 'A', 'D', 'G', 'B', 'E'];
     const FB_FRETS = 7;
 
     function _fretboardSVG(midi) {
         const W = 420, H = 118, ML = 26, MR = 8, MT = 10, MB = 16;
-        const neckW = W - ML - MR;
-        const fretSp = neckW / FB_FRETS;
-        const strSp  = (H - MT - MB) / 6;
-
+        const neckW = W - ML - MR, fretSp = neckW / FB_FRETS, strSp = (H - MT - MB) / 6;
         const positions = [];
         if (midi != null) {
             for (let s = 0; s < 7; s++)
                 for (let f = 0; f <= FB_FRETS; f++)
                     if (FB_OPEN[s] + f === midi) positions.push({ s, f });
         }
-
         const p = [`<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;">`];
-        p.push(`<rect x="${ML}" y="${MT-3}" width="${neckW}" height="${H-MT-MB+6}" fill="var(--bg-raised)" rx="2" opacity="0.4"/>`);
-
+        p.push(`<rect x="${ML}" y="${MT - 3}" width="${neckW}" height="${H - MT - MB + 6}" fill="var(--bg-raised)" rx="2" opacity="0.4"/>`);
         for (let s = 0; s < 7; s++) {
             const y = MT + s * strSp;
             const sw = (0.55 + (6 - s) * 0.22).toFixed(2);
-            p.push(`<line x1="${ML}" y1="${y}" x2="${ML+neckW}" y2="${y}" stroke="var(--text-secondary)" stroke-width="${sw}" opacity="0.6"/>`);
-            p.push(`<text x="${ML-4}" y="${y+4}" text-anchor="end" font-size="9" font-family="var(--font-mono)" fill="var(--text-muted)">${FB_STR[s]}</text>`);
+            p.push(`<line x1="${ML}" y1="${y}" x2="${ML + neckW}" y2="${y}" stroke="var(--text-secondary)" stroke-width="${sw}" opacity="0.6"/>`);
+            p.push(`<text x="${ML - 4}" y="${y + 4}" text-anchor="end" font-size="9" font-family="var(--font-mono)" fill="var(--text-muted)">${FB_STR[s]}</text>`);
         }
-        p.push(`<line x1="${ML}" y1="${MT-5}" x2="${ML}" y2="${H-MB+5}" stroke="var(--text-primary)" stroke-width="2.5" stroke-linecap="round"/>`);
-
+        p.push(`<line x1="${ML}" y1="${MT - 5}" x2="${ML}" y2="${H - MB + 5}" stroke="var(--text-primary)" stroke-width="2.5" stroke-linecap="round"/>`);
         for (let f = 1; f <= FB_FRETS; f++) {
             const x = ML + f * fretSp;
-            p.push(`<line x1="${x}" y1="${MT-3}" x2="${x}" y2="${H-MB+3}" stroke="var(--line-color)" stroke-width="1"/>`);
-            p.push(`<text x="${x - fretSp/2}" y="${H-2}" text-anchor="middle" font-size="9" fill="var(--text-muted)">${f}</text>`);
+            p.push(`<line x1="${x}" y1="${MT - 3}" x2="${x}" y2="${H - MB + 3}" stroke="var(--line-color)" stroke-width="1"/>`);
+            p.push(`<text x="${x - fretSp / 2}" y="${H - 2}" text-anchor="middle" font-size="9" fill="var(--text-muted)">${f}</text>`);
         }
         for (const mf of [1, 3, 5, 7]) {
             if (mf <= FB_FRETS) {
@@ -171,21 +182,19 @@
                 p.push(`<circle cx="${x}" cy="${MT + 3 * strSp}" r="3" fill="var(--text-muted)" opacity="0.15"/>`);
             }
         }
-
         if (!positions.length) {
-            p.push(`<text x="${W/2}" y="${H/2+4}" text-anchor="middle" font-size="10" fill="var(--text-muted)" opacity="0.4">— foque um slot —</text>`);
+            p.push(`<text x="${W / 2}" y="${H / 2 + 4}" text-anchor="middle" font-size="10" fill="var(--text-muted)" opacity="0.4">— foque um acorde —</text>`);
         } else {
             const noteName = Tone.Frequency(midi, 'midi').toNote();
-            p.push(`<text x="${W-ML}" y="13" text-anchor="end" font-size="11" font-family="var(--font-mono)" fill="var(--brand,#7c3aed)" font-weight="700">${esc(noteName)}</text>`);
+            p.push(`<text x="${W - ML}" y="13" text-anchor="end" font-size="11" font-family="var(--font-mono)" fill="var(--brand,#7c3aed)" font-weight="700">${esc(noteName)}</text>`);
             for (const pos of positions) {
                 const cy = MT + pos.s * strSp;
                 const cx = pos.f === 0 ? ML - 13 : ML + (pos.f - 0.5) * fretSp;
                 if (pos.f === 0) {
                     p.push(`<circle cx="${cx}" cy="${cy}" r="9" fill="none" stroke="var(--brand,#7c3aed)" stroke-width="2.5"/>`);
-                    p.push(`<text x="${cx}" y="${cy+4}" text-anchor="middle" font-size="9" fill="var(--brand,#7c3aed)">○</text>`);
                 } else {
                     p.push(`<circle cx="${cx}" cy="${cy}" r="9" fill="var(--brand,#7c3aed)" opacity="0.9"/>`);
-                    p.push(`<text x="${cx}" y="${cy+4}" text-anchor="middle" font-size="8" font-weight="700" fill="white">${pos.f}</text>`);
+                    p.push(`<text x="${cx}" y="${cy + 4}" text-anchor="middle" font-size="8" font-weight="700" fill="white">${pos.f}</text>`);
                 }
             }
         }
@@ -193,141 +202,203 @@
         return p.join('');
     }
 
-    // ── Staff SVG (melodic contour) ──────────────────────────────────────────
-    // X = absolute slot position; Y = pitch (linear MIDI mapping)
-    // Staff lines placed at guitar sounding range (treble 8vb)
+    // ── Staff SVG (proper score) ──────────────────────────────────────────────
+    // Guitar treble clef 8vb: sounding E3 (MIDI 52) = bottom staff line (offset 0)
+    // Staff offsets: offset = DIATONIC[letter] + octave*7 - 23
+    // Staff lines at offsets 0(E3), 2(G3), 4(B3), 6(D4), 8(F4)
 
-    function _staffSVG(seq, highlightAbsIdx) {
-        const W = 700, H = 108;
-        const xPad = 24, yTop = 12, yBot = H - 14;
-        const midiMin = 33, midiMax = 78; // A1..F#5
+    const DIATONIC   = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6 };
+    const REF_OFFSET = 23; // DIATONIC['E'] + 3*7
 
-        function midiToY(midi) {
-            return yBot - (midi - midiMin) / (midiMax - midiMin) * (yBot - yTop);
-        }
+    function _noteStaffOffset(noteName) {
+        const m = noteName.match(/^([A-G])([b#]?)(-?\d+)$/);
+        if (!m) return 4;
+        return DIATONIC[m[1]] + parseInt(m[3]) * 7 - REF_OFFSET;
+    }
 
-        const totalSlots = _st.chords.length * SLOTS;
-        const slotW = totalSlots > 0 ? Math.max(8, (W - xPad * 2) / totalSlots) : 20;
+    function _staffSVG(flatSeq, playingAbsIdx) {
+        const LS     = 10;  // line spacing (px)
+        const HLS    = 5;   // half line spacing = one diatonic step
+        const H      = 118;
+        const botY   = 82;  // Y of bottom staff line (E3)
+        const topY   = botY - 4 * LS; // Y of top staff line (F4)
 
-        function slotX(ci, si) { return xPad + (ci * SLOTS + si) * slotW + slotW / 2; }
+        const ks      = _keySharps();
+        const numAcc  = Math.abs(ks);
+        const clefW   = 28;
+        const keySigW = numAcc > 0 ? numAcc * 9 + 6 : 4;
+        const initX   = clefW + keySigW;
 
-        // Guitar-range staff lines (sounding): E3 G3 B3 D4 F4
-        const staffLineMidis = [52, 55, 59, 62, 65];
+        // Build per-chord data
+        _ensureMelodies();
+        const chordData = _st.chords.map((chord, ci) => ({
+            chord,
+            notes: _resolveMelody(_st.melodies[ci] || '', chord),
+        }));
+
+        const noteSpacing = 18;
+        const measPadL    = 8;
+        const minMeasW    = 52;
+        const measWidths  = chordData.map(d => Math.max(minMeasW, d.notes.length * noteSpacing + measPadL + 6));
+        const totalW      = initX + measWidths.reduce((a, b) => a + b, 0) + 14;
+        const W           = Math.max(380, totalW);
 
         const p = [`<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;">`];
 
-        // Staff lines
-        for (const m of staffLineMidis) {
-            const y = midiToY(m).toFixed(1);
-            p.push(`<line x1="10" y1="${y}" x2="${W-10}" y2="${y}" stroke="var(--line-color)" stroke-width="1" opacity="0.7"/>`);
-        }
-        // Reference dashed lines: C2 C3 C4
-        for (const [m, label] of [[36,'C2'],[48,'C3'],[60,'C4']]) {
-            const y = midiToY(m).toFixed(1);
-            p.push(`<line x1="10" y1="${y}" x2="${W-10}" y2="${y}" stroke="var(--text-muted)" stroke-width="0.5" stroke-dasharray="3,5" opacity="0.35"/>`);
-            p.push(`<text x="3" y="${(+y+3).toFixed(1)}" font-size="7" fill="var(--text-muted)" opacity="0.5">${label}</text>`);
+        // 5 staff lines
+        for (let li = 0; li < 5; li++) {
+            const y = botY - li * LS;
+            p.push(`<line x1="4" y1="${y}" x2="${W - 4}" y2="${y}" stroke="var(--text-secondary)" stroke-width="0.9" opacity="0.45"/>`);
         }
 
-        // Chord separator lines + labels
-        for (let ci = 0; ci < _st.chords.length; ci++) {
-            const x = (xPad + ci * SLOTS * slotW).toFixed(1);
-            if (ci > 0) {
-                p.push(`<line x1="${x}" y1="${yTop-4}" x2="${x}" y2="${yBot+4}" stroke="var(--line-color)" stroke-width="1.5" opacity="0.6"/>`);
+        // Treble clef 𝄞 — positioned so the curl sits on the G line (offset 2 = G3)
+        const clefBaseY = botY + 10;
+        p.push(`<text x="3" y="${clefBaseY}" font-size="72" font-family="Bravura,FreeSerif,Times New Roman,serif" fill="var(--text-primary)" opacity="0.8">𝄞</text>`);
+
+        // Key signature accidentals
+        if (numAcc > 0) {
+            const accChar = ks > 0 ? '♯' : '♭';
+            const offsets = ks > 0 ? SHARP_OFFS : FLAT_OFFS;
+            for (let i = 0; i < numAcc; i++) {
+                const off = offsets[i];
+                const ay  = botY - off * HLS;
+                const ax  = clefW + 3 + i * 9;
+                p.push(`<text x="${ax}" y="${ay + 5}" text-anchor="middle" font-size="13" fill="var(--text-primary)" opacity="0.7">${accChar}</text>`);
             }
-            const labelX = (+x + 3).toFixed(1);
-            const { suffix } = _parseChordName(_st.chords[ci]);
-            let color = 'var(--chord-blue,#60a5fa)';
-            if (/^m(?!aj)/i.test(suffix)) color = 'var(--brand,#7c3aed)';
-            if (/7/.test(suffix) && !/^m/i.test(suffix) && !/maj7|M7/.test(suffix)) color = 'var(--chord-amber,#fbbf24)';
-            p.push(`<text x="${labelX}" y="${(yTop+1).toFixed(1)}" font-size="8" font-family="var(--font-mono)" fill="${color}" font-weight="700">${esc(_st.chords[ci])}</text>`);
         }
 
-        // Collect note points (only non-null)
-        const points = [];
-        seq.forEach((item, absIdx) => {
-            if (!item.note) return;
-            const midi = Tone.Frequency(item.note.note).toMidi();
-            points.push({ x: slotX(item.ci, item.si), y: midiToY(midi), midi, absIdx });
+        // Opening barline
+        p.push(`<line x1="${initX}" y1="${topY}" x2="${initX}" y2="${botY}" stroke="var(--text-secondary)" stroke-width="1" opacity="0.5"/>`);
+
+        // Empty state
+        if (!flatSeq.length) {
+            p.push(`<text x="${(initX + W) / 2}" y="${botY - 2 * LS + 4}" text-anchor="middle" font-size="10" fill="var(--text-muted)" opacity="0.35">— sem notas —</text>`);
+        }
+
+        // Render each chord measure
+        let absIdx = 0;
+        let curX   = initX;
+
+        chordData.forEach((d, ci) => {
+            const mW    = measWidths[ci];
+            const { chord, notes } = d;
+
+            // Chord label above staff
+            const { suffix } = _parseChordName(chord);
+            let chordColor = 'var(--chord-blue,#60a5fa)';
+            if (/^m(?!aj)/i.test(suffix))                                            chordColor = 'var(--brand,#7c3aed)';
+            if (/7/.test(suffix) && !/^m/i.test(suffix) && !/maj7|M7/.test(suffix)) chordColor = 'var(--chord-amber,#fbbf24)';
+            if (/maj7|M7/.test(suffix))                                              chordColor = 'var(--chord-green,#34d399)';
+            p.push(`<text x="${curX + 4}" y="13" font-size="8.5" font-family="var(--font-mono)" fill="${chordColor}" font-weight="700">${esc(chord)}</text>`);
+
+            // Note heads
+            notes.forEach((n, ni) => {
+                const noteX    = curX + measPadL + ni * noteSpacing + noteSpacing / 2;
+                const off      = _noteStaffOffset(n.note);
+                const noteY    = botY - off * HLS;
+                const isPlay   = absIdx === playingAbsIdx;
+                const noteCol  = isPlay ? 'var(--chord-amber,#fbbf24)' : 'var(--brand,#7c3aed)';
+                const noteOp   = isPlay ? '1' : '0.88';
+                const dur      = n.dur;
+
+                // Ledger lines below staff (off < 0)
+                if (off < 0) {
+                    for (let lo = -2; lo >= off; lo -= 2) {
+                        const ly = botY - lo * HLS;
+                        p.push(`<line x1="${noteX - 7}" y1="${ly}" x2="${noteX + 7}" y2="${ly}" stroke="${noteCol}" stroke-width="1.2" opacity="0.55"/>`);
+                    }
+                }
+                // Ledger lines above staff (off > 8)
+                if (off > 8) {
+                    const hiEnd = off % 2 === 0 ? off : off - 1;
+                    for (let lo = 10; lo <= hiEnd; lo += 2) {
+                        const ly = botY - lo * HLS;
+                        p.push(`<line x1="${noteX - 7}" y1="${ly}" x2="${noteX + 7}" y2="${ly}" stroke="${noteCol}" stroke-width="1.2" opacity="0.55"/>`);
+                    }
+                }
+
+                // Note head shape
+                const isFilled = dur !== '2n' && dur !== '1n';
+                const isWhole  = dur === '1n';
+
+                if (isWhole) {
+                    p.push(`<ellipse cx="${noteX}" cy="${noteY}" rx="5.5" ry="3.8" fill="none" stroke="${noteCol}" stroke-width="1.8" opacity="${noteOp}"/>`);
+                } else if (isFilled) {
+                    p.push(`<ellipse cx="${noteX}" cy="${noteY}" rx="4.8" ry="3.4" fill="${noteCol}" stroke="${noteCol}" stroke-width="1" opacity="${noteOp}" transform="rotate(-18,${noteX},${noteY})"/>`);
+                } else {
+                    // half note: open oval
+                    p.push(`<ellipse cx="${noteX}" cy="${noteY}" rx="4.8" ry="3.4" fill="none" stroke="${noteCol}" stroke-width="1.8" opacity="${noteOp}" transform="rotate(-18,${noteX},${noteY})"/>`);
+                }
+
+                // Stem + flags (not for whole notes)
+                if (!isWhole) {
+                    const stemUp = off < 4;
+                    const stemX  = stemUp ? noteX + 4.5 : noteX - 4.5;
+                    const stemY1 = stemUp ? noteY - 3 : noteY + 3;
+                    const stemY2 = stemUp ? noteY - 30 : noteY + 30;
+                    p.push(`<line x1="${stemX}" y1="${stemY1}" x2="${stemX}" y2="${stemY2}" stroke="${noteCol}" stroke-width="1.2" opacity="${noteOp}"/>`);
+
+                    const flags = dur === '8n' ? 1 : dur === '16n' ? 2 : 0;
+                    for (let fi = 0; fi < flags; fi++) {
+                        const fy   = stemUp ? stemY2 + fi * 9 : stemY2 - fi * 9;
+                        const fDir = stemUp ? 1 : -1;
+                        p.push(`<path d="M${stemX},${fy} Q${stemX + 12 * fDir},${fy + 9 * fDir} ${stemX + 5 * fDir},${fy + 18 * fDir}" fill="none" stroke="${noteCol}" stroke-width="1.3" opacity="${noteOp}"/>`);
+                    }
+                }
+
+                // Note name label when playing
+                if (isPlay) {
+                    p.push(`<text x="${noteX}" y="${H - 4}" text-anchor="middle" font-size="7.5" font-family="var(--font-mono)" fill="var(--chord-amber,#fbbf24)" font-weight="700">${esc(n.note)}</text>`);
+                }
+
+                absIdx++;
+            });
+
+            // Barline
+            curX += mW;
+            p.push(`<line x1="${curX}" y1="${topY}" x2="${curX}" y2="${botY}" stroke="var(--text-secondary)" stroke-width="1" opacity="0.5"/>`);
         });
 
-        if (!points.length) {
-            p.push(`<text x="${W/2}" y="${H/2+4}" text-anchor="middle" font-size="10" fill="var(--text-muted)" opacity="0.4">— sem notas —</text>`);
-            p.push('</svg>');
-            return p.join('');
-        }
-
-        // Contour line
-        if (points.length > 1) {
-            const d = points.map((pt, i) => `${i===0?'M':'L'}${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`).join(' ');
-            p.push(`<path d="${d}" fill="none" stroke="var(--brand,#7c3aed)" stroke-width="1.2" opacity="0.28"/>`);
-        }
-
-        // Note heads
-        for (const pt of points) {
-            const hi = pt.absIdx === highlightAbsIdx;
-            const fill = hi ? 'var(--chord-amber,#fbbf24)' : 'var(--brand,#7c3aed)';
-            const r = hi ? 6.5 : 5;
-            p.push(`<circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="${r}" fill="${fill}" opacity="${hi ? 1 : 0.88}"/>`);
-            if (hi) {
-                const noteName = Tone.Frequency(pt.midi, 'midi').toNote();
-                p.push(`<text x="${pt.x.toFixed(1)}" y="${(pt.y - 10).toFixed(1)}" text-anchor="middle" font-size="8" font-family="var(--font-mono)" fill="var(--chord-amber,#fbbf24)" font-weight="700">${esc(noteName)}</text>`);
-            }
+        // Double barline at end
+        if (_st.chords.length > 0) {
+            p.push(`<line x1="${curX + 3}" y1="${topY}" x2="${curX + 3}" y2="${botY}" stroke="var(--text-secondary)" stroke-width="2.8" opacity="0.65"/>`);
         }
 
         p.push('</svg>');
         return p.join('');
     }
 
-    // ── Slot HTML ────────────────────────────────────────────────────────────
-
-    function _slotHtml(ci, si) {
-        _ensureSlots();
-        const chord   = _st.chords[ci];
-        const slotStr = _st.slots[ci]?.[si] || '';
-        const isFoc   = _st.focusedSlot?.ci === ci && _st.focusedSlot?.si === si;
-        const isPly   = _st.playingSlot?.ci === ci && _st.playingSlot?.si === si;
-
-        let noteLabel = '—';
-        if (slotStr.trim() && chord) {
-            const resolved = _resolveNote(slotStr, chord, _st.noteDur);
-            noteLabel = resolved ? resolved.note : '?';
-        }
-
-        const border = isPly ? 'var(--chord-amber,#fbbf24)' : isFoc ? 'var(--brand,#7c3aed)' : 'var(--glass-border,rgba(255,255,255,.08))';
-        const bg     = isPly ? 'rgba(251,191,36,.13)' : isFoc ? 'var(--brand-dim,rgba(124,58,237,.12))' : 'var(--bg-raised)';
-        const noteColor = slotStr.trim() ? (isPly ? 'var(--chord-amber,#fbbf24)' : 'var(--chord-blue,#60a5fa)') : 'var(--text-muted)';
-
-        return `
-        <div class="hm-slot" data-ci="${ci}" data-si="${si}"
-            style="width:46px;flex-shrink:0;border-radius:5px;border:1px solid ${border};
-            background:${bg};padding:4px 2px 3px;display:flex;flex-direction:column;
-            align-items:center;gap:1px;transition:border-color .12s,background .12s;">
-            <span style="font-size:.58rem;color:var(--text-muted);line-height:1;">${si + 1}</span>
-            <input class="hm-slot-input" data-ci="${ci}" data-si="${si}"
-                value="${esc(slotStr)}" placeholder="—" maxlength="8"
-                style="width:42px;background:transparent;border:none;outline:none;
-                font-family:var(--font-mono);font-size:.8rem;font-weight:600;
-                color:var(--text-primary);text-align:center;padding:1px 0;" />
-            <span class="hm-slot-note" data-ci="${ci}" data-si="${si}"
-                style="font-size:.6rem;color:${noteColor};font-family:var(--font-mono);white-space:nowrap;line-height:1.2;">${esc(noteLabel)}</span>
-        </div>`;
-    }
-
     // ── Chord Card HTML ───────────────────────────────────────────────────────
 
-    function _chordCardHtml(chord, ci) {
-        const { suffix } = _parseChordName(chord);
-        let color = 'var(--chord-blue,#60a5fa)';
-        if (/^m(?!aj)/i.test(suffix))                                        color = 'var(--brand,#7c3aed)';
-        if (/7/.test(suffix) && !/^m/i.test(suffix) && !/maj7|M7/.test(suffix)) color = 'var(--chord-amber,#fbbf24)';
-        if (/maj7|M7/.test(suffix))                                          color = 'var(--chord-green,#34d399)';
+    function _chordColor(suffix) {
+        if (/maj7|M7/.test(suffix))                                            return 'var(--chord-green,#34d399)';
+        if (/^m(?!aj)/i.test(suffix))                                          return 'var(--brand,#7c3aed)';
+        if (/7/.test(suffix) && !/^m/i.test(suffix) && !/maj7|M7/.test(suffix)) return 'var(--chord-amber,#fbbf24)';
+        return 'var(--chord-blue,#60a5fa)';
+    }
 
-        const slots = Array.from({ length: SLOTS }, (_, si) => _slotHtml(ci, si)).join('');
+    function _chordCardHtml(chord, ci) {
+        _ensureMelodies();
+        const { suffix } = _parseChordName(chord);
+        const color      = _chordColor(suffix);
+        const melody     = _st.melodies[ci] || '';
+        const isFocused  = _st.focusedCi === ci;
+        const border     = isFocused ? 'var(--brand,#7c3aed)' : 'var(--glass-border,rgba(255,255,255,.08))';
+        const bg         = isFocused ? 'var(--brand-dim,rgba(124,58,237,.08))' : 'var(--bg-surface)';
+
+        const notes   = _resolveMelody(melody, chord);
+        const preview = notes.length
+            ? notes.map(n =>
+                `<span style="font-size:.6rem;font-family:var(--font-mono);color:var(--chord-blue,#60a5fa);` +
+                `padding:1px 4px;background:var(--bg-raised);border-radius:3px;">${esc(n.note)}</span>`
+              ).join(' ')
+            : `<span style="font-size:.6rem;color:var(--text-muted);">—</span>`;
 
         return `
         <div class="hm-chord-card" data-ci="${ci}"
-            style="flex-shrink:0;border-radius:8px;border:1px solid var(--glass-border);
-            background:var(--bg-surface);overflow:hidden;">
+            style="flex-shrink:0;min-width:155px;max-width:270px;border-radius:8px;
+            border:1px solid ${border};background:${bg};overflow:hidden;
+            transition:border-color .12s,background .12s;">
             <div style="padding:7px 10px 5px;display:flex;align-items:center;gap:8px;
                 border-bottom:1px solid var(--line-color);background:var(--bg-raised);">
                 <span style="font-family:var(--font-mono);font-size:1rem;font-weight:700;color:${color};">${esc(chord)}</span>
@@ -337,17 +408,22 @@
                     <i class="fa-solid fa-play"></i>
                 </button>
             </div>
-            <div style="padding:7px 6px;display:flex;gap:3px;">
-                ${slots}
+            <div style="padding:7px 8px 5px;">
+                <input class="hm-melody-input" data-ci="${ci}"
+                    value="${esc(melody)}"
+                    placeholder="ex: 1:4n b3:8n 5:8n"
+                    style="width:100%;box-sizing:border-box;background:transparent;
+                    border:none;outline:none;font-family:var(--font-mono);font-size:.8rem;
+                    font-weight:600;color:var(--text-primary);padding:2px 0;" />
+                <div class="hm-notes-preview" data-ci="${ci}"
+                    style="display:flex;flex-wrap:wrap;gap:2px;margin-top:4px;min-height:16px;">
+                    ${preview}
+                </div>
             </div>
         </div>`;
     }
 
     // ── Editor HTML ───────────────────────────────────────────────────────────
-
-    function _durLabel(d) {
-        return { '16n': '♬ 16n', '8n': '♪ 8n', '4n': '♩ 4n' }[d] || d;
-    }
 
     function _keyOptions() {
         const cur = _st.root + (_st.isMinor ? 'm' : '');
@@ -357,9 +433,9 @@
     }
 
     function _editorHtml() {
-        _ensureSlots();
+        _ensureMelodies();
         const hasChords = _st.chords.length > 0;
-        const seq = _buildSequence();
+        const flatSeq   = _buildFlatSeq();
 
         const chordsHtml = hasChords
             ? _st.chords.map((c, i) => _chordCardHtml(c, i)).join('')
@@ -367,13 +443,15 @@
                 <i class="fa-solid fa-music" style="font-size:1.4rem;opacity:.3;display:block;margin-bottom:.5rem;"></i>
                 Digite a harmonia acima.</div>`;
 
+        const keyLabel = _st.root + (_st.isMinor ? 'm' : '') + ' ' + (_st.isMinor ? 'Menor' : 'Maior');
+
         return `
             <div class="page-header">
                 <div class="page-title">
                     <div class="page-title-icon"><i class="fa-solid fa-guitar"></i></div>
                     <div>
                         <h2>Estudo Harmônico Melódico</h2>
-                        <p>Frases melódicas sobre progressões — braço 7 cordas + pentagrama</p>
+                        <p>Frases melódicas sobre progressões — braço 7 cordas + partitura</p>
                     </div>
                 </div>
             </div>
@@ -393,14 +471,6 @@
                             style="flex:1;font-family:var(--font-mono);" />
                     </div>
                     <div style="display:flex;align-items:center;gap:6px;">
-                        <label style="font-size:.75rem;color:var(--text-muted);">Figura</label>
-                        <select class="form-select" id="hm-dur-select" style="width:auto;">
-                            ${['16n','8n','4n'].map(d =>
-                                `<option value="${d}" ${_st.noteDur === d ? 'selected' : ''}>${_durLabel(d)}</option>`
-                            ).join('')}
-                        </select>
-                    </div>
-                    <div style="display:flex;align-items:center;gap:6px;">
                         <label style="font-size:.75rem;color:var(--text-muted);">BPM</label>
                         <input type="number" class="form-input" id="hm-bpm"
                             value="${_st.bpm}" min="20" max="300" style="width:64px;text-align:center;" />
@@ -415,11 +485,12 @@
             <!-- Hint -->
             <div style="font-size:.7rem;color:var(--text-muted);margin-bottom:.75rem;padding:5px 10px;
                 background:var(--bg-raised);border-radius:var(--radius-sm);border-left:3px solid var(--brand);">
-                Graus relativos ao acorde ·
-                <code style="font-family:var(--font-mono);">3</code> em m7→b3 ·
-                <code>7</code> em maj7→7ª maior ·
-                Acidente explícito <code>b3</code> <code>#4</code>: absoluto da raiz ·
-                Oitava: <code>5(-1)</code>=grave  <code>5(1)</code>=agudo
+                Grau:duração por espaço ·
+                <code style="font-family:var(--font-mono);">1:4n</code>
+                <code style="font-family:var(--font-mono);">b3:8n</code>
+                <code style="font-family:var(--font-mono);">5(-1):4n</code> ·
+                Grau relativo ao acorde (<code>3</code> em m7→b3) ·
+                Oitava: <code>5(-1)</code>=grave · Durações: <code>16n 8n 4n 2n 1n</code>
             </div>
 
             <!-- Chord grid -->
@@ -430,12 +501,12 @@
             </div>
 
             <!-- Staff -->
-            <div class="panel" style="margin-bottom:.75rem;padding:8px 12px;">
+            <div class="panel" style="margin-bottom:.75rem;padding:8px 12px;overflow-x:auto;">
                 <div style="font-size:.68rem;color:var(--text-muted);margin-bottom:3px;
                     font-weight:600;text-transform:uppercase;letter-spacing:.04em;">
-                    Pentagrama — contorno melódico
+                    Partitura · Clave de Sol · ${esc(keyLabel)}
                 </div>
-                <div id="hm-staff-display">${_staffSVG(seq)}</div>
+                <div id="hm-staff-display">${_staffSVG(flatSeq)}</div>
             </div>
 
             <!-- Fretboard -->
@@ -503,7 +574,7 @@
         _bindEditorEvents() {
             document.getElementById('hm-key-select')?.addEventListener('change', e => {
                 const v = e.target.value;
-                _st.root = v.endsWith('m') ? v.slice(0, -1) : v;
+                _st.root    = v.endsWith('m') ? v.slice(0, -1) : v;
                 _st.isMinor = v.endsWith('m');
                 _parseHarmony();
                 C._renderEditor();
@@ -516,13 +587,6 @@
                 C._updateStaff();
             });
 
-            document.getElementById('hm-dur-select')?.addEventListener('change', e => {
-                _st.noteDur = e.target.value;
-                C._refreshAllSlotNotes();
-                C._updateStaff();
-                C._updateFretboard();
-            });
-
             document.getElementById('hm-bpm')?.addEventListener('change', e => {
                 _st.bpm = Math.max(20, Math.min(300, parseInt(e.target.value) || 80));
                 e.target.value = _st.bpm;
@@ -532,43 +596,39 @@
 
             const grid = document.getElementById('hm-chord-grid');
 
-            // Slot input: update note label + staff
             grid?.addEventListener('input', e => {
-                const inp = e.target.closest('.hm-slot-input');
+                const inp = e.target.closest('.hm-melody-input');
                 if (!inp) return;
-                const ci = +inp.dataset.ci, si = +inp.dataset.si;
-                _ensureSlots();
-                if (!_st.slots[ci]) _st.slots[ci] = Array(SLOTS).fill('');
-                _st.slots[ci][si] = inp.value;
-                C._updateSlotNote(ci, si);
+                const ci = +inp.dataset.ci;
+                _ensureMelodies();
+                _st.melodies[ci] = inp.value;
+                C._updateNotesPreview(ci);
                 C._updateStaff();
                 C._updateFretboard();
             });
 
-            // Slot focus: highlight + update fretboard
             grid?.addEventListener('focusin', e => {
-                const inp = e.target.closest('.hm-slot-input');
+                const inp = e.target.closest('.hm-melody-input');
                 if (!inp) return;
-                const ci = +inp.dataset.ci, si = +inp.dataset.si;
-                const prev = _st.focusedSlot;
-                _st.focusedSlot = { ci, si };
-                if (prev) C._refreshSlotStyle(prev.ci, prev.si);
-                C._refreshSlotStyle(ci, si);
+                const ci   = +inp.dataset.ci;
+                const prev = _st.focusedCi;
+                _st.focusedCi = ci;
+                if (prev !== null && prev !== ci) C._refreshCardStyle(prev);
+                C._refreshCardStyle(ci);
                 C._updateFretboard();
             });
 
             grid?.addEventListener('focusout', e => {
-                const inp = e.target.closest('.hm-slot-input');
+                const inp = e.target.closest('.hm-melody-input');
                 if (!inp) return;
                 setTimeout(() => {
-                    if (!document.activeElement?.classList.contains('hm-slot-input')) {
-                        _st.focusedSlot = null;
-                        // fretboard keeps last note shown
+                    if (!document.activeElement?.classList.contains('hm-melody-input')) {
+                        _st.focusedCi = null;
+                        C._updateFretboard();
                     }
                 }, 80);
             });
 
-            // Play chord button
             grid?.addEventListener('click', e => {
                 const btn = e.target.closest('.hm-play-chord');
                 if (btn) C._playChord(+btn.dataset.ci);
@@ -584,7 +644,7 @@
             const gridEl    = document.getElementById('hm-chord-grid');
             const saveBarEl = document.getElementById('hm-save-bar');
             if (!gridEl) return;
-            _ensureSlots();
+            _ensureMelodies();
             const hasChords = _st.chords.length > 0;
             gridEl.innerHTML = hasChords
                 ? _st.chords.map((c, i) => _chordCardHtml(c, i)).join('')
@@ -594,40 +654,31 @@
             if (saveBarEl) saveBarEl.style.display = hasChords ? 'flex' : 'none';
         },
 
-        _updateSlotNote(ci, si) {
-            const chord = _st.chords[ci];
-            const s = _st.slots[ci]?.[si] || '';
-            let noteLabel = '—';
-            let noteColor = 'var(--text-muted)';
-            if (s.trim() && chord) {
-                const r = _resolveNote(s, chord, _st.noteDur);
-                noteLabel = r ? r.note : '?';
-                noteColor = 'var(--chord-blue,#60a5fa)';
-            }
-            const el = document.querySelector(`.hm-slot-note[data-ci="${ci}"][data-si="${si}"]`);
-            if (el) { el.textContent = noteLabel; el.style.color = noteColor; }
-        },
-
-        _refreshAllSlotNotes() {
-            for (let ci = 0; ci < _st.chords.length; ci++)
-                for (let si = 0; si < SLOTS; si++)
-                    C._updateSlotNote(ci, si);
-        },
-
-        _refreshSlotStyle(ci, si) {
-            const el = document.querySelector(`.hm-slot[data-ci="${ci}"][data-si="${si}"]`);
+        _updateNotesPreview(ci) {
+            const el    = document.querySelector(`.hm-notes-preview[data-ci="${ci}"]`);
             if (!el) return;
-            const isPly = _st.playingSlot?.ci === ci && _st.playingSlot?.si === si;
-            const isFoc = _st.focusedSlot?.ci  === ci && _st.focusedSlot?.si  === si;
-            el.style.borderColor = isPly ? 'var(--chord-amber,#fbbf24)' : isFoc ? 'var(--brand,#7c3aed)' : 'var(--glass-border,rgba(255,255,255,.08))';
-            el.style.background  = isPly ? 'rgba(251,191,36,.13)' : isFoc ? 'var(--brand-dim,rgba(124,58,237,.12))' : 'var(--bg-raised)';
-            const noteEl = document.querySelector(`.hm-slot-note[data-ci="${ci}"][data-si="${si}"]`);
-            if (noteEl && isPly) noteEl.style.color = 'var(--chord-amber,#fbbf24)';
+            const chord = _st.chords[ci];
+            if (!chord) return;
+            const notes = _resolveMelody(_st.melodies[ci] || '', chord);
+            el.innerHTML = notes.length
+                ? notes.map(n =>
+                    `<span style="font-size:.6rem;font-family:var(--font-mono);color:var(--chord-blue,#60a5fa);` +
+                    `padding:1px 4px;background:var(--bg-raised);border-radius:3px;">${esc(n.note)}</span>`
+                  ).join(' ')
+                : `<span style="font-size:.6rem;color:var(--text-muted);">—</span>`;
         },
 
-        _updateStaff(highlightAbsIdx) {
+        _refreshCardStyle(ci) {
+            const el = document.querySelector(`.hm-chord-card[data-ci="${ci}"]`);
+            if (!el) return;
+            const isFoc      = _st.focusedCi === ci;
+            el.style.borderColor = isFoc ? 'var(--brand,#7c3aed)' : 'var(--glass-border,rgba(255,255,255,.08))';
+            el.style.background  = isFoc ? 'var(--brand-dim,rgba(124,58,237,.08))' : 'var(--bg-surface)';
+        },
+
+        _updateStaff(playingAbsIdx) {
             const el = document.getElementById('hm-staff-display');
-            if (el) el.innerHTML = _staffSVG(_buildSequence(), highlightAbsIdx);
+            if (el) el.innerHTML = _staffSVG(_buildFlatSeq(), playingAbsIdx);
         },
 
         _updateFretboard() {
@@ -645,87 +696,68 @@
         _stopAll() {
             window.HMSAudio.stop();
             C._clearTimers();
-            const prev = _st.playingSlot;
-            _st.playing = false;
-            _st.playingSlot = null;
-            if (prev) C._refreshSlotStyle(prev.ci, prev.si);
+            _st.playing    = false;
+            _st.playingIdx = null;
             C._updatePlayAllBtn();
+            C._updateStaff();
             C._updateFretboard();
         },
 
         _togglePlayAll() {
             if (_st.playing) { C._stopAll(); return; }
 
-            const seq       = _buildSequence();
-            const playable  = seq.filter(s => s.note);
-            if (!playable.length) { window.HMSApp.showToast('Sem notas para tocar.', 'warning'); return; }
-
-            const notes  = playable.map(s => s.note);
-            const durMs  = _durToMs(_st.noteDur, _st.bpm);
+            const seq = _buildFlatSeq();
+            if (!seq.length) { window.HMSApp.showToast('Sem notas para tocar.', 'warning'); return; }
 
             _st.playing = true;
             C._updatePlayAllBtn();
 
-            // Visual animation: one timer per playable note
-            let prevSlot = null;
-            playable.forEach((item, i) => {
-                const t = setTimeout(() => {
-                    if (prevSlot) C._refreshSlotStyle(prevSlot.ci, prevSlot.si);
-                    _st.playingSlot = { ci: item.ci, si: item.si };
-                    C._refreshSlotStyle(item.ci, item.si);
-                    C._updateFretboard();
-                    // Highlight on staff — find index among playable
+            // Per-note timed animation (supports mixed durations)
+            let cumMs = 0;
+            seq.forEach((item, i) => {
+                const ms = _durToMs(item.note.dur, _st.bpm);
+                const t  = setTimeout(() => {
+                    _st.playingIdx = i;
                     C._updateStaff(i);
-                    prevSlot = { ci: item.ci, si: item.si };
-                }, i * durMs);
+                    C._updateFretboard();
+                }, cumMs);
+                cumMs += ms;
                 _st.playTimers.push(t);
             });
 
-            const cleanup = setTimeout(() => {
-                C._stopAll();
-                C._updateStaff(); // remove highlight
-            }, playable.length * durMs + 120);
-            _st.playTimers.push(cleanup);
-
-            window.HMSAudio.playMelody(notes, _st.bpm, () => {
-                C._stopAll();
-                C._updateStaff();
-            });
+            _st.playTimers.push(setTimeout(() => C._stopAll(), cumMs + 120));
+            window.HMSAudio.playMelody(seq.map(s => s.note), _st.bpm, () => C._stopAll());
         },
 
         _playChord(ci) {
             const chord = _st.chords[ci];
             if (!chord) return;
-
-            const items = [];
-            for (let si = 0; si < SLOTS; si++) {
-                const s = _st.slots[ci]?.[si] || '';
-                if (s.trim()) {
-                    const note = _resolveNote(s, chord, _st.noteDur);
-                    if (note) items.push({ ci, si, note });
-                }
-            }
-            if (!items.length) { window.HMSApp.showToast('Acorde sem notas.', 'warning'); return; }
+            const notes = _resolveMelody(_st.melodies[ci] || '', chord);
+            if (!notes.length) { window.HMSApp.showToast('Acorde sem notas.', 'warning'); return; }
 
             if (_st.playing) C._stopAll();
 
-            const durMs = _durToMs(_st.noteDur, _st.bpm);
-            _st.playing = true;
+            // Compute absolute offset for this chord's notes in the flat sequence
+            let absOffset = 0;
+            for (let i = 0; i < ci; i++) {
+                absOffset += _resolveMelody(_st.melodies[i] || '', _st.chords[i]).length;
+            }
 
-            let prev = null;
-            items.forEach((item, i) => {
-                const t = setTimeout(() => {
-                    if (prev) C._refreshSlotStyle(prev.ci, prev.si);
-                    _st.playingSlot = { ci: item.ci, si: item.si };
-                    C._refreshSlotStyle(item.ci, item.si);
+            _st.playing = true;
+            let cumMs = 0;
+            notes.forEach((n, ni) => {
+                const ms = _durToMs(n.dur, _st.bpm);
+                const t  = setTimeout(() => {
+                    _st.playingIdx = absOffset + ni;
+                    C._updateStaff(absOffset + ni);
                     C._updateFretboard();
-                    prev = { ci: item.ci, si: item.si };
-                }, i * durMs);
+                }, cumMs);
+                cumMs += ms;
                 _st.playTimers.push(t);
             });
 
-            _st.playTimers.push(setTimeout(() => C._stopAll(), items.length * durMs + 120));
-            window.HMSAudio.playMelody(items.map(i => i.note), _st.bpm, () => C._stopAll());
+            _st.playTimers.push(setTimeout(() => C._stopAll(), cumMs + 120));
+            window.HMSAudio.playMelody(notes, _st.bpm, () => C._stopAll());
         },
 
         _updatePlayAllBtn() {
@@ -796,7 +828,7 @@
                             <span style="font-size:.9rem;font-weight:600;color:var(--text-primary);">${esc(s.title)}</span>
                             <span style="font-size:.75rem;color:var(--text-muted);margin-left:10px;font-family:var(--font-mono);">${esc(s.harmony)}</span>
                         </div>
-                        <span style="font-size:.72rem;color:var(--text-muted);flex-shrink:0;">${esc(keyLabel)} · ${s.bpm||80} BPM · ${_durLabel(s.note_dur||'8n')}</span>
+                        <span style="font-size:.72rem;color:var(--text-muted);flex-shrink:0;">${esc(keyLabel)} · ${s.bpm || 80} BPM</span>
                         <button class="btn btn-primary hm-load-study" data-id="${esc(s.id)}"
                             style="padding:4px 14px;font-size:.82rem;flex-shrink:0;">
                             <i class="fa-solid fa-arrow-up-right-from-square"></i> Carregar
@@ -818,11 +850,18 @@
             _st.isMinor     = !!study.is_minor;
             _st.harmonyStr  = study.harmony || '';
             _st.bpm         = study.bpm || 80;
-            _st.noteDur     = study.note_dur || '8n';
             _st.savingTitle = study.title || '';
-            _st.slots = Array.isArray(study.slots)
-                ? study.slots.map(row => Array.isArray(row) ? [...row] : Array(SLOTS).fill(''))
-                : [];
+            // Handle both v2 format (slots: string[][]) and v3 (slots: string[])
+            const raw = study.slots;
+            if (Array.isArray(raw)) {
+                _st.melodies = raw.map(item => {
+                    if (typeof item === 'string') return item;         // v3
+                    if (Array.isArray(item)) return item.filter(Boolean).join(' '); // v2 compat
+                    return '';
+                });
+            } else {
+                _st.melodies = [];
+            }
             _parseHarmony();
             _st.tab = 'editor';
             C.render();
@@ -831,9 +870,9 @@
 
         _saveStudy: async function () {
             const title = (_st.savingTitle || '').trim();
-            if (!title)                    { window.HMSApp.showToast('Informe um título.', 'warning'); return; }
-            if (!_st.harmonyStr.trim())    { window.HMSApp.showToast('Harmonia vazia.', 'warning');   return; }
-            _ensureSlots();
+            if (!title)                 { window.HMSApp.showToast('Informe um título.', 'warning'); return; }
+            if (!_st.harmonyStr.trim()) { window.HMSApp.showToast('Harmonia vazia.', 'warning');   return; }
+            _ensureMelodies();
             try {
                 await window.HMSAPI.HarmonicStudies.create({
                     title,
@@ -841,8 +880,8 @@
                     is_minor: _st.isMinor,
                     harmony:  _st.harmonyStr,
                     bpm:      _st.bpm,
-                    note_dur: _st.noteDur,
-                    slots:    _st.slots,
+                    note_dur: '8n',          // kept for schema compat
+                    slots:    _st.melodies,  // string[] (v3 format)
                 });
                 window.HMSApp.showToast('Estudo salvo!', 'success');
                 _st.savingTitle = '';
@@ -867,5 +906,5 @@
     };
 
     window.HarmonicMelodicComponent = C;
-    console.info('[HMS] HarmonicMelodicComponent v2 loaded.');
+    console.info('[HMS] HarmonicMelodicComponent v3 loaded.');
 })();
