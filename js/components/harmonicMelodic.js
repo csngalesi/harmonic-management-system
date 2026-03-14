@@ -838,9 +838,17 @@
             const seq = _buildFlatSeq();
             if (!seq.length) { window.HMSApp.showToast('Sem notas para tocar.', 'warning'); return; }
 
-            const tokens = _st.harmonyStr.trim()
-                ? window.HarmonyEngine.translate(_st.harmonyStr, _st.root, _st.isMinor)
-                : [];
+            // Build chord timings aligned with actual melody note durations
+            const chordTimings = [];
+            let cumSec = 0;
+            for (let ci = 0; ci < _st.chords.length; ci++) {
+                const melNotes = _resolveMelody(_st.melodies[ci] || '', _st.chords[ci]);
+                const durSec = melNotes.reduce((sum, n) => sum + _durToMs(n.dur, _st.bpm) / 1000, 0);
+                if (_st.chords[ci]) {
+                    chordTimings.push({ time: cumSec, chord: _st.chords[ci], duration: durSec || (60 / _st.bpm) });
+                }
+                cumSec += durSec || (60 / _st.bpm);
+            }
 
             _st.playingAll = true;
             C._updatePlayAllBtn();
@@ -858,7 +866,7 @@
             });
 
             _st.playTimers.push(setTimeout(() => C._stopAll(), cumMs + 120));
-            window.HMSAudio.playAll(seq.map(s => s.note), tokens, _st.bpm, () => C._stopAll());
+            window.HMSAudio.playAllWithTimings(seq.map(s => s.note), chordTimings, _st.bpm, () => C._stopAll());
         },
 
         _playChord(ci) {

@@ -291,6 +291,64 @@
             }, totalDuration);
         },
 
+        /**
+         * Play melody and chords simultaneously with explicit chord timings.
+         * @param {Array}    notes        [{note, dur}, ...] from MelodyEngine.translate
+         * @param {Array}    chordTimings [{time: seconds, chord: 'Am7', duration: seconds}, ...]
+         * @param {number}   bpm          beats per minute
+         * @param {Function} onFinished   called when playback ends naturally
+         */
+        async playAllWithTimings(notes, chordTimings, bpm = 80, onFinished) {
+            AudioEngine.stop();
+            await ensureSynth();
+
+            if (!notes || notes.length === 0) return;
+
+            // Build melody events
+            const melodyEvents = [];
+            let mt = 0;
+            for (const n of notes) {
+                melodyEvents.push({ time: mt, note: n.note, dur: n.dur });
+                mt += window.MelodyEngine.durToSeconds(n.dur, bpm);
+            }
+
+            // Build chord events from pre-computed timings
+            const chordEvents = (chordTimings || []).map(ct => {
+                const cNotes = parseChordToNotes(ct.chord);
+                return cNotes ? { time: ct.time, notes: cNotes, duration: ct.duration } : null;
+            }).filter(Boolean);
+
+            Tone.Transport.cancel();
+            Tone.Transport.stop();
+            Tone.Transport.position = 0;
+            Tone.Transport.bpm.value = bpm;
+
+            part = new Tone.Part((audioTime, value) => {
+                sampler.triggerAttackRelease(value.note, value.dur, audioTime);
+            }, melodyEvents);
+            part.start(0);
+
+            if (chordEvents.length > 0) {
+                part2 = new Tone.Part((audioTime, value) => {
+                    const relDur = value.duration > 0 ? value.duration : (60 / bpm);
+                    const noteDur = Math.max(relDur * 0.92, 0.05); // slight overlap trim
+                    value.notes.forEach((note, i) => {
+                        sampler.triggerAttackRelease(note, noteDur, audioTime + i * 0.03);
+                    });
+                }, chordEvents);
+                part2.start(0);
+            }
+
+            _isPlaying = true;
+            Tone.Transport.start('+0.05');
+
+            const totalDuration = mt + 2.5;
+            Tone.Transport.scheduleOnce(() => {
+                AudioEngine.stop();
+                if (onFinished) onFinished();
+            }, totalDuration);
+        },
+
         stop() {
             _isPlaying = false;
             if (part)  { part.stop();  part.dispose();  part  = null; }
