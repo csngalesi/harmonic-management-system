@@ -19,6 +19,13 @@
             ],
         },
         {
+            id: 'quadrado',
+            title: 'Quadrado',
+            cadences: [
+                { id: 'q_1',    label: '1 5(2) 5',    harmony: '1 5(2) 5' },
+            ],
+        },
+        {
             id: 'secundarias',
             title: 'Cadências Secundárias',
             cadences: [
@@ -28,13 +35,6 @@
                 { id: 'c_5525', label: '5.5 / 251',   harmony: '5.5/ 25 1' },
                 { id: 'c_comp', label: 'Completa',     harmony: '1 5(2) 5 25(4) 4m 3 5"2" 5.5/ 251' },
                 { id: 'c_free', label: 'Livre',        harmony: '' },
-            ],
-        },
-        {
-            id: 'quadrado',
-            title: 'Quadrado',
-            cadences: [
-                { id: 'q_1',    label: '1 5(2) 5',    harmony: '1 5(2) 5' },
             ],
         },
     ];
