@@ -67,10 +67,14 @@
         translate(melody, rootName, _isMinor = false) {
             const rootIdx  = window.HarmonyEngine._noteToIdx(rootName) ?? 0;
             const baseMidi = C2_MIDI + rootIdx;
-            return melody.map(n => ({
-                note: Tone.Frequency(baseMidi + _degSt(n.deg) + (n.oct ?? 0) * 12, 'midi').toNote(),
-                dur : n.dur || '8n',
-            }));
+            return melody.map(n => {
+                const res = {
+                    note: Tone.Frequency(baseMidi + _degSt(n.deg) + (n.oct ?? 0) * 12, 'midi').toNote(),
+                    dur : n.dur || '8n',
+                };
+                if (n.tie) res.tie = true;
+                return res;
+            });
         },
 
         /**
@@ -88,12 +92,13 @@
         parse(str) {
             if (!str || !str.trim()) return [];
             return str.trim().split(/\s+/).map(tok => {
-                const m = tok.match(/^([b#]?[1-7])(?:\(([+-]?\d+)\))?(?::(\S+))?$/);
+                const m = tok.match(/^([b#]?[1-7])(?:\(([+-]?\d+)\))?(?::([^~\s]+))?(~)?$/);
                 if (!m) return null;
                 return {
                     deg: m[1],
                     oct: m[2] !== undefined ? parseInt(m[2], 10) : 0,
                     dur: m[3] || '8n',
+                    ...(m[4] === '~' ? { tie: true } : {}),
                 };
             }).filter(Boolean);
         },

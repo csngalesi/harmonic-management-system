@@ -77,11 +77,13 @@
 
     // ── Global state ─────────────────────────────────────────────────────────
     const _state = {
-        root:     'C',
-        scaleKey: 'major',
-        bpm:      80,
-        playing:  null,        // id of currently playing study / 'rp_<uuid>'
-        melodies: {},          // editable melody string per study id
+        root:        'C',
+        scaleKey:    'major',
+        bpm:         80,
+        timeSig:     '2/4',      // fórmula de compasso
+        playing:     null,       // id of currently playing study / 'rp_<uuid>'
+        melodies:    {},         // editable melody string per study id
+        prepTargets: {},         // studyId → target degree ('1'–'7') or null
         // Repositório
         tab:           'exemplos',   // 'exemplos' | 'repositorio'
         phrases:       [],           // loaded from DB
@@ -116,6 +118,22 @@
         return new Set(intervals.map(iv => (rootIdx + iv) % 12));
     }
 
+    /**
+     * Compute the effective root and scale for note colouring.
+     * When a target degree is set (preparações 5/25), shift the context
+     * to that degree's root so notes are coloured against the target scale.
+     */
+    function _effectiveContext(globalRoot, globalScaleKey, targetDeg) {
+        if (!targetDeg) return { root: globalRoot, scaleKey: globalScaleKey };
+        const intervals = (SCALES[globalScaleKey] || SCALES.major).intervals;
+        const degIdx    = parseInt(targetDeg, 10) - 1; // degree 1 → index 0
+        const st        = intervals[degIdx] ?? 0;
+        const rootIdx   = NOTE_NAMES.indexOf(globalRoot);
+        if (rootIdx === -1) return { root: globalRoot, scaleKey: globalScaleKey };
+        const targetRoot = NOTE_NAMES[(rootIdx + st) % 12];
+        return { root: targetRoot, scaleKey: 'major' }; // target treated as major
+    }
+
     function _noteChips(melodyStr, root, scaleKey) {
         if (!melodyStr.trim()) return '<span style="color:var(--text-muted);font-size:.8rem;">—</span>';
         try {
@@ -142,10 +160,11 @@
                     color = 'var(--chord-amber,#fbbf24)';       // cromática / passing tone
                 }
 
-                return `<div style="display:inline-flex;flex-direction:column;align-items:center;gap:2px;margin-right:6px;">
+                const isTied = parsed[i]?.tie;
+                return `<div style="display:inline-flex;flex-direction:column;align-items:center;gap:2px;margin-right:${isTied ? '0' : '6'}px;">
                     <span style="font-family:var(--font-mono);font-size:.82rem;font-weight:600;color:${color};">${esc(n.note)}</span>
-                    <span style="font-size:.62rem;color:var(--text-muted);">${esc(n.dur)}</span>
-                </div>`;
+                    <span style="font-size:.62rem;color:var(--text-muted);">${esc(n.dur)}${isTied ? '<span style="color:var(--brand);">~</span>' : ''}</span>
+                </div>${isTied ? '<span style="font-size:.9rem;color:var(--text-muted);margin-right:4px;align-self:center;">⌒</span>' : ''}`;
             }).join('');
         } catch (_) {
             return '<span style="color:var(--chord-amber);font-size:.8rem;">parse error</span>';
@@ -239,8 +258,12 @@
     }
 
     function _studyCardHtml(s) {
-        const isPlaying = _state.playing === s.id;
-        const melody    = _state.melodies[s.id];
+        const isPlaying  = _state.playing === s.id;
+        const melody     = _state.melodies[s.id];
+        const ctx        = _effectiveContext(_state.root, _state.scaleKey, _state.prepTargets[s.id] || null);
+        const alvoOptions = ['1','2','3','4','5','6','7'].map(d =>
+            `<option value="${d}" ${(_state.prepTargets[s.id] || '') === d ? 'selected' : ''}>${d}º</option>`
+        ).join('');
         return `
         <div class="panel" style="margin-bottom:0.75rem;" id="ms-card-${esc(s.id)}">
             <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line-color);">
@@ -249,6 +272,10 @@
                     value="${esc(melody)}"
                     placeholder="ex: 1:4n 2:4n b3:4n 4:4n"
                     style="flex:1;font-family:var(--font-mono);font-size:.8rem;padding:5px 10px;" />
+                <select class="form-select ms-alvo-select" data-sid="${esc(s.id)}"
+                    style="width:auto;font-size:.75rem;padding:3px 6px;" title="Grau alvo — escala de referência para preparações">
+                    <option value="">Alvo: —</option>${alvoOptions}
+                </select>
                 <button class="btn ${isPlaying ? 'btn-secondary' : 'btn-primary'} ms-play-btn"
                     data-sid="${esc(s.id)}"
                     style="padding:5px 16px;font-size:.85rem;flex-shrink:0;">
@@ -258,10 +285,10 @@
             <div style="display:flex;gap:14px;align-items:flex-start;padding:10px 14px;">
                 <div style="flex:1;min-width:0;display:flex;align-items:center;flex-wrap:wrap;gap:4px;min-height:44px;"
                     id="ms-notes-${esc(s.id)}">
-                    ${_noteChips(melody, _state.root, _state.scaleKey)}
+                    ${_noteChips(melody, ctx.root, ctx.scaleKey)}
                 </div>
                 <div style="flex-shrink:0;width:260px;" id="ms-fb-${esc(s.id)}">
-                    ${_fretboardSVG(melody, _state.root, _state.scaleKey)}
+                    ${_fretboardSVG(melody, ctx.root, ctx.scaleKey)}
                 </div>
             </div>
         </div>`;
@@ -375,12 +402,16 @@
         const scaleOptions = Object.entries(SCALES).map(([k, v]) =>
             `<option value="${k}" ${k === _state.scaleKey ? 'selected' : ''}>${esc(v.label)}</option>`
         ).join('');
+        const timeSigOptions = ['2/4','3/4','4/4','6/8'].map(ts =>
+            `<option value="${ts}" ${ts === _state.timeSig ? 'selected' : ''}>${ts}</option>`
+        ).join('');
         return `
             <select class="form-select" id="ms-global-root" style="width:auto;">${rootOptions}</select>
             <select class="form-select" id="ms-global-scale" style="width:auto;">${scaleOptions}</select>
             <input type="number" class="form-input" id="ms-global-bpm"
                 value="${_state.bpm}" min="20" max="300"
                 style="width:68px;text-align:center;" title="BPM">
+            <select class="form-select" id="ms-global-timesig" style="width:auto;" title="Fórmula de compasso">${timeSigOptions}</select>
         `;
     }
 
@@ -447,7 +478,10 @@
                     <code style="font-family:var(--font-mono);">grau(oitava):duração</code>
                     &nbsp;·&nbsp; Graus: <code>1 b2 2 b3 3 4 #4 5 b6 6 b7 7</code>
                     &nbsp;·&nbsp; Oitava: <code>(-1)</code>=grave <code>(0)</code>=base <code>(1)</code>=agudo
-                    &nbsp;·&nbsp; Dur: <code>16n 8n 4n 2n 1n 8n. 4t…</code>
+                    &nbsp;·&nbsp; Dur: <code>16n 8n 4n 2n 1n 8n. 4n.</code>
+                    &nbsp;·&nbsp; Tercinas: <code>16t 8t 4t</code>
+                    &nbsp;·&nbsp; Ligadura: <code>4n~</code> (une à próx.)
+                    &nbsp;·&nbsp; Alvo: grau-alvo muda escala de referência na colorização
                     &nbsp;·&nbsp;
                     <span style="color:var(--brand,#7c3aed);">●</span> tônica
                     <span style="color:var(--chord-blue,#60a5fa);margin-left:6px;">●</span> diatônica
@@ -462,10 +496,11 @@
 
         _refreshAllNotes: function () {
             SECTIONS.forEach(sec => sec.studies.forEach(s => {
-                const el = document.getElementById('ms-notes-' + s.id);
-                if (el) el.innerHTML = _noteChips(_state.melodies[s.id], _state.root, _state.scaleKey);
+                const ctx  = _effectiveContext(_state.root, _state.scaleKey, _state.prepTargets[s.id] || null);
+                const el   = document.getElementById('ms-notes-' + s.id);
+                if (el) el.innerHTML = _noteChips(_state.melodies[s.id], ctx.root, ctx.scaleKey);
                 const fbEl = document.getElementById('ms-fb-' + s.id);
-                if (fbEl) fbEl.innerHTML = _fretboardSVG(_state.melodies[s.id], _state.root, _state.scaleKey);
+                if (fbEl) fbEl.innerHTML = _fretboardSVG(_state.melodies[s.id], ctx.root, ctx.scaleKey);
             }));
         },
 
@@ -501,7 +536,7 @@
             window.HMSAudio.playMelody(notes, _state.bpm, () => {
                 _state.playing = null;
                 C._setPlayingUI(sid, false);
-            });
+            }, _state.timeSig);
         },
 
         _bindToolbarEvents: function () {
@@ -522,6 +557,9 @@
                 _state.bpm = Math.max(20, Math.min(300, parseInt(e.target.value) || 80));
                 e.target.value = _state.bpm;
             });
+            document.getElementById('ms-global-timesig')?.addEventListener('change', e => {
+                _state.timeSig = e.target.value;
+            });
         },
 
         _bindExemplosEvents: function () {
@@ -530,10 +568,22 @@
                 inp.addEventListener('input', e => {
                     const sid = e.target.dataset.sid;
                     _state.melodies[sid] = e.target.value;
-                    const el = document.getElementById('ms-notes-' + sid);
-                    if (el) el.innerHTML = _noteChips(_state.melodies[sid], _state.root, _state.scaleKey);
+                    const ctx  = _effectiveContext(_state.root, _state.scaleKey, _state.prepTargets[sid] || null);
+                    const el   = document.getElementById('ms-notes-' + sid);
+                    if (el) el.innerHTML = _noteChips(_state.melodies[sid], ctx.root, ctx.scaleKey);
                     const fbEl = document.getElementById('ms-fb-' + sid);
-                    if (fbEl) fbEl.innerHTML = _fretboardSVG(_state.melodies[sid], _state.root, _state.scaleKey);
+                    if (fbEl) fbEl.innerHTML = _fretboardSVG(_state.melodies[sid], ctx.root, ctx.scaleKey);
+                });
+            });
+            document.querySelectorAll('.ms-alvo-select').forEach(sel => {
+                sel.addEventListener('change', e => {
+                    const sid = e.target.dataset.sid;
+                    _state.prepTargets[sid] = e.target.value || null;
+                    const ctx  = _effectiveContext(_state.root, _state.scaleKey, _state.prepTargets[sid]);
+                    const el   = document.getElementById('ms-notes-' + sid);
+                    if (el) el.innerHTML = _noteChips(_state.melodies[sid], ctx.root, ctx.scaleKey);
+                    const fbEl = document.getElementById('ms-fb-' + sid);
+                    if (fbEl) fbEl.innerHTML = _fretboardSVG(_state.melodies[sid], ctx.root, ctx.scaleKey);
                 });
             });
             document.querySelectorAll('.ms-play-btn').forEach(btn => {
@@ -807,7 +857,7 @@
                 _state.playing = null;
                 const btn = document.querySelector(`.rp-play-btn[data-id="${id}"]`);
                 if (btn) { btn.innerHTML = '<i class="fa-solid fa-play"></i>'; btn.className = 'btn btn-primary rp-play-btn'; }
-            });
+            }, _state.timeSig);
         },
 
         _refreshRepositorioCards: function () {

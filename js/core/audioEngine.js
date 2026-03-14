@@ -186,27 +186,46 @@
          * @param {number}   bpm        beats per minute
          * @param {Function} onFinished called when playback ends naturally
          */
-        async playMelody(notes, bpm = 80, onFinished) {
+        async playMelody(notes, bpm = 80, onFinished, timeSig = '4/4') {
             AudioEngine.stop();
             await ensureSynth();
 
             if (!notes || notes.length === 0) return;
 
-            // Build events with absolute timestamps (seconds from t=0)
+            // Resolve ties: merge tied notes into single events with duration in seconds
             const events = [];
             let t = 0;
-            for (const n of notes) {
-                events.push({ time: t, note: n.note, dur: n.dur });
-                t += window.MelodyEngine.durToSeconds(n.dur, bpm);
+            let i = 0;
+            while (i < notes.length) {
+                const n = notes[i];
+                const durSec = window.MelodyEngine.durToSeconds(n.dur, bpm);
+                if (n.tie) {
+                    // Accumulate duration across all tied notes
+                    let totalSec = durSec;
+                    let j = i + 1;
+                    while (j < notes.length && notes[j - 1].tie) {
+                        totalSec += window.MelodyEngine.durToSeconds(notes[j].dur, bpm);
+                        j++;
+                    }
+                    events.push({ time: t, note: n.note, durSec: totalSec });
+                    t += totalSec;
+                    i = j;
+                } else {
+                    events.push({ time: t, note: n.note, durSec });
+                    t += durSec;
+                    i++;
+                }
             }
 
             Tone.Transport.cancel();
             Tone.Transport.stop();
             Tone.Transport.position = 0;
             Tone.Transport.bpm.value = bpm;
+            const tsParts = String(timeSig).split('/');
+            Tone.Transport.timeSignature = [parseInt(tsParts[0]) || 4, parseInt(tsParts[1]) || 4];
 
             part = new Tone.Part((audioTime, value) => {
-                sampler.triggerAttackRelease(value.note, value.dur, audioTime);
+                sampler.triggerAttackRelease(value.note, value.durSec, audioTime);
             }, events);
             part.start(0);
 
