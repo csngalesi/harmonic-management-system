@@ -379,6 +379,10 @@
                             ${_state.activeSetlist && s._position !== null ? `<span><i class="fa-solid fa-hashtag fa-xs"></i> ${s._position}</span>` : ''}
                         </div>
                     </div>
+                    <button class="btn-icon alert-flag${isAlert ? ' is-alert' : ''}" data-action="alert" data-id="${s.id}"
+                        title="${isAlert ? 'Remover alerta' : 'Marcar como alerta'}">
+                        <i class="fa-solid fa-flag"></i>
+                    </button>
                     <span class="song-key-badge">${esc(s.original_key)}</span>
                     <span class="song-harmony-flag${hasHarmony ? ' has-harmony' : ''}" title="${hasHarmony ? 'Harmonia cadastrada' : 'Sem harmonia'}">
                         <i class="fa-solid fa-music"></i>
@@ -386,10 +390,6 @@
                     <span class="song-lyrics-flag${hasLyrics ? ' has-lyrics' : ''}" title="${hasLyrics ? 'Letra cadastrada' : 'Sem letra'}">
                         <i class="fa-solid fa-align-left"></i>
                     </span>
-                    <button class="btn-icon alert-flag${isAlert ? ' is-alert' : ''}" data-action="alert" data-id="${s.id}"
-                        title="${isAlert ? 'Remover alerta' : 'Marcar como alerta'}">
-                        <i class="fa-solid fa-flag"></i>
-                    </button>
                     <div class="song-actions">
                         <button class="btn-icon edit" data-action="play" data-id="${s.id}" title="Abrir no Player">
                             <i class="fa-solid fa-play"></i>
@@ -1566,20 +1566,24 @@
                         (s.artist || '').toLowerCase().includes(query.toLowerCase())
                       )
                     : allSongs;
-                return filtered.map(s => {
-                    const inSet = inSetlistIds.has(s.id);
-                    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--glass-border);">
-                        <div style="flex:1;min-width:0;">
-                            <div style="font-size:.875rem;font-weight:500;">${esc(s.title)}</div>
-                            ${s.artist ? `<div style="font-size:.75rem;color:var(--text-muted);">${esc(s.artist)}</div>` : ''}
-                        </div>
-                        <span class="song-key-badge" style="font-size:.7rem;flex-shrink:0;">${esc(s.original_key || '?')}</span>
-                        <button class="btn btn-sm ${inSet ? 'btn-secondary sl-remove-btn' : 'btn-primary sl-add-btn'}"
-                            data-songid="${s.id}" style="flex-shrink:0;padding:3px 10px;font-size:.78rem;">
-                            ${inSet ? '<i class="fa-solid fa-minus"></i>' : '<i class="fa-solid fa-plus"></i>'}
-                        </button>
-                    </div>`;
-                }).join('') || '<p style="color:var(--text-muted);font-size:.85rem;padding:8px 0;">Nenhuma música encontrada.</p>';
+                if (!filtered.length) return '<p style="color:var(--text-muted);font-size:.85rem;padding:8px 0;">Nenhuma música encontrada.</p>';
+                return `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">` +
+                    filtered.map(s => {
+                        const inSet = inSetlistIds.has(s.id);
+                        return `<div style="display:flex;flex-direction:column;gap:4px;padding:8px;
+                                border:1px solid ${inSet ? 'var(--brand)' : 'var(--glass-border)'};
+                                border-radius:6px;background:${inSet ? 'var(--brand-dim)' : 'var(--bg-raised)'};">
+                            <div style="font-size:.8rem;font-weight:600;line-height:1.3;overflow:hidden;
+                                display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${esc(s.title)}</div>
+                            <div style="display:flex;align-items:center;gap:4px;margin-top:auto;">
+                                <span class="song-key-badge" style="font-size:.65rem;">${esc(s.original_key || '?')}</span>
+                                <button class="btn btn-sm ${inSet ? 'btn-secondary sl-remove-btn' : 'btn-primary sl-add-btn'}"
+                                    data-songid="${s.id}" style="margin-left:auto;padding:2px 8px;font-size:.72rem;">
+                                    ${inSet ? '<i class="fa-solid fa-minus"></i>' : '<i class="fa-solid fa-plus"></i>'}
+                                </button>
+                            </div>
+                        </div>`;
+                    }).join('') + `</div>`;
             };
 
             window.HMSApp.openModal(`
@@ -1591,7 +1595,7 @@
                     <div class="search-bar" style="margin-bottom:12px;">
                         <input type="text" id="sm-search" class="form-input" placeholder="Buscar música…" />
                     </div>
-                    <div id="sm-list" style="max-height:360px;overflow-y:auto;">
+                    <div id="sm-list" style="max-height:520px;overflow-y:auto;">
                         ${renderList('')}
                     </div>
                 </div>
@@ -1599,6 +1603,7 @@
                     <button class="btn btn-secondary" id="modal-cancel-btn">Fechar</button>
                 </div>
             `);
+            document.getElementById('modal-container').classList.add('modal-lg');
 
             document.getElementById('modal-close-btn').addEventListener('click', window.HMSApp.closeModal);
             document.getElementById('modal-cancel-btn').addEventListener('click', window.HMSApp.closeModal);
