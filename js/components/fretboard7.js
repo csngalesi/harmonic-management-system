@@ -26,7 +26,7 @@
     const _state = {
         root:        'C',
         scaleKey:    'major',
-        degreesInput: '1 3 5',
+        degreesInput: '1 2 3 4 5 6 7',
         highlights:  [],
     };
 
@@ -254,7 +254,7 @@
         _apply: function () {
             const root     = document.getElementById('fb7-root').value;
             const scaleKey = document.getElementById('fb7-scale').value;
-            const degStr   = (document.getElementById('fb7-degrees').value || '1 3 5').trim();
+            const degStr   = (document.getElementById('fb7-degrees').value || '1 2 3 4 5 6 7').trim();
 
             _state.root        = root;
             _state.scaleKey    = scaleKey;
