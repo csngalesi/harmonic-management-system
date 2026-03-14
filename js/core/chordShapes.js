@@ -208,36 +208,37 @@
     function renderSVG(chordName, shape, nStrings) {
         if (!shape) return '';
 
-        const W = nStrings === 4 ? 80 : 110;
+        // Compute fret offset first so we can size the SVG accordingly
+        const pressed = shape.filter(f => f > 0);
+        const minFret = pressed.length ? Math.min(...pressed) : 0;
+        const fretOffset = minFret > 1 ? minFret - 1 : 0;
+
+        const mL = 12, mT = 18, mB = 10;
+        const mR = fretOffset > 0 ? 24 : 8; // extra right margin for position label
+        const W = (nStrings === 4 ? 80 : 110) + (fretOffset > 0 ? 14 : 0);
         const H = 90;
-        const mL = 12, mR = 8, mT = 18, mB = 10;
         const neckW  = W - mL - mR;
         const strSp  = neckW / (nStrings - 1);
         const FRETS  = 4;
         const neckH  = H - mT - mB;
         const fretSp = neckH / FRETS;
 
-        // Find minimum fret (excluding 0 and -1) to determine position number
-        const pressed = shape.filter(f => f > 0);
-        const minFret = pressed.length ? Math.min(...pressed) : 0;
-        const displayMinFret = minFret > 1 ? minFret : 0; // show position if not at nut
-        const fretOffset = displayMinFret > 0 ? displayMinFret - 1 : 0;
-
         const p = [];
         p.push(`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="display:block;">`);
 
-        // Nut (thicker top line) or position marker
+        // Nut (thicker top line) or position marker to the right
         if (fretOffset === 0) {
             p.push(`<rect x="${mL}" y="${mT - 2}" width="${neckW}" height="3" rx="1" fill="var(--text-primary)" opacity="0.9"/>`);
         } else {
-            // Position marker
-            p.push(`<text x="${mL - 2}" y="${mT + fretSp * 0.6}" text-anchor="end" font-size="9" fill="var(--text-muted)" font-family="var(--font-mono)">${minFret}fr</text>`);
+            // Position label to the RIGHT of the neck, aligned with first fret midpoint
+            p.push(`<text x="${mL + neckW + 5}" y="${mT + fretSp * 0.65}" text-anchor="start" font-size="10" font-weight="700" fill="var(--text-secondary)" font-family="var(--font-mono)">${minFret}fr</text>`);
         }
 
-        // Fret lines
+        // Fret lines (f=0 is top line: invisible under nut, thin for position diagrams)
         for (let f = 0; f <= FRETS; f++) {
             const y = mT + f * fretSp;
-            p.push(`<line x1="${mL}" y1="${y}" x2="${mL + neckW}" y2="${y}" stroke="var(--glass-border)" stroke-width="${f === 0 ? 0 : 1}"/>`);
+            const sw = (f === 0 && fretOffset === 0) ? 0 : 1;
+            p.push(`<line x1="${mL}" y1="${y}" x2="${mL + neckW}" y2="${y}" stroke="var(--glass-border)" stroke-width="${sw}"/>`);
         }
 
         // String lines
