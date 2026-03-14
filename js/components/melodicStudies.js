@@ -23,10 +23,10 @@
             title: 'Conduções Diatônicas',
             desc: 'Movimentos escalares de marcação, I→IV e retornos.',
             studies: [
-                { id: 'm_cond_maj_up',   label: 'Maior — Ascendente',   melody: '1:4n 2:4n 3:4n 4:4n 5:2n' },
-                { id: 'm_cond_maj_down', label: 'Maior — Descendente',  melody: '5:4n 4:4n 3:4n 2:4n 1:2n' },
-                { id: 'm_cond_min_up',   label: 'Menor — Ascendente',   melody: '1:4n 2:4n b3:4n 4:4n 5:2n' },
-                { id: 'm_cond_min_down', label: 'Menor — Descendente',  melody: '5:4n 4:4n b3:4n 2:4n 1:2n' },
+                { id: 'm_cond_maj_up',   label: 'Maior — Ascendente',   melody: '1:4n 2:4n 3:4n 4:4n 5:2n',   harmony: '1 2m 3m 4 5' },
+                { id: 'm_cond_maj_down', label: 'Maior — Descendente',  melody: '5:4n 4:4n 3:4n 2:4n 1:2n',   harmony: '5 4 3m 2m 1' },
+                { id: 'm_cond_min_up',   label: 'Menor — Ascendente',   melody: '1:4n 2:4n b3:4n 4:4n 5:2n',  harmony: '1m 2h 3 4m 5' },
+                { id: 'm_cond_min_down', label: 'Menor — Descendente',  melody: '5:4n 4:4n b3:4n 2:4n 1:2n',  harmony: '5 4m 3 2h 1m' },
             ],
         },
         {
@@ -38,6 +38,7 @@
                     id: 'm_walking_bass',
                     label: 'Walking Bass I→IV',
                     melody: '1:8n 2:8n b3:8n 3:8n 4:4n 1:8n 6(-1):8n 1(-1):2n',
+                    harmony: '1 4',
                 },
             ],
         },
@@ -46,10 +47,10 @@
             title: 'Baixarias (7ª Corda)',
             desc: 'Conduções na corda grave usando oct=-1.',
             studies: [
-                { id: 'm_cinco_um',  label: '5 → 1 diatônica',    melody: '5(-1):8n 6(-1):8n 7(-1):8n 1:4n' },
-                { id: 'm_crom_up',   label: 'Cromática → 1 (↑)',  melody: 'b7(-1):8n 7(-1):8n 1:4n' },
-                { id: 'm_crom_down', label: 'Cromática → 1 (↓)',  melody: 'b3:8n 2:8n b2:8n 1:4n' },
-                { id: 'm_25_prep',   label: 'Prep. 25 (↑)',       melody: '2(-1):8n 3(-1):8n 4(-1):8n 5(-1):4n' },
+                { id: 'm_cinco_um',  label: '5 → 1 diatônica',    melody: '5(-1):8n 6(-1):8n 7(-1):8n 1:4n',           harmony: '5 1' },
+                { id: 'm_crom_up',   label: 'Cromática → 1 (↑)',  melody: 'b7(-1):8n 7(-1):8n 1:4n',                   harmony: '5 1' },
+                { id: 'm_crom_down', label: 'Cromática → 1 (↓)',  melody: 'b3:8n 2:8n b2:8n 1:4n',                     harmony: '5 1' },
+                { id: 'm_25_prep',   label: 'Prep. 25 (↑)',       melody: '2(-1):8n 3(-1):8n 4(-1):8n 5(-1):4n',       harmony: '25(5) 5' },
             ],
         },
         {
@@ -61,6 +62,7 @@
                     id: 'm_breque',
                     label: 'Breque IIm→V7→I',
                     melody: '1:16n b3:16n 5:16n b3:16n 4:16n 2:16n 6(-1):16n 4(-1):16n 3:16n b3:16n 2:16n #1:16n 1(-1):8n',
+                    harmony: '25(1) 1',
                 },
             ],
         },
@@ -83,7 +85,7 @@
         timeSig:     '2/4',      // fórmula de compasso
         playing:     null,       // id of currently playing study / 'rp_<uuid>'
         melodies:    {},         // editable melody string per study id
-        prepTargets: {},         // studyId → target degree ('1'–'7') or null
+        harmonies:   {},         // editable harmony string per study id
         // Repositório
         tab:           'exemplos',   // 'exemplos' | 'repositorio'
         phrases:       [],           // loaded from DB
@@ -92,9 +94,10 @@
         currentUserId: null,         // set on first repo load
     };
 
-    // Seed melodies from SECTIONS defaults
+    // Seed melodies and harmonies from SECTIONS defaults
     SECTIONS.forEach(sec => sec.studies.forEach(s => {
-        _state.melodies[s.id] = s.melody;
+        _state.melodies[s.id]  = s.melody;
+        _state.harmonies[s.id] = s.harmony || '';
     }));
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -132,6 +135,18 @@
         if (rootIdx === -1) return { root: globalRoot, scaleKey: globalScaleKey };
         const targetRoot = NOTE_NAMES[(rootIdx + st) % 12];
         return { root: targetRoot, scaleKey: 'major' }; // target treated as major
+    }
+
+    /**
+     * Extracts the target degree from a functional harmony string.
+     * Looks for `5(X)` or `25(X)` notation (secondary dominant/II-V).
+     * The degree inside parentheses is the harmonic target.
+     * Returns the degree string (e.g. '4') or null if none found.
+     */
+    function _detectTarget(harmonyStr) {
+        if (!harmonyStr) return null;
+        const m = harmonyStr.match(/2?5\((\d+)\)/);
+        return m ? m[1] : null;
     }
 
     function _noteChips(melodyStr, root, scaleKey) {
@@ -258,28 +273,41 @@
     }
 
     function _studyCardHtml(s) {
-        const isPlaying  = _state.playing === s.id;
-        const melody     = _state.melodies[s.id];
-        const ctx        = _effectiveContext(_state.root, _state.scaleKey, _state.prepTargets[s.id] || null);
-        const alvoOptions = ['1','2','3','4','5','6','7'].map(d =>
-            `<option value="${d}" ${(_state.prepTargets[s.id] || '') === d ? 'selected' : ''}>${d}º</option>`
-        ).join('');
+        const isPlayingMel = _state.playing === s.id;
+        const isPlayingAll = _state.playing === (s.id + '_all');
+        const melody       = _state.melodies[s.id];
+        const harmonyStr   = _state.harmonies[s.id] || '';
+        const targetDeg    = _detectTarget(harmonyStr);
+        const ctx          = _effectiveContext(_state.root, _state.scaleKey, targetDeg);
+        const alvoLabel    = targetDeg
+            ? `<span style="color:var(--brand);margin-left:6px;">→ ${targetDeg}º</span>`
+            : '';
         return `
         <div class="panel" style="margin-bottom:0.75rem;" id="ms-card-${esc(s.id)}">
-            <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line-color);">
+            <div style="display:flex;align-items:center;gap:8px;padding:10px 14px 6px;">
                 <span style="font-size:.82rem;font-weight:600;color:var(--text-secondary);white-space:nowrap;min-width:140px;">${esc(s.label)}</span>
                 <input type="text" class="form-input ms-melody-input" data-sid="${esc(s.id)}"
                     value="${esc(melody)}"
                     placeholder="ex: 1:4n 2:4n b3:4n 4:4n"
                     style="flex:1;font-family:var(--font-mono);font-size:.8rem;padding:5px 10px;" />
-                <select class="form-select ms-alvo-select" data-sid="${esc(s.id)}"
-                    style="width:auto;font-size:.75rem;padding:3px 6px;" title="Grau alvo — escala de referência para preparações">
-                    <option value="">Alvo: —</option>${alvoOptions}
-                </select>
-                <button class="btn ${isPlaying ? 'btn-secondary' : 'btn-primary'} ms-play-btn"
+                <button class="btn ${isPlayingMel ? 'btn-secondary' : 'btn-primary'} ms-play-btn"
                     data-sid="${esc(s.id)}"
-                    style="padding:5px 16px;font-size:.85rem;flex-shrink:0;">
-                    <i class="fa-solid fa-${isPlaying ? 'stop' : 'play'}"></i>
+                    style="padding:5px 12px;font-size:.82rem;flex-shrink:0;" title="Tocar Melodia">
+                    <i class="fa-solid fa-${isPlayingMel ? 'stop' : 'guitar'}"></i>
+                </button>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;padding:4px 14px 8px;border-bottom:1px solid var(--line-color);">
+                <span style="font-size:.72rem;color:var(--text-muted);white-space:nowrap;min-width:140px;">
+                    Harm:${alvoLabel}
+                </span>
+                <input type="text" class="form-input ms-harmony-input" data-sid="${esc(s.id)}"
+                    value="${esc(harmonyStr)}"
+                    placeholder="ex: 25(5) 5  ou  5 1  ou  1 4"
+                    style="flex:1;font-family:var(--font-mono);font-size:.78rem;padding:4px 10px;" />
+                <button class="btn ${isPlayingAll ? 'btn-secondary' : 'btn-ghost'} ms-play-all-btn"
+                    data-sid="${esc(s.id)}"
+                    style="padding:5px 12px;font-size:.82rem;flex-shrink:0;" title="Tocar Tudo (melodia + harmonia)">
+                    <i class="fa-solid fa-${isPlayingAll ? 'stop' : 'music'}"></i>
                 </button>
             </div>
             <div style="display:flex;gap:14px;align-items:flex-start;padding:10px 14px;">
@@ -481,7 +509,7 @@
                     &nbsp;·&nbsp; Dur: <code>16n 8n 4n 2n 1n 8n. 4n.</code>
                     &nbsp;·&nbsp; Tercinas: <code>16t 8t 4t</code>
                     &nbsp;·&nbsp; Ligadura: <code>4n~</code> (une à próx.)
-                    &nbsp;·&nbsp; Alvo: grau-alvo muda escala de referência na colorização
+                    &nbsp;·&nbsp; Harm: <code>25(5) 5</code> — alvo auto-detectado de <code>5(X)</code>/<code>25(X)</code>
                     &nbsp;·&nbsp;
                     <span style="color:var(--brand,#7c3aed);">●</span> tônica
                     <span style="color:var(--chord-blue,#60a5fa);margin-left:6px;">●</span> diatônica
@@ -496,8 +524,9 @@
 
         _refreshAllNotes: function () {
             SECTIONS.forEach(sec => sec.studies.forEach(s => {
-                const ctx  = _effectiveContext(_state.root, _state.scaleKey, _state.prepTargets[s.id] || null);
-                const el   = document.getElementById('ms-notes-' + s.id);
+                const target = _detectTarget(_state.harmonies[s.id]);
+                const ctx    = _effectiveContext(_state.root, _state.scaleKey, target);
+                const el     = document.getElementById('ms-notes-' + s.id);
                 if (el) el.innerHTML = _noteChips(_state.melodies[s.id], ctx.root, ctx.scaleKey);
                 const fbEl = document.getElementById('ms-fb-' + s.id);
                 if (fbEl) fbEl.innerHTML = _fretboardSVG(_state.melodies[s.id], ctx.root, ctx.scaleKey);
@@ -507,16 +536,25 @@
         _setPlayingUI: function (sid, playing) {
             const btn = document.querySelector(`.ms-play-btn[data-sid="${sid}"]`);
             if (!btn) return;
-            btn.innerHTML = `<i class="fa-solid fa-${playing ? 'stop' : 'play'}"></i>`;
+            btn.innerHTML = `<i class="fa-solid fa-${playing ? 'stop' : 'guitar'}"></i>`;
             btn.className = `btn ${playing ? 'btn-secondary' : 'btn-primary'} ms-play-btn`;
+        },
+
+        _setPlayingAllUI: function (sid, playing) {
+            const btn = document.querySelector(`.ms-play-all-btn[data-sid="${sid}"]`);
+            if (!btn) return;
+            btn.innerHTML = `<i class="fa-solid fa-${playing ? 'stop' : 'music'}"></i>`;
+            btn.className = `btn ${playing ? 'btn-secondary' : 'btn-ghost'} ms-play-all-btn`;
         },
 
         _togglePlay: function (sid) {
             const C = MelodicStudiesComponent;
             if (_state.playing) {
                 window.HMSAudio.stop();
-                C._setPlayingUI(_state.playing, false);
-                const wasSame = _state.playing === sid;
+                const prev = _state.playing;
+                if (prev.endsWith('_all')) C._setPlayingAllUI(prev.slice(0, -4), false);
+                else C._setPlayingUI(prev, false);
+                const wasSame = prev === sid;
                 _state.playing = null;
                 if (wasSame) return;
             }
@@ -537,6 +575,41 @@
                 _state.playing = null;
                 C._setPlayingUI(sid, false);
             }, _state.timeSig);
+        },
+
+        _togglePlayAll: function (sid) {
+            const C          = MelodicStudiesComponent;
+            const playAllKey = sid + '_all';
+            if (_state.playing) {
+                window.HMSAudio.stop();
+                const prev = _state.playing;
+                if (prev.endsWith('_all')) C._setPlayingAllUI(prev.slice(0, -4), false);
+                else C._setPlayingUI(prev, false);
+                const wasSame = prev === playAllKey;
+                _state.playing = null;
+                if (wasSame) return;
+            }
+            const melodyStr  = _state.melodies[sid];
+            const harmonyStr = _state.harmonies[sid] || '';
+            if (!melodyStr || !melodyStr.trim()) {
+                window.HMSApp.showToast('Campo de melodia vazio.', 'warning');
+                return;
+            }
+            const parsed = window.MelodyEngine.parse(melodyStr);
+            if (!parsed.length) {
+                window.HMSApp.showToast('Não foi possível parsear a melodia.', 'warning');
+                return;
+            }
+            const notes  = window.MelodyEngine.translate(parsed, _state.root);
+            const tokens = harmonyStr.trim()
+                ? window.HarmonyEngine.translate(harmonyStr, _state.root, _state.scaleKey !== 'major')
+                : [];
+            _state.playing = playAllKey;
+            C._setPlayingAllUI(sid, true);
+            window.HMSAudio.playAll(notes, tokens, _state.bpm, () => {
+                _state.playing = null;
+                C._setPlayingAllUI(sid, false);
+            });
         },
 
         _bindToolbarEvents: function () {
@@ -564,30 +637,43 @@
 
         _bindExemplosEvents: function () {
             const C = MelodicStudiesComponent;
+
+            function _refreshStudyDisplay(sid) {
+                const target = _detectTarget(_state.harmonies[sid]);
+                const ctx    = _effectiveContext(_state.root, _state.scaleKey, target);
+                const el     = document.getElementById('ms-notes-' + sid);
+                if (el) el.innerHTML = _noteChips(_state.melodies[sid], ctx.root, ctx.scaleKey);
+                const fbEl = document.getElementById('ms-fb-' + sid);
+                if (fbEl) fbEl.innerHTML = _fretboardSVG(_state.melodies[sid], ctx.root, ctx.scaleKey);
+                // Update alvo label in harmony row
+                const span = document.querySelector(`.ms-harmony-input[data-sid="${sid}"]`)
+                    ?.closest('div')?.querySelector('span');
+                if (span) {
+                    span.innerHTML = target
+                        ? `Harm:<span style="color:var(--brand);margin-left:6px;">→ ${target}º</span>`
+                        : 'Harm:';
+                }
+            }
+
             document.querySelectorAll('.ms-melody-input').forEach(inp => {
                 inp.addEventListener('input', e => {
                     const sid = e.target.dataset.sid;
                     _state.melodies[sid] = e.target.value;
-                    const ctx  = _effectiveContext(_state.root, _state.scaleKey, _state.prepTargets[sid] || null);
-                    const el   = document.getElementById('ms-notes-' + sid);
-                    if (el) el.innerHTML = _noteChips(_state.melodies[sid], ctx.root, ctx.scaleKey);
-                    const fbEl = document.getElementById('ms-fb-' + sid);
-                    if (fbEl) fbEl.innerHTML = _fretboardSVG(_state.melodies[sid], ctx.root, ctx.scaleKey);
+                    _refreshStudyDisplay(sid);
                 });
             });
-            document.querySelectorAll('.ms-alvo-select').forEach(sel => {
-                sel.addEventListener('change', e => {
+            document.querySelectorAll('.ms-harmony-input').forEach(inp => {
+                inp.addEventListener('input', e => {
                     const sid = e.target.dataset.sid;
-                    _state.prepTargets[sid] = e.target.value || null;
-                    const ctx  = _effectiveContext(_state.root, _state.scaleKey, _state.prepTargets[sid]);
-                    const el   = document.getElementById('ms-notes-' + sid);
-                    if (el) el.innerHTML = _noteChips(_state.melodies[sid], ctx.root, ctx.scaleKey);
-                    const fbEl = document.getElementById('ms-fb-' + sid);
-                    if (fbEl) fbEl.innerHTML = _fretboardSVG(_state.melodies[sid], ctx.root, ctx.scaleKey);
+                    _state.harmonies[sid] = e.target.value;
+                    _refreshStudyDisplay(sid);
                 });
             });
             document.querySelectorAll('.ms-play-btn').forEach(btn => {
                 btn.addEventListener('click', e => C._togglePlay(e.currentTarget.dataset.sid));
+            });
+            document.querySelectorAll('.ms-play-all-btn').forEach(btn => {
+                btn.addEventListener('click', e => C._togglePlayAll(e.currentTarget.dataset.sid));
             });
         },
 
