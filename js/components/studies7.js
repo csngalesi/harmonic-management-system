@@ -29,6 +29,13 @@
                 { id: 'c_free', label: 'Livre',        harmony: '' },
             ],
         },
+        {
+            id: 'quadrado',
+            title: 'Quadrado',
+            cadences: [
+                { id: 'q_1',    label: '1 5(2) 5',    harmony: '1 5(2) 5' },
+            ],
+        },
     ];
 
     // ── Global state ─────────────────────────────────────────────────
