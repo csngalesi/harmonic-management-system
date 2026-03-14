@@ -1,5 +1,5 @@
 /**
- * HMS — Estudo Harmônico Melódico (v3.1)
+ * HMS — Estudo Harmônico Melódico (v3.2)
  * Um input de melodia por acorde · partitura real (clave + armadura) · braço 7 cordas C-tuning.
  * Radio chips de dur/oitava por acorde com auto-expand no Space.
  * Exposed via window.HarmonicMelodicComponent
@@ -42,16 +42,20 @@
     }
 
     // Parse melody string: "1:4n b3:8n 5(-1):4n"
-    // Token format: [b#]degree[(±oct)]:dur
+    // Token format: [b#]degree[(±oct)]:dur[~]
+    // dur may be: 1n 2n 4n 8n 16n (normal) | 4t 8t 16t (tercinas) | omitted (default 8n)
+    // ~ suffix = ligadura (tie to next note)
     function _parseMelodyStr(str, chordName) {
         if (!str || !str.trim()) return [];
         return str.trim().split(/\s+/).map(token => {
-            const m = token.match(/^([b#]?[1-7])(?:\(([+-]?\d+)\))?:(1n|2n|4n|8n|16n)$/);
+            const m = token.match(/^([b#]?[1-7])(?:\(([+-]?\d+)\))?(?::(1n|2n|4n|8n|16n|4t|8t|16t))?(~)?$/);
             if (!m) return null;
             const deg = _normalizeDeg(m[1], chordName);
             const oct = m[2] !== undefined ? parseInt(m[2]) : 0;
-            const dur = m[3];
-            return { deg, oct, dur };
+            const dur = m[3] || '8n';
+            const obj = { deg, oct, dur };
+            if (m[4] === '~') obj.tie = true;
+            return obj;
         }).filter(Boolean);
     }
 
@@ -66,7 +70,62 @@
 
     function _durToMs(dur, bpm) {
         const beat = 60000 / bpm;
-        return ({ '1n': beat * 4, '2n': beat * 2, '4n': beat, '8n': beat / 2, '16n': beat / 4 })[dur] ?? beat / 2;
+        const map = {
+            '1n': beat * 4, '2n': beat * 2, '4n': beat, '8n': beat / 2, '16n': beat / 4,
+            '4t': beat * 2 / 3, '8t': beat / 3, '16t': beat / 6,
+        };
+        return map[dur] ?? beat / 2;
+    }
+
+    // ── Harmonic Context Helpers ──────────────────────────────────────────────
+
+    const _NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+    const _MAJOR_ST   = [0, 2, 4, 5, 7, 9, 11];
+    const _MINOR_ST   = [0, 2, 3, 5, 7, 8, 10];
+
+    // Root note of target degree X in the current key
+    function _targetRoot(deg) {
+        if (!deg) return null;
+        const scale   = _st.isMinor ? _MINOR_ST : _MAJOR_ST;
+        const idx     = parseInt(deg, 10) - 1;
+        if (idx < 0 || idx > 6) return null;
+        const rootIdx = _NOTE_NAMES.indexOf(_st.root);
+        if (rootIdx === -1) return null;
+        return _NOTE_NAMES[(rootIdx + scale[idx]) % 12];
+    }
+
+    // Whether degree X is minor-quality in the current key
+    function _isMinorDeg(deg) {
+        const n = parseInt(deg, 10);
+        if (isNaN(n)) return false;
+        return _st.isMinor ? [1, 2, 4].includes(n) : [2, 3, 6].includes(n);
+    }
+
+    // Map each chord index to its harmonic context.
+    // 25(X) tags the next 3 chord slots with targetDeg=X.
+    // 5(X)  tags the next 2 chord slots with targetDeg=X.
+    function _buildChordMeta() {
+        const meta      = _st.chords.map(() => ({ targetDeg: null }));
+        const rawTokens = _st.harmonyStr.trim().split(/[\s|]+/).filter(Boolean);
+        let ci = 0;
+        for (const tok of rawTokens) {
+            if (ci >= meta.length) break;
+            if (tok === '/') { ci++; continue; }
+            const m25 = tok.match(/^25\(([b#]?\d+)\)$/i);
+            if (m25) {
+                const deg = m25[1];
+                for (let k = 0; k < 3 && ci + k < meta.length; k++) meta[ci + k].targetDeg = deg;
+                ci += 3; continue;
+            }
+            const m5 = tok.match(/^5\(([b#]?\d+)\)$/i);
+            if (m5) {
+                const deg = m5[1];
+                for (let k = 0; k < 2 && ci + k < meta.length; k++) meta[ci + k].targetDeg = deg;
+                ci += 2; continue;
+            }
+            ci++;
+        }
+        return meta;
     }
 
     // ── Key Signature ─────────────────────────────────────────────────────────
@@ -92,9 +151,11 @@
         isMinor:       false,
         harmonyStr:    '',
         bpm:           80,
+        timeSig:       '2/4',  // fórmula de compasso
         chords:        [],   // string[] from HarmonyEngine
         melodies:      [],   // string[] — one melody input per chord
         chordDefaults: [],   // {dur:'4n', oct:0}[] — defaults per chord for auto-expand
+        chordMeta:     [],   // {targetDeg: string|null}[] — harmonic context per chord
         focusedCi:     null, // chord index with focused input
         playingIdx:    null, // absolute index in flatSeq during playback
         playing:       false,
@@ -112,14 +173,17 @@
         while (_st.chordDefaults.length < _st.chords.length)
             _st.chordDefaults.push({ dur: '4n', oct: 0 });
         _st.chordDefaults.length = _st.chords.length;
+        while (_st.chordMeta.length < _st.chords.length) _st.chordMeta.push({ targetDeg: null });
+        _st.chordMeta.length = _st.chords.length;
     }
 
     function _parseHarmony() {
-        if (!_st.harmonyStr.trim()) { _st.chords = []; return; }
+        if (!_st.harmonyStr.trim()) { _st.chords = []; _st.chordMeta = []; return; }
         try {
             const tokens = window.HarmonyEngine.translate(_st.harmonyStr, _st.root, _st.isMinor);
-            _st.chords = tokens.filter(t => t.type === 'CHORD').map(t => t.value);
-        } catch (_) { _st.chords = []; }
+            _st.chords    = tokens.filter(t => t.type === 'CHORD').map(t => t.value);
+            _st.chordMeta = _buildChordMeta();
+        } catch (_) { _st.chords = []; _st.chordMeta = []; }
     }
 
     function _buildFlatSeq() {
@@ -395,26 +459,31 @@
 
     function _chordCardHtml(chord, ci) {
         _ensureMelodies();
-        const { suffix } = _parseChordName(chord);
-        const color      = _chordColor(suffix);
-        const melody     = _st.melodies[ci] || '';
-        const isFocused  = _st.focusedCi === ci;
-        const border     = isFocused ? 'var(--brand,#7c3aed)' : 'var(--glass-border,rgba(255,255,255,.08))';
-        const bg         = isFocused ? 'var(--brand-dim,rgba(124,58,237,.08))' : 'var(--bg-surface)';
-        const def        = _st.chordDefaults[ci] || { dur: '4n', oct: 0 };
+        const { suffix }  = _parseChordName(chord);
+        const color       = _chordColor(suffix);
+        const melody      = _st.melodies[ci] || '';
+        const isFocused   = _st.focusedCi === ci;
+        const border      = isFocused ? 'var(--brand,#7c3aed)' : 'var(--glass-border,rgba(255,255,255,.08))';
+        const bg          = isFocused ? 'var(--brand-dim,rgba(124,58,237,.08))' : 'var(--bg-surface)';
+        const def         = _st.chordDefaults[ci] || { dur: '4n', oct: 0 };
+        const meta        = _st.chordMeta[ci] || { targetDeg: null };
+        const tgtRoot     = meta.targetDeg ? _targetRoot(meta.targetDeg) : null;
+        const tgtMinor    = meta.targetDeg ? _isMinorDeg(meta.targetDeg) : false;
+        const tgtLabel    = tgtRoot ? tgtRoot + (tgtMinor ? 'm' : '') : null;
+        const noteColor   = tgtLabel ? 'var(--chord-amber,#fbbf24)' : 'var(--chord-blue,#60a5fa)';
 
         const notes   = _resolveMelody(melody, chord);
         const preview = notes.length
             ? notes.map(n =>
-                `<span style="font-size:.6rem;font-family:var(--font-mono);color:var(--chord-blue,#60a5fa);` +
-                `padding:1px 4px;background:var(--bg-raised);border-radius:3px;">${esc(n.note)}</span>`
+                `<span style="font-size:.6rem;font-family:var(--font-mono);color:${noteColor};` +
+                `padding:1px 4px;background:var(--bg-raised);border-radius:3px;">${esc(n.note)}${n.tie ? '⌒' : ''}</span>`
               ).join(' ')
             : `<span style="font-size:.6rem;color:var(--text-muted);">—</span>`;
 
-        // Dur chips: 2n 4n 8n
-        const durChips = ['2n', '4n', '8n'].map(d =>
+        // Dur chips: 2n 4n 8n 16n
+        const durChips = ['2n', '4n', '8n', '16n'].map(d =>
             _chipBtn(d, def.dur === d, `class="hm-dur-btn" data-ci="${ci}" data-dur="${d}"`,
-                { '2n': 'Mínima', '4n': 'Semínima', '8n': 'Colcheia' }[d])
+                { '2n': 'Mínima', '4n': 'Semínima', '8n': 'Colcheia', '16n': 'Semicolcheia' }[d])
         ).join('');
 
         // Oct chips: -1  0  +1
@@ -431,7 +500,9 @@
             <div style="padding:7px 10px 5px;display:flex;align-items:center;gap:8px;
                 border-bottom:1px solid var(--line-color);background:var(--bg-raised);">
                 <span style="font-family:var(--font-mono);font-size:1rem;font-weight:700;color:${color};">${esc(chord)}</span>
-                <span style="font-size:.68rem;color:var(--text-muted);flex:1;">acorde ${ci + 1}</span>
+                <span style="font-size:.68rem;color:var(--text-muted);">acorde ${ci + 1}</span>
+                ${tgtLabel ? `<span style="font-size:.6rem;font-family:var(--font-mono);color:var(--chord-amber,#fbbf24);background:rgba(251,191,36,.12);border-radius:3px;padding:1px 5px;">→ ${esc(tgtLabel)}</span>` : ''}
+                <span style="flex:1;"></span>
                 <button class="btn btn-ghost hm-play-chord" data-ci="${ci}"
                     style="padding:2px 8px;font-size:.75rem;">
                     <i class="fa-solid fa-play"></i>
@@ -511,6 +582,15 @@
                         <input type="number" class="form-input" id="hm-bpm"
                             value="${_st.bpm}" min="20" max="300" style="width:64px;text-align:center;" />
                     </div>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <label style="font-size:.75rem;color:var(--text-muted);">Compasso</label>
+                        <select class="form-select" id="hm-timesig-select" style="width:auto;">
+                            <option value="2/4" ${_st.timeSig === '2/4' ? 'selected' : ''}>2/4</option>
+                            <option value="3/4" ${_st.timeSig === '3/4' ? 'selected' : ''}>3/4</option>
+                            <option value="4/4" ${_st.timeSig === '4/4' ? 'selected' : ''}>4/4</option>
+                            <option value="6/8" ${_st.timeSig === '6/8' ? 'selected' : ''}>6/8</option>
+                        </select>
+                    </div>
                     <button class="btn ${_st.playing ? 'btn-secondary' : 'btn-primary'}" id="hm-play-melody">
                         <i class="fa-solid fa-${_st.playing ? 'stop' : 'play'}"></i>
                         ${_st.playing ? 'Parar' : 'Tocar Melodia'}
@@ -530,7 +610,10 @@
                 <code style="font-family:var(--font-mono);">b3:8n</code>
                 <code style="font-family:var(--font-mono);">5(-1):4n</code> ·
                 Grau relativo ao acorde (<code>3</code> em m7→b3) ·
-                Oitava: <code>5(-1)</code>=grave · Durações: <code>16n 8n 4n 2n 1n</code>
+                Oitava: <code>5(-1)</code>=grave · Durações: <code>16n 8n 4n 2n 1n</code> ·
+                Tercinas: <code style="font-family:var(--font-mono);">8t 4t 16t</code> ·
+                Ligadura: sufixo <code style="font-family:var(--font-mono);">~</code>
+                ex: <code style="font-family:var(--font-mono);">b3:4n~ b3:8n</code>
             </div>
 
             <!-- Chord grid -->
@@ -630,6 +713,10 @@
             document.getElementById('hm-bpm')?.addEventListener('change', e => {
                 _st.bpm = Math.max(20, Math.min(300, parseInt(e.target.value) || 80));
                 e.target.value = _st.bpm;
+            });
+
+            document.getElementById('hm-timesig-select')?.addEventListener('change', e => {
+                _st.timeSig = e.target.value;
             });
 
             document.getElementById('hm-play-melody')?.addEventListener('click', () => C._togglePlayAll());
@@ -741,11 +828,16 @@
             if (!el) return;
             const chord = _st.chords[ci];
             if (!chord) return;
-            const notes = _resolveMelody(_st.melodies[ci] || '', chord);
+            const notes     = _resolveMelody(_st.melodies[ci] || '', chord);
+            const meta      = _st.chordMeta[ci] || { targetDeg: null };
+            const tgtRoot   = meta.targetDeg ? _targetRoot(meta.targetDeg) : null;
+            const tgtMinor  = meta.targetDeg ? _isMinorDeg(meta.targetDeg) : false;
+            const tgtLabel  = tgtRoot ? tgtRoot + (tgtMinor ? 'm' : '') : null;
+            const noteColor = tgtLabel ? 'var(--chord-amber,#fbbf24)' : 'var(--chord-blue,#60a5fa)';
             el.innerHTML = notes.length
                 ? notes.map(n =>
-                    `<span style="font-size:.6rem;font-family:var(--font-mono);color:var(--chord-blue,#60a5fa);` +
-                    `padding:1px 4px;background:var(--bg-raised);border-radius:3px;">${esc(n.note)}</span>`
+                    `<span style="font-size:.6rem;font-family:var(--font-mono);color:${noteColor};` +
+                    `padding:1px 4px;background:var(--bg-raised);border-radius:3px;">${esc(n.note)}${n.tie ? '⌒' : ''}</span>`
                   ).join(' ')
                 : `<span style="font-size:.6rem;color:var(--text-muted);">—</span>`;
         },
@@ -829,7 +921,7 @@
             });
 
             _st.playTimers.push(setTimeout(() => C._stopAll(), cumMs + 120));
-            window.HMSAudio.playMelody(seq.map(s => s.note), _st.bpm, () => C._stopAll());
+            window.HMSAudio.playMelody(seq.map(s => s.note), _st.bpm, () => C._stopAll(), _st.timeSig);
         },
 
         _togglePlayAllWithChords() {
@@ -897,7 +989,7 @@
             });
 
             _st.playTimers.push(setTimeout(() => C._stopAll(), cumMs + 120));
-            window.HMSAudio.playMelody(notes, _st.bpm, () => C._stopAll());
+            window.HMSAudio.playMelody(notes, _st.bpm, () => C._stopAll(), _st.timeSig);
         },
 
         _updatePlayAllBtn() {
@@ -1053,5 +1145,5 @@
     };
 
     window.HarmonicMelodicComponent = C;
-    console.info('[HMS] HarmonicMelodicComponent v3.1 loaded.');
+    console.info('[HMS] HarmonicMelodicComponent v3.2 loaded.');
 })();
