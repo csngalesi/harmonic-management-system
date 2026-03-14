@@ -26,6 +26,7 @@
                 { id: 'c_25_6', label: '25 do 6',     harmony: '25(6/)' },
                 { id: 'c_25_3', label: '25 do 3',     harmony: '25(3)' },
                 { id: 'c_5525', label: '5.5 / 251',   harmony: '5.5/ 25 1' },
+                { id: 'c_comp', label: 'Completa',     harmony: '1 5(2) 5 25(4) 4m 3 5"2" 5.5/ 251' },
                 { id: 'c_free', label: 'Livre',        harmony: '' },
             ],
         },
