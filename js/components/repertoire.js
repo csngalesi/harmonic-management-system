@@ -21,6 +21,9 @@
         headerCollapsed: false,
     };
 
+    // Drag state for position reordering
+    let _dragSongId = null;
+
     const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     const KEYS = window.HarmonyEngine.allKeys();
     const keyLabel = v => { const k = KEYS.find(k => k.value === v); return k ? k.value : v; };
@@ -248,7 +251,12 @@
                     <button class="setlist-chip ${_state.activeSetlist === sl.id ? 'active' : ''}"
                         data-setlist="${sl.id}">${esc(sl.name)}</button>
                 `).join('');
-            el.innerHTML = chips;
+            const manageBtn = _state.activeSetlist
+                ? `<button class="btn btn-secondary btn-sm" id="btn-manage-songs" style="margin-left:8px;flex-shrink:0;">
+                       <i class="fa-solid fa-list-check"></i> Gerenciar Músicas
+                   </button>`
+                : '';
+            el.innerHTML = `<div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;">${chips}${manageBtn}</div>`;
             el.querySelectorAll('.setlist-chip').forEach(chip => {
                 chip.addEventListener('click', () => {
                     _state.activeSetlist = chip.dataset.setlist;
@@ -259,9 +267,16 @@
                     }
                     el.querySelectorAll('.setlist-chip').forEach(c => c.classList.remove('active'));
                     chip.classList.add('active');
+                    RepertoireComponent._renderSetlistChips();
                     RepertoireComponent._loadSongs();
                 });
             });
+            const manageSongsBtn = document.getElementById('btn-manage-songs');
+            if (manageSongsBtn) {
+                manageSongsBtn.addEventListener('click', () => {
+                    RepertoireComponent._openSetlistSongManager();
+                });
+            }
         },
 
         _loadSongs: async function () {
@@ -333,21 +348,37 @@
 
             // ── Show mode: condensed 3-column grid ──
             if (_state.viewMode === 'show') {
+                const isDragModeShow = _state.sortBy === 'position' && !!_state.activeSetlist;
                 el.innerHTML = RepertoireComponent._renderShowGrid(sorted);
                 el.querySelectorAll('.show-cell').forEach(cell => {
-                    cell.addEventListener('click', () => {
+                    // Alert toggle button (inside cell, stop propagation)
+                    cell.querySelector('.show-alert-btn')?.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        RepertoireComponent._handleToggleAlert(cell.dataset.id);
+                    });
+                    // Click opens detail (not on alert btn)
+                    cell.addEventListener('click', (e) => {
+                        if (e.target.closest('.show-alert-btn')) return;
                         const song = _state.songs.find(s => s.id === cell.dataset.id);
                         if (song) RepertoireComponent._openShowDetail(song);
                     });
                 });
+                if (isDragModeShow) {
+                    RepertoireComponent._bindDragDrop(el, sorted);
+                }
                 return;
             }
+
+            const isDragMode = _state.sortBy === 'position' && !!_state.activeSetlist;
 
             const cards = sorted.map(s => {
                 const hasHarmony = !!(s.harmony_str && s.harmony_str.trim());
                 const hasLyrics  = !!s.has_lyrics;
+                const isAlert    = !!s.is_alert;
                 return `
-                <div class="song-card" data-id="${s.id}">
+                <div class="song-card${isAlert ? ' song-alert' : ''}" data-id="${s.id}"
+                    ${isDragMode ? 'draggable="true"' : ''}>
+                    ${isDragMode ? '<span class="drag-handle" title="Arrastar para reordenar"><i class="fa-solid fa-grip-vertical"></i></span>' : ''}
                     <div class="song-info">
                         <div class="song-title">${esc(s.title)}</div>
                         <div class="song-meta">
@@ -363,6 +394,10 @@
                     <span class="song-lyrics-flag${hasLyrics ? ' has-lyrics' : ''}" title="${hasLyrics ? 'Letra cadastrada' : 'Sem letra'}">
                         <i class="fa-solid fa-align-left"></i>
                     </span>
+                    <button class="btn-icon alert-flag${isAlert ? ' is-alert' : ''}" data-action="alert" data-id="${s.id}"
+                        title="${isAlert ? 'Remover alerta' : 'Marcar como alerta'}">
+                        <i class="fa-solid fa-flag"></i>
+                    </button>
                     <div class="song-actions">
                         <button class="btn-icon edit" data-action="play" data-id="${s.id}" title="Abrir no Player">
                             <i class="fa-solid fa-play"></i>
@@ -377,7 +412,7 @@
                 </div>
             `; }).join('');
 
-            el.innerHTML = `<div style="display:flex;flex-direction:column;gap:8px;">${cards}</div>`;
+            el.innerHTML = `<div style="display:flex;flex-direction:column;gap:8px;" id="song-cards-list">${cards}</div>`;
 
             el.querySelectorAll('[data-action]').forEach(btn => {
                 btn.addEventListener('click', (e) => {
@@ -386,20 +421,32 @@
                     if (action === 'play')   window.HMSApp.navigate('player', id);
                     if (action === 'edit')   RepertoireComponent.openSongModal(id);
                     if (action === 'delete') RepertoireComponent._handleDelete(id);
+                    if (action === 'alert')  RepertoireComponent._handleToggleAlert(id);
                 });
             });
+
+            // Drag & drop for position sort
+            if (isDragMode) {
+                RepertoireComponent._bindDragDrop(el, sorted);
+            }
         },
 
         // ── Show Grid ─────────────────────────────────────────────
         _renderShowGrid: function (sorted) {
+            const isDragMode = _state.sortBy === 'position' && !!_state.activeSetlist;
             const cells = sorted.map(s => {
                 const hasHarmony = !!(s.harmony_str && s.harmony_str.trim());
                 const hasLyrics  = !!s.has_lyrics;
-                const rowCls  = hasHarmony ? 'status-ok' : 'status-warn';
+                const isAlert    = !!s.is_alert;
+                const rowCls  = isAlert ? 'status-alert' : (hasHarmony ? 'status-ok' : 'status-warn');
                 const keyCls  = (!hasHarmony && !hasLyrics) ? ' key-urgent' : '';
-                return `<div class="show-cell ${rowCls}" data-id="${s.id}">
+                return `<div class="show-cell ${rowCls}" data-id="${s.id}"
+                    ${isDragMode ? 'draggable="true"' : ''}>
                     <span class="show-title">${esc(s.title)}</span>
                     <span class="show-key${keyCls}">${esc(s.original_key || '?')}</span>
+                    <button class="show-alert-btn${isAlert ? ' active' : ''}" title="${isAlert ? 'Remover alerta' : 'Marcar alerta'}">
+                        <i class="fa-solid fa-flag"></i>
+                    </button>
                 </div>`;
             }).join('');
             return `<div class="show-grid">${cells}</div>`;
@@ -1415,6 +1462,200 @@
                     }
                 });
             });
+        },
+
+        // ── Alert flag ────────────────────────────────────────────
+        _handleToggleAlert: async function (id) {
+            const song = _state.songs.find(s => s.id === id);
+            if (!song) return;
+            const newVal = !song.is_alert;
+            try {
+                await window.HMSAPI.Songs.update(id, { is_alert: newVal });
+                song.is_alert = newVal;
+                RepertoireComponent._renderSongList();
+            } catch (err) {
+                window.HMSApp.showToast('Erro ao atualizar alerta: ' + err.message, 'error');
+            }
+        },
+
+        // ── Drag & Drop (position sort) ───────────────────────────
+        _bindDragDrop: function (container, sorted) {
+            const cards = container.querySelectorAll('[data-id][draggable]');
+            cards.forEach(card => {
+                card.addEventListener('dragstart', (e) => {
+                    _dragSongId = card.dataset.id;
+                    card.classList.add('dragging');
+                    e.dataTransfer.effectAllowed = 'move';
+                });
+                card.addEventListener('dragend', () => {
+                    card.classList.remove('dragging');
+                    container.querySelectorAll('.drag-over').forEach(c => c.classList.remove('drag-over'));
+                });
+                card.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    if (card.dataset.id !== _dragSongId) {
+                        container.querySelectorAll('.drag-over').forEach(c => c.classList.remove('drag-over'));
+                        card.classList.add('drag-over');
+                    }
+                });
+                card.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    const targetId = card.dataset.id;
+                    if (!_dragSongId || _dragSongId === targetId) return;
+
+                    // Reorder _state.songs based on sorted array positions
+                    const sortedIds = sorted.map(s => s.id);
+                    const fromIdx   = sortedIds.indexOf(_dragSongId);
+                    const toIdx     = sortedIds.indexOf(targetId);
+                    if (fromIdx === -1 || toIdx === -1) return;
+
+                    // Splice in _state.songs (need to find by id, order may differ)
+                    const fromSong = _state.songs.find(s => s.id === _dragSongId);
+                    const toSong   = _state.songs.find(s => s.id === targetId);
+                    if (!fromSong || !toSong) return;
+
+                    // Swap _position values
+                    const tempPos = fromSong._position;
+                    fromSong._position = toSong._position;
+                    toSong._position   = tempPos;
+
+                    // Re-assign positions sequentially to avoid collisions
+                    const sortedByPos = [..._state.songs]
+                        .filter(s => s._position !== null && s._position !== undefined)
+                        .sort((a, b) => a._position - b._position);
+                    sortedByPos.forEach((s, i) => { s._position = i + 1; });
+
+                    // Save to DB
+                    RepertoireComponent._savePositions();
+                    RepertoireComponent._renderSongList();
+                });
+            });
+        },
+
+        _savePositions: async function () {
+            if (!_state.activeSetlist) return;
+            const songsWithPos = _state.songs.filter(s => s._position !== null && s._position !== undefined);
+            try {
+                await Promise.all(
+                    songsWithPos.map(s =>
+                        window.HMSAPI.Setlists.addSong(_state.activeSetlist, s.id, s._position)
+                    )
+                );
+            } catch (err) {
+                window.HMSApp.showToast('Erro ao salvar posições: ' + err.message, 'error');
+            }
+        },
+
+        // ── Setlist Song Manager ──────────────────────────────────
+        _openSetlistSongManager: async function () {
+            const sl = _state.setlists.find(s => s.id === _state.activeSetlist);
+            if (!sl) return;
+
+            // Load all songs for search (without setlist filter)
+            let allSongs;
+            try {
+                window.HMSApp.showLoading();
+                allSongs = await window.HMSAPI.Songs.getAll();
+            } catch (err) {
+                window.HMSApp.showToast('Erro ao carregar músicas: ' + err.message, 'error');
+                return;
+            } finally {
+                window.HMSApp.hideLoading();
+            }
+
+            // IDs already in setlist
+            const inSetlistIds = new Set(_state.songs.map(s => s.id));
+
+            const renderList = (query) => {
+                const filtered = query
+                    ? allSongs.filter(s =>
+                        s.title.toLowerCase().includes(query.toLowerCase()) ||
+                        (s.artist || '').toLowerCase().includes(query.toLowerCase())
+                      )
+                    : allSongs;
+                return filtered.map(s => {
+                    const inSet = inSetlistIds.has(s.id);
+                    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--glass-border);">
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-size:.875rem;font-weight:500;">${esc(s.title)}</div>
+                            ${s.artist ? `<div style="font-size:.75rem;color:var(--text-muted);">${esc(s.artist)}</div>` : ''}
+                        </div>
+                        <span class="song-key-badge" style="font-size:.7rem;flex-shrink:0;">${esc(s.original_key || '?')}</span>
+                        <button class="btn btn-sm ${inSet ? 'btn-secondary sl-remove-btn' : 'btn-primary sl-add-btn'}"
+                            data-songid="${s.id}" style="flex-shrink:0;padding:3px 10px;font-size:.78rem;">
+                            ${inSet ? '<i class="fa-solid fa-minus"></i>' : '<i class="fa-solid fa-plus"></i>'}
+                        </button>
+                    </div>`;
+                }).join('') || '<p style="color:var(--text-muted);font-size:.85rem;padding:8px 0;">Nenhuma música encontrada.</p>';
+            };
+
+            window.HMSApp.openModal(`
+                <div class="modal-header">
+                    <h3><i class="fa-solid fa-list-check"></i> Músicas — ${esc(sl.name)}</h3>
+                    <button class="modal-close" id="modal-close-btn"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="modal-body">
+                    <div class="search-bar" style="margin-bottom:12px;">
+                        <input type="text" id="sm-search" class="form-input" placeholder="Buscar música…" />
+                    </div>
+                    <div id="sm-list" style="max-height:360px;overflow-y:auto;">
+                        ${renderList('')}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="modal-cancel-btn">Fechar</button>
+                </div>
+            `);
+
+            document.getElementById('modal-close-btn').addEventListener('click', window.HMSApp.closeModal);
+            document.getElementById('modal-cancel-btn').addEventListener('click', window.HMSApp.closeModal);
+
+            document.getElementById('sm-search').addEventListener('input', (e) => {
+                document.getElementById('sm-list').innerHTML = renderList(e.target.value.trim());
+                bindSmButtons();
+            });
+
+            const bindSmButtons = () => {
+                document.querySelectorAll('.sl-add-btn').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        const songId = btn.dataset.songid;
+                        const nextPos = _state.songs.length
+                            ? Math.max(..._state.songs.map(s => s._position || 0)) + 1
+                            : 1;
+                        try {
+                            await window.HMSAPI.Setlists.addSong(_state.activeSetlist, songId, nextPos);
+                            inSetlistIds.add(songId);
+                            btn.className = 'btn btn-sm btn-secondary sl-remove-btn';
+                            btn.dataset.songid = songId;
+                            btn.innerHTML = '<i class="fa-solid fa-minus"></i>';
+                            await RepertoireComponent._loadSongs();
+                            bindSmButtons();
+                            window.HMSApp.showToast('Música adicionada à setlist!', 'success');
+                        } catch (err) {
+                            window.HMSApp.showToast('Erro: ' + err.message, 'error');
+                        }
+                    });
+                });
+                document.querySelectorAll('.sl-remove-btn').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        const songId = btn.dataset.songid;
+                        try {
+                            await window.HMSAPI.Setlists.removeSong(_state.activeSetlist, songId);
+                            inSetlistIds.delete(songId);
+                            btn.className = 'btn btn-sm btn-primary sl-add-btn';
+                            btn.dataset.songid = songId;
+                            btn.innerHTML = '<i class="fa-solid fa-plus"></i>';
+                            await RepertoireComponent._loadSongs();
+                            bindSmButtons();
+                            window.HMSApp.showToast('Música removida da setlist.', 'success');
+                        } catch (err) {
+                            window.HMSApp.showToast('Erro: ' + err.message, 'error');
+                        }
+                    });
+                });
+            };
+            bindSmButtons();
         },
     };
 

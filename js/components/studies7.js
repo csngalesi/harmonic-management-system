@@ -36,8 +36,10 @@
         key: 'C',
         isMinor: false,
         bpm: 45,
-        playing: null, // id of currently playing card
-        harmonies: {}, // editable harmony per cadence id
+        playing: null,       // id of currently playing card
+        harmonies: {},       // editable harmony per cadence id
+        showCavaco: false,   // flag: show cavaco chord diagrams
+        showViolao: false,   // flag: show violão chord diagrams
     };
 
     // Seed harmonies from SECTIONS defaults
@@ -51,7 +53,15 @@
         return tokens.map(t => {
             if (t.type === 'LABEL')  return `<span class="harmony-text">${esc(t.value)}</span>`;
             if (t.type === 'STRUCT') return `<div class="chord-cell struct">${esc(t.value)}</div>`;
-            return `<div class="chord-cell" style="font-size:1.1rem;padding:10px 18px;min-width:64px;">${esc(t.value)}</div>`;
+            const chordName = t.value || '';
+            const cavacoSvg = (_state.showCavaco && window.ChordShapes)
+                ? `<div class="chord-diagram-wrap">${window.ChordShapes.renderCavaco(chordName)}</div>` : '';
+            const violaoSvg = (_state.showViolao && window.ChordShapes)
+                ? `<div class="chord-diagram-wrap">${window.ChordShapes.renderViolao(chordName)}</div>` : '';
+            return `<div class="chord-cell-wrap">
+                <div class="chord-cell" style="font-size:1.1rem;padding:10px 18px;min-width:64px;">${esc(chordName)}</div>
+                ${cavacoSvg}${violaoSvg}
+            </div>`;
         }).join('');
     }
 
@@ -71,7 +81,7 @@
                     <i class="fa-solid fa-${isPlaying ? 'stop' : 'play'}"></i>
                 </button>
             </div>
-            <div class="chord-grid size-md" style="padding:12px 14px;gap:8px;min-height:60px;" id="chords-${esc(cad.id)}">
+            <div class="chord-grid size-md" style="padding:12px 14px;gap:8px;min-height:60px;flex-wrap:wrap;align-items:flex-start;" id="chords-${esc(cad.id)}">
                 ${renderChordBar(harmony)}
             </div>
         </div>`;
@@ -106,13 +116,21 @@
                             <p>Estudo de audição em harmonia funcional</p>
                         </div>
                     </div>
-                    <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+                    <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;">
                         <select class="form-select" id="s7-global-key" style="width:auto;">
                             ${keyOptions}
                         </select>
                         <input type="number" class="form-input" id="s7-global-bpm"
                             value="${_state.bpm}" min="20" max="300"
                             style="width:68px;text-align:center;" title="BPM">
+                        <label style="display:flex;align-items:center;gap:5px;font-size:.82rem;cursor:pointer;color:var(--text-secondary);">
+                            <input type="checkbox" id="s7-flag-cavaco" ${_state.showCavaco ? 'checked' : ''}>
+                            Acorde Cavaco
+                        </label>
+                        <label style="display:flex;align-items:center;gap:5px;font-size:.82rem;cursor:pointer;color:var(--text-secondary);">
+                            <input type="checkbox" id="s7-flag-violao" ${_state.showViolao ? 'checked' : ''}>
+                            Acorde Violão
+                        </label>
                     </div>
                 </div>
 
@@ -142,6 +160,16 @@
             document.getElementById('s7-global-bpm').addEventListener('change', e => {
                 _state.bpm = Math.max(40, Math.min(300, parseInt(e.target.value) || 80));
                 e.target.value = _state.bpm;
+            });
+
+            document.getElementById('s7-flag-cavaco').addEventListener('change', e => {
+                _state.showCavaco = e.target.checked;
+                Studies7Component._refreshAllChords();
+            });
+
+            document.getElementById('s7-flag-violao').addEventListener('change', e => {
+                _state.showViolao = e.target.checked;
+                Studies7Component._refreshAllChords();
             });
 
             // Editable harmony inputs — update chord bar live on each keystroke

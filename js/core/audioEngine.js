@@ -17,7 +17,8 @@
 
     let sampler    = null;   // Tone.Sampler (shared, lazy-loaded)
     let reverb     = null;   // Tone.Reverb  (shared, lazy-loaded)
-    let part       = null;   // Current Tone.Part
+    let part       = null;   // Current Tone.Part (melody or sequence)
+    let part2      = null;   // Second Tone.Part (chords in playAll)
     let _isPlaying = false;
 
     // ── Lazy Initialization ──────────────────────────────────────
@@ -219,9 +220,81 @@
             }, t + 2.0);
         },
 
+        /**
+         * Play melody and chord sequence simultaneously.
+         * @param {Array}    notes      [{note:'C2', dur:'8n'}, ...] from MelodyEngine.translate
+         * @param {Array}    tokens     ResultToken[] from HarmonyEngine.translate
+         * @param {number}   bpm        beats per minute
+         * @param {Function} onFinished called when playback ends naturally
+         */
+        async playAll(notes, tokens, bpm = 80, onFinished) {
+            AudioEngine.stop();
+            await ensureSynth();
+
+            if (!notes || notes.length === 0) return;
+
+            // Build melody events
+            const melodyEvents = [];
+            let mt = 0;
+            for (const n of notes) {
+                melodyEvents.push({ time: mt, note: n.note, dur: n.dur });
+                mt += window.MelodyEngine.durToSeconds(n.dur, bpm);
+            }
+
+            // Build chord events (same logic as playSequence)
+            const BEAT_S = 60 / bpm;
+            const chordEvents = [];
+            let ct = 0;
+            let lastNotes = [];
+            for (const token of (tokens || [])) {
+                let cNotes = null;
+                if (token.type === 'CHORD') {
+                    cNotes = parseChordToNotes(token.value);
+                    if (cNotes) lastNotes = cNotes;
+                } else if (token.type === 'STRUCT' && token.value === '/') {
+                    cNotes = lastNotes.length ? [...lastNotes] : null;
+                }
+                if (cNotes) chordEvents.push({ time: ct, notes: cNotes });
+                if (token.type === 'CHORD' || (token.type === 'STRUCT' && token.value === '/')) {
+                    ct += BEAT_S;
+                }
+            }
+
+            Tone.Transport.cancel();
+            Tone.Transport.stop();
+            Tone.Transport.position = 0;
+            Tone.Transport.bpm.value = bpm;
+
+            // Melody part
+            part = new Tone.Part((audioTime, value) => {
+                sampler.triggerAttackRelease(value.note, value.dur, audioTime);
+            }, melodyEvents);
+            part.start(0);
+
+            // Chords part (if we have chord events)
+            if (chordEvents.length > 0) {
+                part2 = new Tone.Part((audioTime, value) => {
+                    value.notes.forEach((note, i) => {
+                        sampler.triggerAttackRelease(note, '2n', audioTime + i * 0.04);
+                    });
+                }, chordEvents);
+                part2.start(0);
+            }
+
+            _isPlaying = true;
+            Tone.Transport.start('+0.05');
+
+            const totalDuration = Math.max(mt, ct) + 2.5;
+            Tone.Transport.scheduleOnce(() => {
+                AudioEngine.stop();
+                if (onFinished) onFinished();
+            }, totalDuration);
+        },
+
         stop() {
             _isPlaying = false;
-            if (part) { part.stop(); part.dispose(); part = null; }
+            if (part)  { part.stop();  part.dispose();  part  = null; }
+            if (part2) { part2.stop(); part2.dispose(); part2 = null; }
             Tone.Transport.stop();
             Tone.Transport.cancel();
         },

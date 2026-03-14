@@ -98,6 +98,7 @@
         focusedCi:     null, // chord index with focused input
         playingIdx:    null, // absolute index in flatSeq during playback
         playing:       false,
+        playingAll:    false,
         playTimers:    [],
         tab:           'editor',
         studies:       [],
@@ -510,9 +511,13 @@
                         <input type="number" class="form-input" id="hm-bpm"
                             value="${_st.bpm}" min="20" max="300" style="width:64px;text-align:center;" />
                     </div>
-                    <button class="btn ${_st.playing ? 'btn-secondary' : 'btn-primary'}" id="hm-play-all">
+                    <button class="btn ${_st.playing ? 'btn-secondary' : 'btn-primary'}" id="hm-play-melody">
                         <i class="fa-solid fa-${_st.playing ? 'stop' : 'play'}"></i>
-                        ${_st.playing ? 'Parar' : 'Tocar Tudo'}
+                        ${_st.playing ? 'Parar' : 'Tocar Melodia'}
+                    </button>
+                    <button class="btn ${_st.playingAll ? 'btn-secondary' : 'btn-primary'}" id="hm-play-all">
+                        <i class="fa-solid fa-${_st.playingAll ? 'stop' : 'music'}"></i>
+                        ${_st.playingAll ? 'Parar' : 'Tocar Tudo'}
                     </button>
                 </div>
             </div>
@@ -627,7 +632,8 @@
                 e.target.value = _st.bpm;
             });
 
-            document.getElementById('hm-play-all')?.addEventListener('click', () => C._togglePlayAll());
+            document.getElementById('hm-play-melody')?.addEventListener('click', () => C._togglePlayAll());
+            document.getElementById('hm-play-all')?.addEventListener('click', () => C._togglePlayAllWithChords());
 
             const grid = document.getElementById('hm-chord-grid');
 
@@ -793,6 +799,7 @@
             window.HMSAudio.stop();
             C._clearTimers();
             _st.playing    = false;
+            _st.playingAll = false;
             _st.playingIdx = null;
             C._updatePlayAllBtn();
             C._updateStaff();
@@ -800,7 +807,7 @@
         },
 
         _togglePlayAll() {
-            if (_st.playing) { C._stopAll(); return; }
+            if (_st.playing || _st.playingAll) { C._stopAll(); return; }
 
             const seq = _buildFlatSeq();
             if (!seq.length) { window.HMSApp.showToast('Sem notas para tocar.', 'warning'); return; }
@@ -823,6 +830,35 @@
 
             _st.playTimers.push(setTimeout(() => C._stopAll(), cumMs + 120));
             window.HMSAudio.playMelody(seq.map(s => s.note), _st.bpm, () => C._stopAll());
+        },
+
+        _togglePlayAllWithChords() {
+            if (_st.playing || _st.playingAll) { C._stopAll(); return; }
+
+            const seq = _buildFlatSeq();
+            if (!seq.length) { window.HMSApp.showToast('Sem notas para tocar.', 'warning'); return; }
+
+            const tokens = _st.harmonyStr.trim()
+                ? window.HarmonyEngine.translate(_st.harmonyStr, _st.root, _st.isMinor)
+                : [];
+
+            _st.playingAll = true;
+            C._updatePlayAllBtn();
+
+            let cumMs = 0;
+            seq.forEach((item, i) => {
+                const ms = _durToMs(item.note.dur, _st.bpm);
+                const t  = setTimeout(() => {
+                    _st.playingIdx = i;
+                    C._updateStaff(i);
+                    C._updateFretboard();
+                }, cumMs);
+                cumMs += ms;
+                _st.playTimers.push(t);
+            });
+
+            _st.playTimers.push(setTimeout(() => C._stopAll(), cumMs + 120));
+            window.HMSAudio.playAll(seq.map(s => s.note), tokens, _st.bpm, () => C._stopAll());
         },
 
         _playChord(ci) {
@@ -857,10 +893,16 @@
         },
 
         _updatePlayAllBtn() {
-            const btn = document.getElementById('hm-play-all');
-            if (!btn) return;
-            btn.innerHTML = `<i class="fa-solid fa-${_st.playing ? 'stop' : 'play'}"></i> ${_st.playing ? 'Parar' : 'Tocar Tudo'}`;
-            btn.className = `btn ${_st.playing ? 'btn-secondary' : 'btn-primary'}`;
+            const melBtn = document.getElementById('hm-play-melody');
+            if (melBtn) {
+                melBtn.innerHTML = `<i class="fa-solid fa-${_st.playing ? 'stop' : 'play'}"></i> ${_st.playing ? 'Parar' : 'Tocar Melodia'}`;
+                melBtn.className = `btn ${_st.playing ? 'btn-secondary' : 'btn-primary'}`;
+            }
+            const allBtn = document.getElementById('hm-play-all');
+            if (allBtn) {
+                allBtn.innerHTML = `<i class="fa-solid fa-${_st.playingAll ? 'stop' : 'music'}"></i> ${_st.playingAll ? 'Parar' : 'Tocar Tudo'}`;
+                allBtn.className = `btn ${_st.playingAll ? 'btn-secondary' : 'btn-primary'}`;
+            }
         },
 
         // ── Studies tab ──────────────────────────────────────────────────────

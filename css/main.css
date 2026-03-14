@@ -727,3 +727,27 @@ tbody tr:hover td { background: var(--glass-bg); }
 .mb-3 { margin-bottom: 24px; }
 .flex-center { display: flex; align-items: center; justify-content: center; }
 .flex-gap { display: flex; align-items: center; gap: 8px; }
+
+/* ── Repertoire — Alert flag ───────────────────────────────── */
+.song-card.song-alert { background: #2a2200; border-color: #c9a800 !important; }
+.show-cell.status-alert { background: #2a2200 !important; border-color: #c9a800 !important; }
+
+.alert-flag { background: none; border: none; cursor: pointer; font-size: .95rem; opacity: .35; padding: 0 3px; transition: opacity .15s; }
+.alert-flag.is-alert { opacity: 1; }
+.alert-flag:hover { opacity: .75; }
+
+.show-alert-btn { position: absolute; top: 4px; right: 4px; background: none; border: none; cursor: pointer; font-size: .85rem; opacity: .35; padding: 0; transition: opacity .15s; }
+.show-alert-btn.active { opacity: 1; }
+.show-alert-btn:hover { opacity: .75; }
+
+/* ── Repertoire — Drag & Drop ──────────────────────────────── */
+.drag-handle { cursor: grab; color: var(--text-muted); padding: 0 4px; font-size: .85rem; opacity: .4; }
+.drag-handle:hover { opacity: .8; }
+.song-card.dragging, .show-cell.dragging { opacity: .4; }
+.song-card.drag-over { border-color: var(--brand) !important; box-shadow: 0 0 0 2px var(--brand-dim); }
+.show-cell.drag-over { border-color: var(--brand) !important; box-shadow: 0 0 0 2px var(--brand-dim); }
+
+/* ── Studies7 — Chord diagrams ─────────────────────────────── */
+.chord-cell-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.chord-diagram-wrap { width: 72px; }
+.chord-diagram-wrap svg { display: block; width: 100%; }

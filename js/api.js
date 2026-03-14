@@ -12,7 +12,7 @@
         async getAll({ search = '', setlistId = '', searchType = 'all' } = {}) {
             let query = db()
                 .from('songs')
-                .select('id, title, artist, composer, genre, original_key, harmony_str, has_lyrics, created_at')
+                .select('id, title, artist, composer, genre, original_key, harmony_str, has_lyrics, is_alert, created_at')
                 .order('title', { ascending: true });
 
             if (search) {
