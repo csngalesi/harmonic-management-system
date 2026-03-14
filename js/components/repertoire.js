@@ -61,10 +61,6 @@
                         <button class="btn btn-secondary" id="btn-bulk-hygiene" title="Higienizar harmonias — detecta texto livre e envolve em $...$">
                             <i class="fa-solid fa-broom"></i> Higienizar
                         </button>
-                        <label class="btn btn-secondary" style="cursor:pointer;" title="Atualizar harmony_str a partir de planilha Excel (.xlsx): col A = título, col B = harmonia">
-                            <i class="fa-solid fa-file-excel"></i> Atualizar Harmonias
-                            <input type="file" id="input-update-harmony" accept=".xlsx" style="display:none;" />
-                        </label>
                         <button class="btn btn-primary" id="btn-new-song">
                             <i class="fa-solid fa-plus"></i> Nova Música
                         </button>
@@ -174,10 +170,6 @@
                 RepertoireComponent._bulkHygienize();
             });
 
-            document.getElementById('input-update-harmony').addEventListener('change', (e) => {
-                if (e.target.files[0]) RepertoireComponent._importHarmonyXlsx(e.target.files[0]);
-                e.target.value = '';
-            });
 
             document.getElementById('btn-search-clear').addEventListener('click', () => {
                 _state.searchQuery = '';
