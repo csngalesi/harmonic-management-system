@@ -613,7 +613,8 @@
                 Oitava: <code>5(-1)</code>=grave · Durações: <code>16n 8n 4n 2n 1n</code> ·
                 Tercinas: <code style="font-family:var(--font-mono);">8t 4t 16t</code> ·
                 Ligadura: sufixo <code style="font-family:var(--font-mono);">~</code>
-                ex: <code style="font-family:var(--font-mono);">b3:4n~ b3:8n</code>
+                ex: <code style="font-family:var(--font-mono);">b3:4n~ b3:8n</code> ·
+                Atalhos no card: <code>z/x</code>=Dur ◀▶ · <code>n/m</code>=8va ◀▶ · <code>Tab</code>=próximo acorde
             </div>
 
             <!-- Chord grid -->
@@ -735,29 +736,73 @@
                 C._updateFretboard();
             });
 
-            // Auto-expand bare degree on Space: "b3" → "b3(-1):4n"
+            // Keyboard shortcuts on melody inputs
+            // Space → auto-expand bare degree ("b3" → "b3(-1):4n")
+            // z/x  → Dur left/right  (2n ← 4n ← 8n ← 16n)
+            // n/m  → 8va left/right  (-1 ← 0 ← +1)
+            // Tab  → move to next card (Shift+Tab = previous)
+            const _DUR_OPT = ['2n', '4n', '8n', '16n'];
+            const _OCT_OPT = [-1, 0, 1];
+
             grid?.addEventListener('keydown', e => {
-                if (e.key !== ' ') return;
                 const inp = e.target.closest('.hm-melody-input');
                 if (!inp) return;
-                const ci  = +inp.dataset.ci;
-                const pos = inp.selectionStart;
-                const before = inp.value.slice(0, pos);
-                const lastTok = before.trimEnd().split(/\s+/).pop() || '';
-                if (!/^[b#]?[1-7]$/.test(lastTok)) return;
-                e.preventDefault();
-                const def    = _st.chordDefaults[ci] || { dur: '4n', oct: 0 };
-                const octStr = def.oct !== 0 ? `(${def.oct > 0 ? '+' : ''}${def.oct})` : '';
-                const expanded = lastTok + octStr + ':' + def.dur;
-                const insertAt = before.lastIndexOf(lastTok);
-                const newVal   = inp.value.slice(0, insertAt) + expanded + ' ' + inp.value.slice(pos);
-                inp.value = newVal;
-                inp.selectionStart = inp.selectionEnd = insertAt + expanded.length + 1;
-                _ensureMelodies();
-                _st.melodies[ci] = newVal;
-                C._updateNotesPreview(ci);
-                C._updateStaff();
-                C._updateFretboard();
+                const ci = +inp.dataset.ci;
+
+                // Tab → jump between cards
+                if (e.key === 'Tab') {
+                    e.preventDefault();
+                    const nextCi = e.shiftKey ? ci - 1 : ci + 1;
+                    if (nextCi >= 0 && nextCi < _st.chords.length) {
+                        document.querySelector(`.hm-melody-input[data-ci="${nextCi}"]`)?.focus();
+                    }
+                    return;
+                }
+
+                if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+                // z/x → Dur; n/m → 8va
+                if (['z', 'x', 'n', 'm'].includes(e.key)) {
+                    e.preventDefault();
+                    _ensureMelodies();
+                    const def = _st.chordDefaults[ci] || { dur: '4n', oct: 0 };
+                    if (e.key === 'z' || e.key === 'x') {
+                        const idx    = _DUR_OPT.indexOf(def.dur);
+                        const newIdx = e.key === 'z'
+                            ? Math.max(0, idx - 1)
+                            : Math.min(_DUR_OPT.length - 1, idx + 1);
+                        _st.chordDefaults[ci].dur = _DUR_OPT[newIdx];
+                    } else {
+                        const idx    = _OCT_OPT.indexOf(def.oct);
+                        const newIdx = e.key === 'n'
+                            ? Math.max(0, idx - 1)
+                            : Math.min(_OCT_OPT.length - 1, idx + 1);
+                        _st.chordDefaults[ci].oct = _OCT_OPT[newIdx];
+                    }
+                    C._refreshCardDefaults(ci);
+                    return;
+                }
+
+                // Space → auto-expand bare degree
+                if (e.key === ' ') {
+                    const pos     = inp.selectionStart;
+                    const before  = inp.value.slice(0, pos);
+                    const lastTok = before.trimEnd().split(/\s+/).pop() || '';
+                    if (!/^[b#]?[1-7]$/.test(lastTok)) return;
+                    e.preventDefault();
+                    const def     = _st.chordDefaults[ci] || { dur: '4n', oct: 0 };
+                    const octStr  = def.oct !== 0 ? `(${def.oct > 0 ? '+' : ''}${def.oct})` : '';
+                    const expanded = lastTok + octStr + ':' + def.dur;
+                    const insertAt = before.lastIndexOf(lastTok);
+                    const newVal   = inp.value.slice(0, insertAt) + expanded + ' ' + inp.value.slice(pos);
+                    inp.value = newVal;
+                    inp.selectionStart = inp.selectionEnd = insertAt + expanded.length + 1;
+                    _ensureMelodies();
+                    _st.melodies[ci] = newVal;
+                    C._updateNotesPreview(ci);
+                    C._updateStaff();
+                    C._updateFretboard();
+                }
             });
 
             grid?.addEventListener('focusin', e => {
