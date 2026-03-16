@@ -193,13 +193,17 @@
             if (!notes || notes.length === 0) return;
 
             // Resolve ties: merge tied notes into single events with duration in seconds
+            // Notes with note === null are rests: advance time but don't trigger
             const events = [];
             let t = 0;
             let i = 0;
             while (i < notes.length) {
                 const n = notes[i];
                 const durSec = window.MelodyEngine.durToSeconds(n.dur, bpm);
-                if (n.tie) {
+                if (!n.note) { // rest — silence
+                    t += durSec;
+                    i++;
+                } else if (n.tie) {
                     // Accumulate duration across all tied notes
                     let totalSec = durSec;
                     let j = i + 1;
@@ -252,11 +256,11 @@
 
             if (!notes || notes.length === 0) return;
 
-            // Build melody events
+            // Build melody events (skip rests)
             const melodyEvents = [];
             let mt = 0;
             for (const n of notes) {
-                melodyEvents.push({ time: mt, note: n.note, dur: n.dur });
+                if (n.note) melodyEvents.push({ time: mt, note: n.note, dur: n.dur });
                 mt += window.MelodyEngine.durToSeconds(n.dur, bpm);
             }
 
@@ -323,11 +327,11 @@
 
             if (!notes || notes.length === 0) return;
 
-            // Build melody events
+            // Build melody events (skip rests — note === null — but advance time)
             const melodyEvents = [];
             let mt = 0;
             for (const n of notes) {
-                melodyEvents.push({ time: mt, note: n.note, dur: n.dur });
+                if (n.note) melodyEvents.push({ time: mt, note: n.note, dur: n.dur });
                 mt += window.MelodyEngine.durToSeconds(n.dur, bpm);
             }
 

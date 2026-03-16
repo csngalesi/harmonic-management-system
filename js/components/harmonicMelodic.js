@@ -41,15 +41,16 @@
         return (!m[1] && qMap[m[2]]) ? qMap[m[2]] : deg;
     }
 
-    // Parse melody string: "1:4n b3:8n 5(-1):4n"
-    // Token format: [b#]degree[(±oct)]:dur[~]
-    // dur may be: 1n 2n 4n 8n 16n (normal) | 4t 8t 16t (tercinas) | omitted (default 8n)
+    // Parse melody string: "1:4n b3:8n 5(-1):4n r:4n"
+    // Token format: [b#]degree[(±oct)]:dur[~]  |  r:dur  (pausa)
+    // dur may be: 1n 2n 4n 4n. 8n 8n. 16n (normal) | 4t 8t 16t (tercinas) | omitted (default 8n)
     // ~ suffix = ligadura (tie to next note)
     function _parseMelodyStr(str, chordName) {
         if (!str || !str.trim()) return [];
         return str.trim().split(/\s+/).map(token => {
-            const m = token.match(/^([b#]?[1-7])(?:\(([+-]?\d+)\))?(?::(1n|2n|4n|8n|16n|4t|8t|16t))?(~)?$/);
+            const m = token.match(/^([b#]?[1-7]|r)(?:\(([+-]?\d+)\))?(?::(1n|2n|4n|4n\.|8n|8n\.|16n|4t|8t|16t))?(~)?$/);
             if (!m) return null;
+            if (m[1] === 'r') return { rest: true, dur: m[3] || '8n' };
             const deg = _normalizeDeg(m[1], chordName);
             const oct = m[2] !== undefined ? parseInt(m[2]) : 0;
             const dur = m[3] || '8n';
@@ -64,14 +65,24 @@
         if (!parsed.length) return [];
         try {
             const { root } = _parseChordName(chordName);
-            return window.MelodyEngine.translate(parsed, root) || [];
+            const result = [];
+            for (const p of parsed) {
+                if (p.rest) {
+                    result.push({ note: null, dur: p.dur, rest: true });
+                } else {
+                    const translated = window.MelodyEngine.translate([p], root);
+                    if (translated.length) result.push(translated[0]);
+                }
+            }
+            return result;
         } catch (_) { return []; }
     }
 
     function _durToMs(dur, bpm) {
         const beat = 60000 / bpm;
         const map = {
-            '1n': beat * 4, '2n': beat * 2, '4n': beat, '8n': beat / 2, '16n': beat / 4,
+            '1n': beat * 4, '2n': beat * 2, '4n': beat, '4n.': beat * 1.5,
+            '8n': beat / 2, '8n.': beat * 0.75, '16n': beat / 4,
             '4t': beat * 2 / 3, '8t': beat / 3, '16t': beat / 6,
         };
         return map[dur] ?? beat / 2;
@@ -364,12 +375,27 @@
             // Note heads
             notes.forEach((n, ni) => {
                 const noteX    = curX + measPadL + ni * noteSpacing + noteSpacing / 2;
-                const off      = _noteStaffOffset(n.note);
-                const noteY    = botY - off * HLS;
                 const isPlay   = absIdx === playingAbsIdx;
                 const noteCol  = isPlay ? 'var(--chord-amber,#fbbf24)' : 'var(--brand,#7c3aed)';
                 const noteOp   = isPlay ? '1' : '0.88';
                 const dur      = n.dur;
+
+                // ── Rest symbol ───────────────────────────────────
+                if (n.rest) {
+                    const restY   = botY - 4 * HLS; // middle staff line
+                    const restCol = isPlay ? 'var(--chord-amber,#fbbf24)' : 'var(--text-secondary)';
+                    const restChar = { '1n': '𝄻', '2n': '𝄼', '4n': '𝄽', '4n.': '𝄽',
+                                       '8n': '𝄾', '8n.': '𝄾', '16n': '𝄿' }[dur] || '𝄽';
+                    p.push(`<text x="${noteX}" y="${restY + 8}" text-anchor="middle" font-size="18" font-family="Bravura,FreeSerif,Times New Roman,serif" fill="${restCol}" opacity="0.75">${restChar}</text>`);
+                    if (dur.endsWith('.')) {
+                        p.push(`<circle cx="${noteX + 10}" cy="${restY + 2}" r="1.8" fill="${restCol}" opacity="0.75"/>`);
+                    }
+                    absIdx++;
+                    return;
+                }
+
+                const off      = _noteStaffOffset(n.note);
+                const noteY    = botY - off * HLS;
 
                 // Ledger lines below staff (off < 0)
                 if (off < 0) {
@@ -388,8 +414,9 @@
                 }
 
                 // Note head shape
-                const isFilled = dur !== '2n' && dur !== '1n';
-                const isWhole  = dur === '1n';
+                const baseDur  = dur.replace('.', '');
+                const isFilled = baseDur !== '2n' && baseDur !== '1n';
+                const isWhole  = baseDur === '1n';
 
                 if (isWhole) {
                     p.push(`<ellipse cx="${noteX}" cy="${noteY}" rx="5.5" ry="3.8" fill="none" stroke="${noteCol}" stroke-width="1.8" opacity="${noteOp}"/>`);
@@ -400,6 +427,12 @@
                     p.push(`<ellipse cx="${noteX}" cy="${noteY}" rx="4.8" ry="3.4" fill="none" stroke="${noteCol}" stroke-width="1.8" opacity="${noteOp}" transform="rotate(-18,${noteX},${noteY})"/>`);
                 }
 
+                // Augmentation dot for dotted durations
+                if (dur.endsWith('.')) {
+                    const dotY = off % 2 === 0 ? noteY - HLS / 2 : noteY;
+                    p.push(`<circle cx="${noteX + 8}" cy="${dotY}" r="2" fill="${noteCol}" opacity="${noteOp}"/>`);
+                }
+
                 // Stem + flags (not for whole notes)
                 if (!isWhole) {
                     const stemUp = off < 4;
@@ -408,7 +441,7 @@
                     const stemY2 = stemUp ? noteY - 30 : noteY + 30;
                     p.push(`<line x1="${stemX}" y1="${stemY1}" x2="${stemX}" y2="${stemY2}" stroke="${noteCol}" stroke-width="1.2" opacity="${noteOp}"/>`);
 
-                    const flags = dur === '8n' ? 1 : dur === '16n' ? 2 : 0;
+                    const flags = (baseDur === '8n' || baseDur === '8n.') ? 1 : baseDur === '16n' ? 2 : 0;
                     for (let fi = 0; fi < flags; fi++) {
                         const fy   = stemUp ? stemY2 + fi * 9 : stemY2 - fi * 9;
                         const fDir = stemUp ? 1 : -1;
@@ -475,15 +508,18 @@
         const notes   = _resolveMelody(melody, chord);
         const preview = notes.length
             ? notes.map(n =>
-                `<span style="font-size:.6rem;font-family:var(--font-mono);color:${noteColor};` +
-                `padding:1px 4px;background:var(--bg-raised);border-radius:3px;">${esc(n.note)}${n.tie ? '⌒' : ''}</span>`
+                n.rest
+                    ? `<span style="font-size:.6rem;font-family:var(--font-mono);color:var(--text-muted);` +
+                      `padding:1px 4px;background:var(--bg-raised);border-radius:3px;">𝄽</span>`
+                    : `<span style="font-size:.6rem;font-family:var(--font-mono);color:${noteColor};` +
+                      `padding:1px 4px;background:var(--bg-raised);border-radius:3px;">${esc(n.note)}${n.tie ? '⌒' : ''}</span>`
               ).join(' ')
             : `<span style="font-size:.6rem;color:var(--text-muted);">—</span>`;
 
-        // Dur chips: 2n 4n 8n 16n
-        const durChips = ['2n', '4n', '8n', '16n'].map(d =>
+        // Dur chips: 2n 4n 8n 8n. 16n
+        const durChips = ['2n', '4n', '8n', '8n.', '16n'].map(d =>
             _chipBtn(d, def.dur === d, `class="hm-dur-btn" data-ci="${ci}" data-dur="${d}"`,
-                { '2n': 'Mínima', '4n': 'Semínima', '8n': 'Colcheia', '16n': 'Semicolcheia' }[d])
+                { '2n': 'Mínima', '4n': 'Semínima', '8n': 'Colcheia', '8n.': 'C. pontuada', '16n': 'Semicolcheia' }[d])
         ).join('');
 
         // Oct chips: -1  0  +1
@@ -607,13 +643,14 @@
                 background:var(--bg-raised);border-radius:var(--radius-sm);border-left:3px solid var(--brand);">
                 Grau:duração por espaço ·
                 <code style="font-family:var(--font-mono);">1:4n</code>
-                <code style="font-family:var(--font-mono);">b3:8n</code>
+                <code style="font-family:var(--font-mono);">b3:8n.</code>
                 <code style="font-family:var(--font-mono);">5(-1):4n</code> ·
                 Grau relativo ao acorde (<code>3</code> em m7→b3) ·
-                Oitava: <code>5(-1)</code>=grave · Durações: <code>16n 8n 4n 2n 1n</code> ·
+                Oitava: <code>5(-1)</code>=grave · Durações: <code>16n 8n 8n. 4n 2n 1n</code> ·
                 Tercinas: <code style="font-family:var(--font-mono);">8t 4t 16t</code> ·
+                Pausa: <code style="font-family:var(--font-mono);">r:4n</code> ·
                 Ligadura: sufixo <code style="font-family:var(--font-mono);">~</code>
-                ex: <code style="font-family:var(--font-mono);">b3:4n~ b3:8n</code> ·
+                ex: <code style="font-family:var(--font-mono);">b3:8n. 5:16n</code> ·
                 Atalhos no card: <code>z/x</code>=Dur ◀▶ · <code>n/m</code>=8va ◀▶ · <code>Tab</code>=próximo acorde
             </div>
 
@@ -741,7 +778,7 @@
             // z/x  → Dur left/right  (2n ← 4n ← 8n ← 16n)
             // n/m  → 8va left/right  (-1 ← 0 ← +1)
             // Tab  → move to next card (Shift+Tab = previous)
-            const _DUR_OPT = ['2n', '4n', '8n', '16n'];
+            const _DUR_OPT = ['2n', '4n', '8n', '8n.', '16n'];
             const _OCT_OPT = [-1, 0, 1];
 
             grid?.addEventListener('keydown', e => {
@@ -881,8 +918,11 @@
             const noteColor = tgtLabel ? 'var(--chord-amber,#fbbf24)' : 'var(--chord-blue,#60a5fa)';
             el.innerHTML = notes.length
                 ? notes.map(n =>
-                    `<span style="font-size:.6rem;font-family:var(--font-mono);color:${noteColor};` +
-                    `padding:1px 4px;background:var(--bg-raised);border-radius:3px;">${esc(n.note)}${n.tie ? '⌒' : ''}</span>`
+                    n.rest
+                        ? `<span style="font-size:.6rem;font-family:var(--font-mono);color:var(--text-muted);` +
+                          `padding:1px 4px;background:var(--bg-raised);border-radius:3px;">𝄽</span>`
+                        : `<span style="font-size:.6rem;font-family:var(--font-mono);color:${noteColor};` +
+                          `padding:1px 4px;background:var(--bg-raised);border-radius:3px;">${esc(n.note)}${n.tie ? '⌒' : ''}</span>`
                   ).join(' ')
                 : `<span style="font-size:.6rem;color:var(--text-muted);">—</span>`;
         },
