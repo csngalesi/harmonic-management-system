@@ -295,7 +295,7 @@
 
         const ks      = _keySharps();
         const numAcc  = Math.abs(ks);
-        const clefW   = 28;
+        const clefW   = 42;
         const keySigW = numAcc > 0 ? numAcc * 9 + 6 : 4;
         const initX   = clefW + keySigW;
 
