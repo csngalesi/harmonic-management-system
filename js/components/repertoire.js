@@ -1286,11 +1286,11 @@
                     .toLowerCase().replace(/\s+/g, ' ').trim();
             }
 
-            // Strip audio extension + trailing key token (e.g. " C", " Am", " F#m", " Eb")
+            // Strip audio extension + leading key token (e.g. "C ", "Am ", "F#m ", "Eb ")
             function fileToBase(filename) {
                 return norm(filename
                     .replace(/\.(mp3|m4a|ogg|wav|aac)$/i, '')
-                    .replace(/\s+[A-Ga-g][b#]?m?\s*$/, '')
+                    .replace(/^[A-Ga-g][b#]?m?\s+/, '')
                     .trim());
             }
 
