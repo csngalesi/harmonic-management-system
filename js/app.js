@@ -82,6 +82,7 @@
     // ── App Controller ───────────────────────────────────────────
     const App = {
         _currentRoute: null,
+        _backHistory: [],
 
         init: async function () {
             window.HMSApp.showLoading();
@@ -211,18 +212,20 @@
                 if (!App._isMobile()) App._closeMobileSidebar();
             });
 
-            // Back button: close sidebar first; otherwise navigate to previous route
-            window.addEventListener('popstate', (e) => {
+            // Back button: close sidebar first; otherwise navigate to previous route.
+            // Always re-push a state so Android never exits the app (history trap).
+            window.addEventListener('popstate', () => {
                 if (App._isMobile() && document.getElementById('sidebar')?.classList.contains('mobile-open')) {
                     App._closeMobileSidebar();
-                    // Restore the history entry we just consumed so the route stays correct
-                    if (e.state?.route) history.pushState(e.state, '', '#' + e.state.route);
+                    history.pushState({ route: App._currentRoute }, '', '#' + App._currentRoute);
                     return;
                 }
-                const route = e.state?.route;
-                if (route && ROUTES[route]) {
-                    App.navigate(route, undefined, true);
+                const prevRoute = App._backHistory.pop();
+                if (prevRoute && ROUTES[prevRoute]) {
+                    App.navigate(prevRoute, undefined, true);
                 }
+                // Always keep a history entry so Android back never exits
+                history.pushState({ route: App._currentRoute }, '', '#' + App._currentRoute);
             });
         },
 
@@ -244,6 +247,7 @@
             }
 
             if (!_skipPush) {
+                if (App._currentRoute) App._backHistory.push(App._currentRoute);
                 history.pushState({ route }, '', '#' + route);
             }
 
