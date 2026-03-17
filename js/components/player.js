@@ -117,6 +117,19 @@
                     </div>
                 </div>
 
+                ${s.audio_url ? `
+                <!-- Audio recording -->
+                <div class="panel mb-3">
+                    <div class="panel-header">
+                        <span class="panel-title"><i class="fa-solid fa-file-audio"></i> Gravação</span>
+                    </div>
+                    <div class="panel-body" style="padding:12px;">
+                        <audio controls preload="none" src="${esc(s.audio_url)}" style="width:100%;">
+                            Seu navegador não suporta o elemento audio.
+                        </audio>
+                    </div>
+                </div>` : ''}
+
                 <!-- Chord grid -->
                 <div class="panel mb-3">
                     <div class="panel-header">

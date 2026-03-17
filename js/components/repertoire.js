@@ -450,13 +450,20 @@
             const root     = origKey.replace(/m$/, '');
             const tokens   = window.HarmonyEngine.translate(song.harmony_str || '', root, isMinor);
 
-            const chordsHtml = tokens.length
-                ? tokens.map(t => {
-                    if (t.type === 'LABEL')  return `<span class="sd-label">${esc(t.value)}</span>`;
-                    if (t.type === 'STRUCT') return `<span class="sd-sep">${esc(t.value) || '·'}</span>`;
-                    return `<span class="sd-chord">${esc(t.value)}</span>`;
-                  }).join('')
-                : `<span style="color:var(--text-muted);font-size:.85rem;">Sem harmonia cadastrada.</span>`;
+            const SD_KEYS = window.HarmonyEngine.allKeys();
+            const keyOptionsHtml = SD_KEYS.map(k =>
+                `<option value="${k.value}"${k.value === origKey ? ' selected' : ''}>${k.label}</option>`
+            ).join('');
+
+            function buildChordsHtml(toks) {
+                return toks.length
+                    ? toks.map(t => {
+                        if (t.type === 'LABEL')  return `<span class="sd-label">${esc(t.value)}</span>`;
+                        if (t.type === 'STRUCT') return `<span class="sd-sep">${esc(t.value) || '·'}</span>`;
+                        return `<span class="sd-chord">${esc(t.value)}</span>`;
+                      }).join('')
+                    : `<span style="color:var(--text-muted);font-size:.85rem;">Sem harmonia cadastrada.</span>`;
+            }
 
             window.HMSApp.openModal(`
                 <div class="sd-modal">
@@ -467,6 +474,10 @@
                         </div>
                         <span class="song-key-badge" style="font-size:1rem;flex-shrink:0;">${esc(origKey)}</span>
                     </div>
+                    ${song.audio_url ? `
+                    <audio controls preload="none" src="${esc(song.audio_url)}"
+                           style="width:100%;height:36px;margin:4px 0 8px;">
+                    </audio>` : ''}
                     <div class="sd-tabs">
                         <button class="sd-tab active" data-tab="func">Harm Func</button>
                         <button class="sd-tab" data-tab="acor">Harm Acor</button>
@@ -477,7 +488,14 @@
                             <div class="harmony-preview">${esc(song.harmony_str || 'Sem harmonia cadastrada.')}</div>
                         </div>
                         <div class="sd-pane" id="sd-pane-acor">
-                            <div class="sd-chords">${chordsHtml}</div>
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                                <span style="font-size:.8rem;color:var(--text-muted);">Tom:</span>
+                                <select id="sd-key-select" class="form-input form-select"
+                                        style="width:140px;padding:4px 8px;height:32px;">
+                                    ${keyOptionsHtml}
+                                </select>
+                            </div>
+                            <div class="sd-chords" id="sd-chords-display">${buildChordsHtml(tokens)}</div>
                         </div>
                         <div class="sd-pane" id="sd-pane-letra">
                             <div id="sd-lyrics-content">
@@ -497,6 +515,13 @@
                     tab.classList.add('active');
                     document.getElementById(`sd-pane-${tab.dataset.tab}`).classList.add('active');
                 });
+            });
+
+            document.getElementById('sd-key-select')?.addEventListener('change', function () {
+                const newIsMinor = this.value.endsWith('m');
+                const newRoot = this.value.replace(/m$/, '');
+                const newTokens = window.HarmonyEngine.translate(song.harmony_str || '', newRoot, newIsMinor);
+                document.getElementById('sd-chords-display').innerHTML = buildChordsHtml(newTokens);
             });
 
             if (song.has_lyrics) {
@@ -579,6 +604,13 @@
                                 </div>
                                 <textarea id="sf-lyrics" class="form-input" rows="4"
                                     placeholder="Letra da música (opcional)">${esc(song?.lyrics || '')}</textarea>
+                            </div>
+                            <div class="form-group form-group-full">
+                                <label class="form-label">URL do Áudio (MP3)</label>
+                                <input type="url" id="sf-audio-url" class="form-input"
+                                    placeholder="https://…/musica.mp3"
+                                    value="${esc(song?.audio_url || '')}" />
+                                <span class="form-hint">Link direto para o arquivo MP3 (Supabase Storage, CDN, etc.)</span>
                             </div>
                         </div>
                     </form>
@@ -695,10 +727,12 @@
             saveBtn.disabled = true;
             saveBtn.innerHTML = '<span class="btn-spinner"></span> Salvando…';
 
+            const audioUrl = (document.getElementById('sf-audio-url').value || '').trim();
             const payload = {
                 title, artist: artist || null,
                 genre: genre || null, original_key: originalKey,
                 harmony_str: harmonyStr, lyrics: lyrics || null,
+                audio_url: audioUrl || null,
             };
 
             try {
