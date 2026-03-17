@@ -105,7 +105,10 @@
     // Converts a raw harmony string into a flat array of token objects.
     function tokenize(harmonyStr) {
         // 1. Clean visual dash separators; pre-process before slash injection
+        //    Strip ¶ (pilcrow) — reserved as internal SEC_DOM placeholder; must not
+        //    appear in user-entered strings or it collides with ¶N¶ substitutions.
         let str = harmonyStr
+            .replace(/¶/g, '')
             .replace(/\s*-\s*/g, ' ')
             .trim();
 
