@@ -816,6 +816,10 @@
                 }
                 window.HMSApp.closeModal();
                 await RepertoireComponent._loadSongs();
+                // If the player is showing this song, refresh it with the new data
+                if (editId && window.App._currentRoute === 'player') {
+                    window.PlayerComponent.render(editId);
+                }
             } catch (err) {
                 window.HMSApp.showToast('Erro ao salvar: ' + err.message, 'error');
                 saveBtn.disabled = false;
