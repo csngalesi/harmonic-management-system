@@ -66,6 +66,9 @@
                         <button class="btn btn-secondary" id="btn-bulk-hygiene" title="Higienizar harmonias — detecta texto livre e envolve em $...$">
                             <i class="fa-solid fa-broom"></i> Higienizar
                         </button>
+                        <button class="btn btn-secondary" id="btn-upload-audio" title="Upload de MP3s para o Supabase Storage">
+                            <i class="fa-solid fa-upload"></i> Upload MP3
+                        </button>
                         <button class="btn btn-secondary" id="btn-link-audio" title="Vincular MP3s do Supabase Storage às músicas">
                             <i class="fa-solid fa-link"></i> Vincular Áudio
                         </button>
@@ -201,6 +204,10 @@
 
             document.getElementById('btn-bulk-hygiene').addEventListener('click', () => {
                 RepertoireComponent._bulkHygienize();
+            });
+
+            document.getElementById('btn-upload-audio').addEventListener('click', () => {
+                RepertoireComponent._uploadAudioModal();
             });
 
             document.getElementById('btn-link-audio').addEventListener('click', () => {
@@ -1245,6 +1252,133 @@
             cancelBtn.textContent = 'Fechar';
             window.HMSApp.showToast(`${found} letras salvas!`, 'success');
             await RepertoireComponent._loadSongs();
+        },
+
+        // ── Upload Audio to Storage ───────────────────────────────
+        _uploadAudioModal: function () {
+            window.HMSApp.openModal(`
+                <div class="modal-header">
+                    <h3><i class="fa-solid fa-upload"></i> Upload MP3 → Supabase Storage</h3>
+                    <button class="modal-close" id="modal-close-btn"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="modal-body">
+                    <div id="upload-drop-zone" style="
+                        border:2px dashed var(--line-color);border-radius:10px;
+                        padding:28px 16px;text-align:center;cursor:pointer;
+                        transition:border-color .2s,background .2s;margin-bottom:12px;">
+                        <i class="fa-solid fa-file-audio" style="font-size:2rem;color:var(--text-muted);display:block;margin-bottom:8px;"></i>
+                        <p style="color:var(--text-muted);font-size:.875rem;margin:0 0 8px;">
+                            Arraste arquivos aqui ou clique para selecionar
+                        </p>
+                        <span style="font-size:.75rem;color:var(--text-muted);">MP3, M4A, OGG, WAV, AAC</span>
+                        <input type="file" id="upload-file-input" multiple
+                            accept=".mp3,.m4a,.ogg,.wav,.aac,audio/*"
+                            style="display:none;" />
+                    </div>
+                    <div id="upload-file-list" style="display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="modal-cancel-btn">Fechar</button>
+                    <button class="btn btn-primary" id="btn-start-upload" disabled>
+                        <i class="fa-solid fa-upload"></i> Enviar
+                    </button>
+                </div>
+            `);
+
+            document.getElementById('modal-close-btn').addEventListener('click', window.HMSApp.closeModal);
+            document.getElementById('modal-cancel-btn').addEventListener('click', window.HMSApp.closeModal);
+
+            const dropZone  = document.getElementById('upload-drop-zone');
+            const fileInput = document.getElementById('upload-file-input');
+            const fileList  = document.getElementById('upload-file-list');
+            const startBtn  = document.getElementById('btn-start-upload');
+            let selectedFiles = [];
+
+            function renderFileList() {
+                fileList.innerHTML = selectedFiles.map((f, i) => `
+                    <div id="upload-item-${i}" style="
+                        display:flex;align-items:center;gap:10px;
+                        background:var(--glass-bg);border:1px solid var(--glass-border);
+                        border-radius:8px;padding:8px 12px;">
+                        <i class="fa-solid fa-file-audio" style="color:var(--text-muted);flex-shrink:0;"></i>
+                        <span style="flex:1;font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(f.name)}</span>
+                        <span class="upload-status-${i}" style="font-size:.75rem;color:var(--text-muted);flex-shrink:0;">
+                            ${(f.size/1024/1024).toFixed(1)} MB
+                        </span>
+                    </div>
+                `).join('');
+                startBtn.disabled = selectedFiles.length === 0;
+            }
+
+            function addFiles(files) {
+                const audio = [...files].filter(f => /\.(mp3|m4a|ogg|wav|aac)$/i.test(f.name));
+                // Deduplicate by name
+                audio.forEach(f => {
+                    if (!selectedFiles.find(x => x.name === f.name)) selectedFiles.push(f);
+                });
+                renderFileList();
+            }
+
+            dropZone.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', () => addFiles(fileInput.files));
+
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.style.borderColor = 'var(--brand)';
+                dropZone.style.background  = 'var(--brand-dim)';
+            });
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.style.borderColor = '';
+                dropZone.style.background  = '';
+            });
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.style.borderColor = '';
+                dropZone.style.background  = '';
+                addFiles(e.dataTransfer.files);
+            });
+
+            startBtn.addEventListener('click', async () => {
+                startBtn.disabled = true;
+                startBtn.innerHTML = '<span class="btn-spinner"></span> Enviando…';
+                document.getElementById('modal-cancel-btn').disabled = true;
+
+                let done = 0, errors = 0;
+                for (let i = 0; i < selectedFiles.length; i++) {
+                    const f = selectedFiles[i];
+                    const statusEl = document.querySelector(`.upload-status-${i}`);
+                    if (statusEl) statusEl.innerHTML = '<span class="btn-spinner" style="width:12px;height:12px;border-width:2px;"></span>';
+
+                    try {
+                        const { error } = await window.supabaseClient.storage
+                            .from('songs-audio')
+                            .upload(f.name, f, { contentType: f.type || 'audio/mpeg', upsert: true });
+                        if (error) throw error;
+                        if (statusEl) statusEl.innerHTML = '<i class="fa-solid fa-circle-check" style="color:#22c55e;"></i>';
+                        done++;
+                    } catch (err) {
+                        if (statusEl) statusEl.innerHTML = `<i class="fa-solid fa-circle-xmark" style="color:#ef4444;" title="${esc(err.message)}"></i>`;
+                        errors++;
+                    }
+                }
+
+                startBtn.innerHTML = `<i class="fa-solid fa-check"></i> ${done} enviados${errors ? ', ' + errors + ' erros' : ''}`;
+                document.getElementById('modal-cancel-btn').disabled = false;
+                document.getElementById('modal-cancel-btn').textContent = 'Fechar';
+
+                if (done > 0) {
+                    // Offer to run Vincular Áudio right away
+                    const footer = startBtn.parentElement;
+                    const linkBtn = document.createElement('button');
+                    linkBtn.className = 'btn btn-primary';
+                    linkBtn.innerHTML = '<i class="fa-solid fa-link"></i> Vincular agora';
+                    linkBtn.addEventListener('click', () => {
+                        window.HMSApp.closeModal();
+                        RepertoireComponent._bulkLinkAudio();
+                    });
+                    footer.appendChild(linkBtn);
+                }
+            });
         },
 
         // ── Bulk Link Audio ───────────────────────────────────────
