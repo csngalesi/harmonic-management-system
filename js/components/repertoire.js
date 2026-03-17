@@ -66,6 +66,9 @@
                         <button class="btn btn-secondary" id="btn-bulk-hygiene" title="Higienizar harmonias — detecta texto livre e envolve em $...$">
                             <i class="fa-solid fa-broom"></i> Higienizar
                         </button>
+                        <button class="btn btn-secondary" id="btn-link-audio" title="Vincular MP3s do Supabase Storage às músicas">
+                            <i class="fa-solid fa-link"></i> Vincular Áudio
+                        </button>
                         <button class="btn btn-primary" id="btn-new-song">
                             <i class="fa-solid fa-plus"></i> Nova Música
                         </button>
@@ -198,6 +201,10 @@
 
             document.getElementById('btn-bulk-hygiene').addEventListener('click', () => {
                 RepertoireComponent._bulkHygienize();
+            });
+
+            document.getElementById('btn-link-audio').addEventListener('click', () => {
+                RepertoireComponent._bulkLinkAudio();
             });
 
 
@@ -1238,6 +1245,154 @@
             cancelBtn.textContent = 'Fechar';
             window.HMSApp.showToast(`${found} letras salvas!`, 'success');
             await RepertoireComponent._loadSongs();
+        },
+
+        // ── Bulk Link Audio ───────────────────────────────────────
+        _bulkLinkAudio: async function () {
+            window.HMSApp.showLoading();
+
+            // 1. List files in songs-audio bucket
+            let files;
+            try {
+                const { data, error } = await window.supabaseClient.storage
+                    .from('songs-audio').list('', { limit: 1000 });
+                if (error) throw error;
+                files = (data || []).filter(f => f.name && /\.(mp3|m4a|ogg|wav|aac)$/i.test(f.name));
+            } catch (err) {
+                window.HMSApp.hideLoading();
+                window.HMSApp.showToast('Erro ao listar bucket: ' + err.message, 'error');
+                return;
+            }
+
+            // 2. Load all songs
+            let allSongs;
+            try {
+                allSongs = await window.HMSAPI.Songs.getAll();
+            } catch (err) {
+                window.HMSApp.hideLoading();
+                window.HMSApp.showToast('Erro ao carregar músicas: ' + err.message, 'error');
+                return;
+            }
+            window.HMSApp.hideLoading();
+
+            if (files.length === 0) {
+                window.HMSApp.showToast('Nenhum arquivo de áudio encontrado no bucket songs-audio.', 'warning');
+                return;
+            }
+
+            // Normalize: lowercase, trim, remove diacritics, collapse spaces
+            function norm(str) {
+                return (str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                    .toLowerCase().replace(/\s+/g, ' ').trim();
+            }
+
+            // Strip audio extension + trailing key token (e.g. " C", " Am", " F#m", " Eb")
+            function fileToBase(filename) {
+                return norm(filename
+                    .replace(/\.(mp3|m4a|ogg|wav|aac)$/i, '')
+                    .replace(/\s+[A-Ga-g][b#]?m?\s*$/, '')
+                    .trim());
+            }
+
+            // Build match candidates
+            const matches   = [];   // { song, file, url }
+            const unmatched = [];   // filenames with no match
+
+            for (const file of files) {
+                const base = fileToBase(file.name);
+                const { data: urlData } = window.supabaseClient.storage
+                    .from('songs-audio').getPublicUrl(file.name);
+                const url = urlData?.publicUrl;
+                if (!url) continue;
+
+                // Find best match: exact first, then partial
+                let match = allSongs.find(s => norm(s.title) === base);
+                if (!match) {
+                    match = allSongs.find(s => {
+                        const t = norm(s.title);
+                        return t.includes(base) || base.includes(t);
+                    });
+                }
+
+                if (match) {
+                    matches.push({ song: match, file: file.name, url });
+                } else {
+                    unmatched.push(file.name);
+                }
+            }
+
+            // 3. Show confirmation modal
+            window.HMSApp.openModal(`
+                <div class="modal-header">
+                    <h3><i class="fa-solid fa-link"></i> Vincular Áudio</h3>
+                    <button class="modal-close" id="modal-close-btn"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="modal-body">
+                    <p style="font-size:.875rem;color:var(--text-muted);margin-bottom:14px;">
+                        <strong style="color:var(--text-primary);">${matches.length}</strong> correspondências encontradas
+                        de <strong style="color:var(--text-primary);">${files.length}</strong> arquivos no bucket.
+                        ${unmatched.length ? `<br><span style="color:#f59e0b;">${unmatched.length} sem correspondência.</span>` : ''}
+                    </p>
+                    ${matches.length === 0 ? `
+                        <div style="text-align:center;padding:24px 0;color:var(--text-muted);">
+                            <i class="fa-solid fa-triangle-exclamation" style="font-size:2rem;color:#f59e0b;margin-bottom:8px;display:block;"></i>
+                            Nenhuma música correspondente encontrada.
+                        </div>
+                    ` : `
+                        <div style="max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:12px;">
+                            ${matches.map((m, i) => `
+                                <div style="display:flex;align-items:center;gap:8px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:8px;padding:8px 12px;">
+                                    <input type="checkbox" class="link-chk" data-idx="${i}" checked />
+                                    <div style="flex:1;min-width:0;">
+                                        <div style="font-size:.875rem;font-weight:600;">${esc(m.song.title)}</div>
+                                        <div style="font-size:.72rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(m.file)}</div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `}
+                    ${unmatched.length ? `
+                        <details style="font-size:.78rem;color:var(--text-muted);">
+                            <summary style="cursor:pointer;">Arquivos sem correspondência (${unmatched.length})</summary>
+                            <ul style="margin:6px 0 0 16px;">${unmatched.map(f => `<li>${esc(f)}</li>`).join('')}</ul>
+                        </details>
+                    ` : ''}
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="modal-cancel-btn">Cancelar</button>
+                    ${matches.length > 0 ? `<button class="btn btn-primary" id="btn-confirm-link">
+                        <i class="fa-solid fa-link"></i> Vincular selecionadas
+                    </button>` : ''}
+                </div>
+            `);
+
+            document.getElementById('modal-close-btn').addEventListener('click', window.HMSApp.closeModal);
+            document.getElementById('modal-cancel-btn').addEventListener('click', window.HMSApp.closeModal);
+
+            const confirmBtn = document.getElementById('btn-confirm-link');
+            if (confirmBtn) {
+                confirmBtn.addEventListener('click', async () => {
+                    const selected = [...document.querySelectorAll('.link-chk:checked')]
+                        .map(chk => matches[parseInt(chk.dataset.idx)]);
+
+                    confirmBtn.disabled = true;
+                    confirmBtn.innerHTML = '<span class="btn-spinner"></span> Salvando…';
+
+                    let saved = 0;
+                    for (const m of selected) {
+                        try {
+                            await window.HMSAPI.Songs.update(m.song.id, { audio_url: m.url });
+                            saved++;
+                        } catch (e) {
+                            console.warn('[LinkAudio] failed:', m.song.title, e);
+                        }
+                    }
+
+                    window.HMSApp.closeModal();
+                    window.HMSApp.showToast(`${saved} músicas vinculadas com sucesso!`, 'success');
+                    await RepertoireComponent._loadSongs();
+                });
+            }
         },
 
         // ── Bulk Hygienize ────────────────────────────────────────
