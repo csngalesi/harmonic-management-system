@@ -534,6 +534,36 @@ tbody tr:hover td { background: var(--glass-bg); }
 }
 .song-lyrics-flag.has-lyrics { color: var(--chord-blue); opacity: 1; }
 .song-card:hover .song-lyrics-flag.has-lyrics { color: var(--chord-green); }
+.song-audio-flag {
+    display: flex; align-items: center; justify-content: center;
+    width: 20px; font-size: .7rem; color: var(--text-muted);
+    opacity: 0.2; flex-shrink: 0; transition: color var(--transition), opacity var(--transition);
+}
+.song-audio-flag.has-audio { color: #a78bfa; opacity: 1; }
+.song-card:hover .song-audio-flag.has-audio { color: var(--chord-green); }
+
+/* ── Filter Bar ─────────────────────────────────────────────── */
+.filter-bar { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.filter-label {
+    font-size: .72rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .08em; color: var(--text-muted); white-space: nowrap; margin-right: 2px;
+}
+.filter-sep { color: var(--line-color); margin: 0 4px; font-size: .85rem; }
+.filter-pill {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 26px; height: 24px; padding: 0 7px; border-radius: 6px;
+    font-size: .72rem; font-weight: 600;
+    background: var(--glass-bg); border: 1px solid var(--glass-border);
+    color: var(--text-secondary); cursor: pointer; transition: all var(--transition);
+}
+.filter-pill:hover:not(.active) { border-color: var(--text-secondary); color: var(--text-primary); }
+.filter-pill.active { background: var(--brand-dim); border-color: var(--brand); color: var(--brand); }
+.filter-pill.sf-1 { color: #22c55e; }
+.filter-pill.sf-1.active { background: #00200a; border-color: #22c55e; color: #22c55e; }
+.filter-pill.sf-2 { color: #f59e0b; }
+.filter-pill.sf-2.active { background: #2a1a00; border-color: #f59e0b; color: #f59e0b; }
+.filter-pill.sf-3 { color: #ef4444; }
+.filter-pill.sf-3.active { background: #2a0000; border-color: #ef4444; color: #ef4444; }
 
 /* ── Search Block (type pills + input) ─────────────────────── */
 .search-block { display: flex; flex-direction: column; gap: 8px; }

@@ -19,6 +19,11 @@
         sortDir:      'asc',      // 'asc' | 'desc'
         viewMode:        'list',     // 'list' | 'show'
         headerCollapsed: false,
+        // Client-side filters (null = sem filtro)
+        filterFlag:  null,   // null | 0 | 1 | 2 | 3
+        filterHarm:  null,   // null | true | false
+        filterLetra: null,   // null | true | false
+        filterLink:  null,   // null | true | false
     };
 
     // Drag state for position reordering
@@ -99,6 +104,31 @@
                             <i class="fa-solid fa-magnifying-glass"></i>
                         </button>
                     </div>
+                </div>
+
+                <!-- Filter bar -->
+                <div class="filter-bar mb-2" id="filter-bar">
+                    <span class="filter-label">Flag:</span>
+                    <button class="filter-pill${_state.filterFlag === null ? ' active' : ''}" data-filter="flag" data-val="null" title="Todas">·</button>
+                    <button class="filter-pill sf-1${_state.filterFlag === 1 ? ' active' : ''}" data-filter="flag" data-val="1" title="Verde"><i class="fa-solid fa-flag"></i></button>
+                    <button class="filter-pill sf-2${_state.filterFlag === 2 ? ' active' : ''}" data-filter="flag" data-val="2" title="Amarela"><i class="fa-solid fa-flag"></i></button>
+                    <button class="filter-pill sf-3${_state.filterFlag === 3 ? ' active' : ''}" data-filter="flag" data-val="3" title="Vermelha"><i class="fa-solid fa-flag"></i></button>
+                    <button class="filter-pill${_state.filterFlag === 0 ? ' active' : ''}" data-filter="flag" data-val="0" title="Sem bandeira"><i class="fa-solid fa-flag" style="opacity:.25;"></i></button>
+                    <span class="filter-sep">|</span>
+                    <span class="filter-label">Harm:</span>
+                    <button class="filter-pill${_state.filterHarm === null  ? ' active' : ''}" data-filter="harm" data-val="null">·</button>
+                    <button class="filter-pill${_state.filterHarm === true  ? ' active' : ''}" data-filter="harm" data-val="true">S</button>
+                    <button class="filter-pill${_state.filterHarm === false ? ' active' : ''}" data-filter="harm" data-val="false">N</button>
+                    <span class="filter-sep">|</span>
+                    <span class="filter-label">Letra:</span>
+                    <button class="filter-pill${_state.filterLetra === null  ? ' active' : ''}" data-filter="letra" data-val="null">·</button>
+                    <button class="filter-pill${_state.filterLetra === true  ? ' active' : ''}" data-filter="letra" data-val="true">S</button>
+                    <button class="filter-pill${_state.filterLetra === false ? ' active' : ''}" data-filter="letra" data-val="false">N</button>
+                    <span class="filter-sep">|</span>
+                    <span class="filter-label">Link:</span>
+                    <button class="filter-pill${_state.filterLink === null  ? ' active' : ''}" data-filter="link" data-val="null">·</button>
+                    <button class="filter-pill${_state.filterLink === true  ? ' active' : ''}" data-filter="link" data-val="true">S</button>
+                    <button class="filter-pill${_state.filterLink === false ? ' active' : ''}" data-filter="link" data-val="false">N</button>
                 </div>
 
                 <!-- Sort toolbar -->
@@ -205,6 +235,21 @@
                 if (_state.searchQuery) RepertoireComponent._loadSongs();
             });
 
+            // Filter bar
+            document.getElementById('filter-bar').addEventListener('click', (e) => {
+                const pill = e.target.closest('.filter-pill');
+                if (!pill) return;
+                const filter = pill.dataset.filter;
+                const raw    = pill.dataset.val;
+                const val    = raw === 'null' ? null : raw === 'true' ? true : raw === 'false' ? false : parseInt(raw, 10);
+                if (filter === 'flag')  _state.filterFlag  = val;
+                if (filter === 'harm')  _state.filterHarm  = val;
+                if (filter === 'letra') _state.filterLetra = val;
+                if (filter === 'link')  _state.filterLink  = val;
+                RepertoireComponent._renderFilterBar();
+                RepertoireComponent._renderSongList();
+            });
+
             // Sort buttons
             document.getElementById('sort-toolbar').addEventListener('click', (e) => {
                 const btn = e.target.closest('.sort-btn');
@@ -285,6 +330,18 @@
             }
         },
 
+        _renderFilterBar: function () {
+            const bar = document.getElementById('filter-bar');
+            if (!bar) return;
+            bar.querySelectorAll('.filter-pill[data-filter]').forEach(pill => {
+                const filter = pill.dataset.filter;
+                const raw    = pill.dataset.val;
+                const val    = raw === 'null' ? null : raw === 'true' ? true : raw === 'false' ? false : parseInt(raw, 10);
+                const cur = _state['filter' + filter.charAt(0).toUpperCase() + filter.slice(1)];
+                pill.classList.toggle('active', cur === val);
+            });
+        },
+
         _renderSortToolbar: function () {
             const toolbar = document.getElementById('sort-toolbar');
             if (!toolbar) return;
@@ -311,8 +368,17 @@
             const el = document.getElementById('song-list');
             if (!el) return;
 
+            // Client-side filter
+            const filtered = _state.songs.filter(s => {
+                if (_state.filterFlag  !== null && (s.status_flag || 0) !== _state.filterFlag) return false;
+                if (_state.filterHarm  !== null && !!(s.harmony_str && s.harmony_str.trim()) !== _state.filterHarm) return false;
+                if (_state.filterLetra !== null && !!s.has_lyrics !== _state.filterLetra) return false;
+                if (_state.filterLink  !== null && !!s.audio_url  !== _state.filterLink)  return false;
+                return true;
+            });
+
             // Client-side sort
-            const sorted = [..._state.songs].sort((a, b) => {
+            const sorted = [...filtered].sort((a, b) => {
                 if (_state.sortBy === 'position') {
                     if (a._position === null && b._position === null) return 0;
                     if (a._position === null) return 1;
@@ -366,6 +432,7 @@
             const cards = sorted.map(s => {
                 const hasHarmony = !!(s.harmony_str && s.harmony_str.trim());
                 const hasLyrics  = !!s.has_lyrics;
+                const hasAudio   = !!s.audio_url;
                 const sf         = s.status_flag || 0;
                 const flagTitles = ['Marcar verde', 'Marcar amarelo', 'Marcar vermelho', 'Remover bandeira'];
                 return `
@@ -390,6 +457,9 @@
                     </span>
                     <span class="song-lyrics-flag${hasLyrics ? ' has-lyrics' : ''}" title="${hasLyrics ? 'Letra cadastrada' : 'Sem letra'}">
                         <i class="fa-solid fa-align-left"></i>
+                    </span>
+                    <span class="song-audio-flag${hasAudio ? ' has-audio' : ''}" title="${hasAudio ? 'Link MP3' : 'Sem link MP3'}">
+                        <i class="fa-solid fa-file-audio"></i>
                     </span>
                     <div class="song-actions">
                         <button class="btn-icon edit" data-action="play" data-id="${s.id}" title="Abrir no Player">
