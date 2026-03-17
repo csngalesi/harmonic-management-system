@@ -167,7 +167,12 @@
                 App._setupSidebar();
                 App._sidebarReady = true;
             }
-            if (!App._currentRoute) App.navigate('repertoire');
+            if (!App._currentRoute) {
+                const hash = location.hash.slice(1);
+                const initial = ROUTES[hash] ? hash : 'repertoire';
+                history.replaceState({ route: initial }, '', '#' + initial);
+                App.navigate(initial, undefined, true);
+            }
         },
 
         // ── Sidebar ──────────────────────────────────────────────
@@ -205,6 +210,20 @@
             window.addEventListener('resize', () => {
                 if (!App._isMobile()) App._closeMobileSidebar();
             });
+
+            // Back button: close sidebar first; otherwise navigate to previous route
+            window.addEventListener('popstate', (e) => {
+                if (App._isMobile() && document.getElementById('sidebar')?.classList.contains('mobile-open')) {
+                    App._closeMobileSidebar();
+                    // Restore the history entry we just consumed so the route stays correct
+                    if (e.state?.route) history.pushState(e.state, '', '#' + e.state.route);
+                    return;
+                }
+                const route = e.state?.route;
+                if (route && ROUTES[route]) {
+                    App.navigate(route, undefined, true);
+                }
+            });
         },
 
         _isMobile: () => window.innerWidth <= 768,
@@ -218,10 +237,14 @@
         },
 
         // ── Navigation ───────────────────────────────────────────
-        navigate: function (route, payload) {
+        navigate: function (route, payload, _skipPush) {
             if (!ROUTES[route]) {
                 console.warn('[HMS] Unknown route:', route);
                 return;
+            }
+
+            if (!_skipPush) {
+                history.pushState({ route }, '', '#' + route);
             }
 
             App._currentRoute = route;
