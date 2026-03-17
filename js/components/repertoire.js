@@ -56,22 +56,11 @@
                         <button class="btn btn-secondary" id="btn-manage-setlists">
                             <i class="fa-solid fa-folder-open"></i> Setlists
                         </button>
-                        <label class="btn btn-secondary" id="label-import-csv" style="cursor:pointer;" title="Importar lista CSV (Título;Artista)">
-                            <i class="fa-solid fa-file-import"></i> Importar CSV
-                            <input type="file" id="input-import-csv" accept=".csv,.txt" style="display:none;" />
-                        </label>
-                        <button class="btn btn-secondary" id="btn-bulk-lyrics" title="Buscar letras em massa via lrclib.net">
-                            <i class="fa-solid fa-wand-magic-sparkles"></i> Buscar Letras
+                        <button class="btn btn-secondary" id="btn-funcoes">
+                            <i class="fa-solid fa-ellipsis-vertical"></i> Funções
                         </button>
-                        <button class="btn btn-secondary" id="btn-bulk-hygiene" title="Higienizar harmonias — detecta texto livre e envolve em $...$">
-                            <i class="fa-solid fa-broom"></i> Higienizar
-                        </button>
-                        <button class="btn btn-secondary" id="btn-upload-audio" title="Upload de MP3s para o Supabase Storage">
-                            <i class="fa-solid fa-upload"></i> Upload MP3
-                        </button>
-                        <button class="btn btn-secondary" id="btn-link-audio" title="Vincular MP3s do Supabase Storage às músicas">
-                            <i class="fa-solid fa-link"></i> Vincular Áudio
-                        </button>
+                        <!-- hidden file input for CSV import (triggered from funções modal) -->
+                        <input type="file" id="input-import-csv" accept=".csv,.txt" style="display:none;" />
                         <button class="btn btn-primary" id="btn-new-song">
                             <i class="fa-solid fa-plus"></i> Nova Música
                         </button>
@@ -198,20 +187,8 @@
                 e.target.value = '';
             });
 
-            document.getElementById('btn-bulk-lyrics').addEventListener('click', () => {
-                RepertoireComponent._bulkFetchLyrics();
-            });
-
-            document.getElementById('btn-bulk-hygiene').addEventListener('click', () => {
-                RepertoireComponent._bulkHygienize();
-            });
-
-            document.getElementById('btn-upload-audio').addEventListener('click', () => {
-                RepertoireComponent._uploadAudioModal();
-            });
-
-            document.getElementById('btn-link-audio').addEventListener('click', () => {
-                RepertoireComponent._bulkLinkAudio();
+            document.getElementById('btn-funcoes').addEventListener('click', () => {
+                RepertoireComponent._openFuncoesModal();
             });
 
 
@@ -911,6 +888,56 @@
                     </button>
                 </div>
             `).join('');
+        },
+
+        // ── Funções Modal ─────────────────────────────────────────
+        _openFuncoesModal: function () {
+            window.HMSApp.openModal(`
+                <div class="modal-header">
+                    <h3><i class="fa-solid fa-ellipsis-vertical"></i> Funções</h3>
+                    <button class="modal-close" id="modal-close-btn"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="modal-body" style="display:flex;flex-direction:column;gap:10px;padding:16px;">
+                    <button class="btn btn-secondary funcoes-btn" id="fm-import-csv" style="justify-content:flex-start;gap:10px;">
+                        <i class="fa-solid fa-file-import" style="width:18px;text-align:center;"></i> Importar CSV
+                    </button>
+                    <button class="btn btn-secondary funcoes-btn" id="fm-bulk-lyrics" style="justify-content:flex-start;gap:10px;">
+                        <i class="fa-solid fa-wand-magic-sparkles" style="width:18px;text-align:center;"></i> Buscar Letras
+                    </button>
+                    <button class="btn btn-secondary funcoes-btn" id="fm-bulk-hygiene" style="justify-content:flex-start;gap:10px;">
+                        <i class="fa-solid fa-broom" style="width:18px;text-align:center;"></i> Higienizar Harmonias
+                    </button>
+                    <button class="btn btn-secondary funcoes-btn" id="fm-upload-audio" style="justify-content:flex-start;gap:10px;">
+                        <i class="fa-solid fa-upload" style="width:18px;text-align:center;"></i> Upload MP3
+                    </button>
+                    <button class="btn btn-secondary funcoes-btn" id="fm-link-audio" style="justify-content:flex-start;gap:10px;">
+                        <i class="fa-solid fa-link" style="width:18px;text-align:center;"></i> Vincular Áudio
+                    </button>
+                </div>
+            `);
+
+            document.getElementById('modal-close-btn').addEventListener('click', window.HMSApp.closeModal);
+
+            document.getElementById('fm-import-csv').addEventListener('click', () => {
+                window.HMSApp.closeModal();
+                document.getElementById('input-import-csv').click();
+            });
+            document.getElementById('fm-bulk-lyrics').addEventListener('click', () => {
+                window.HMSApp.closeModal();
+                RepertoireComponent._bulkFetchLyrics();
+            });
+            document.getElementById('fm-bulk-hygiene').addEventListener('click', () => {
+                window.HMSApp.closeModal();
+                RepertoireComponent._bulkHygienize();
+            });
+            document.getElementById('fm-upload-audio').addEventListener('click', () => {
+                window.HMSApp.closeModal();
+                RepertoireComponent._uploadAudioModal();
+            });
+            document.getElementById('fm-link-audio').addEventListener('click', () => {
+                window.HMSApp.closeModal();
+                RepertoireComponent._bulkLinkAudio();
+            });
         },
 
         // ── CSV Import ────────────────────────────────────────────
