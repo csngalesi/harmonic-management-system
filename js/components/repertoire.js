@@ -1428,8 +1428,18 @@
                     .trim());
             }
 
+            // Word-overlap score: common words / max(words1, words2)
+            function wordOverlap(a, b) {
+                const wa = a.split(/\s+/).filter(Boolean);
+                const wb = b.split(/\s+/).filter(Boolean);
+                if (!wa.length || !wb.length) return 0;
+                const setA = new Set(wa);
+                const common = wb.filter(w => setA.has(w)).length;
+                return common / Math.max(wa.length, wb.length);
+            }
+
             // Build match candidates
-            const matches   = [];   // { song, file, url }
+            const matches   = [];   // { song, file, url, level: 'exato'|'parcial'|'aproximado' }
             const unmatched = [];   // filenames with no match
 
             for (const file of files) {
@@ -1439,21 +1449,44 @@
                 const url = urlData?.publicUrl;
                 if (!url) continue;
 
-                // Find best match: exact first, then partial
+                // Tier 1: exact
                 let match = allSongs.find(s => norm(s.title) === base);
+                let level = 'exato';
+
+                // Tier 2: one contains the other
                 if (!match) {
                     match = allSongs.find(s => {
                         const t = norm(s.title);
                         return t.includes(base) || base.includes(t);
                     });
+                    if (match) level = 'parcial';
+                }
+
+                // Tier 3: word overlap ≥ 40%
+                if (!match) {
+                    let best = null, bestScore = 0;
+                    for (const s of allSongs) {
+                        const score = wordOverlap(norm(s.title), base);
+                        if (score >= 0.4 && score > bestScore) {
+                            bestScore = score;
+                            best = s;
+                        }
+                    }
+                    if (best) { match = best; level = 'aproximado'; }
                 }
 
                 if (match) {
-                    matches.push({ song: match, file: file.name, url });
+                    matches.push({ song: match, file: file.name, url, level });
                 } else {
                     unmatched.push(file.name);
                 }
             }
+
+            const BADGE = {
+                exato:      { color: '#22c55e', label: 'Exato' },
+                parcial:    { color: '#f59e0b', label: 'Parcial' },
+                aproximado: { color: '#f97316', label: 'Aprox.' },
+            };
 
             // 3. Show confirmation modal
             window.HMSApp.openModal(`
@@ -1466,6 +1499,11 @@
                         <strong style="color:var(--text-primary);">${matches.length}</strong> correspondências encontradas
                         de <strong style="color:var(--text-primary);">${files.length}</strong> arquivos no bucket.
                         ${unmatched.length ? `<br><span style="color:#f59e0b;">${unmatched.length} sem correspondência.</span>` : ''}
+                        <br><span style="font-size:.72rem;">
+                            <span style="color:#22c55e;">●</span> Exato &nbsp;
+                            <span style="color:#f59e0b;">●</span> Parcial &nbsp;
+                            <span style="color:#f97316;">●</span> Aproximado (desmarcado por padrão)
+                        </span>
                     </p>
                     ${matches.length === 0 ? `
                         <div style="text-align:center;padding:24px 0;color:var(--text-muted);">
@@ -1474,15 +1512,19 @@
                         </div>
                     ` : `
                         <div style="max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:12px;">
-                            ${matches.map((m, i) => `
+                            ${matches.map((m, i) => {
+                                const b = BADGE[m.level];
+                                const checked = m.level !== 'aproximado' ? 'checked' : '';
+                                return `
                                 <div style="display:flex;align-items:center;gap:8px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:8px;padding:8px 12px;">
-                                    <input type="checkbox" class="link-chk" data-idx="${i}" checked />
+                                    <input type="checkbox" class="link-chk" data-idx="${i}" ${checked} />
+                                    <span style="font-size:.7rem;font-weight:700;color:${b.color};white-space:nowrap;background:${b.color}22;border-radius:4px;padding:2px 6px;">${b.label}</span>
                                     <div style="flex:1;min-width:0;">
                                         <div style="font-size:.875rem;font-weight:600;">${esc(m.song.title)}</div>
                                         <div style="font-size:.72rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(m.file)}</div>
                                     </div>
-                                </div>
-                            `).join('')}
+                                </div>`;
+                            }).join('')}
                         </div>
                     `}
                     ${unmatched.length ? `
