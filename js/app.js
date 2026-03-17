@@ -171,7 +171,12 @@
             if (!App._currentRoute) {
                 const hash = location.hash.slice(1);
                 const initial = ROUTES[hash] ? hash : 'repertoire';
+                // replaceState sets entry #1; pushState adds entry #2.
+                // With 2 entries, the first Android back press fires popstate
+                // (goes to #1) instead of exiting the app. The popstate handler
+                // then re-pushes, keeping ≥1 entry at all times.
                 history.replaceState({ route: initial }, '', '#' + initial);
+                history.pushState({ route: initial }, '', '#' + initial);
                 App.navigate(initial, undefined, true);
             }
         },
