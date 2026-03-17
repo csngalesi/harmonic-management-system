@@ -366,9 +366,10 @@
             const cards = sorted.map(s => {
                 const hasHarmony = !!(s.harmony_str && s.harmony_str.trim());
                 const hasLyrics  = !!s.has_lyrics;
-                const isAlert    = !!s.is_alert;
+                const sf         = s.status_flag || 0;
+                const flagTitles = ['Marcar verde', 'Marcar amarelo', 'Marcar vermelho', 'Remover bandeira'];
                 return `
-                <div class="song-card${isAlert ? ' song-alert' : ''}" data-id="${s.id}"
+                <div class="song-card${sf ? ' song-flag-' + sf : ''}" data-id="${s.id}"
                     ${isDragMode ? 'draggable="true"' : ''}>
                     ${isDragMode ? '<span class="drag-handle" title="Arrastar para reordenar"><i class="fa-solid fa-grip-vertical"></i></span>' : ''}
                     <div class="song-info">
@@ -379,8 +380,8 @@
                             ${_state.activeSetlist && s._position !== null ? `<span><i class="fa-solid fa-hashtag fa-xs"></i> ${s._position}</span>` : ''}
                         </div>
                     </div>
-                    <button class="btn-icon alert-flag${isAlert ? ' is-alert' : ''}" data-action="alert" data-id="${s.id}"
-                        title="${isAlert ? 'Remover alerta' : 'Marcar como alerta'}">
+                    <button class="btn-icon alert-flag sf-${sf}" data-action="alert" data-id="${s.id}"
+                        title="${flagTitles[sf]}">
                         <i class="fa-solid fa-flag"></i>
                     </button>
                     <span class="song-key-badge">${esc(s.original_key)}</span>
@@ -429,14 +430,14 @@
             const cells = sorted.map(s => {
                 const hasHarmony = !!(s.harmony_str && s.harmony_str.trim());
                 const hasLyrics  = !!s.has_lyrics;
-                const isAlert    = !!s.is_alert;
-                const rowCls  = isAlert ? 'status-alert' : (hasHarmony ? 'status-ok' : 'status-warn');
-                const keyCls  = (!hasHarmony && !hasLyrics) ? ' key-urgent' : '';
+                const sf         = s.status_flag || 0;
+                const rowCls     = sf ? 'status-flag-' + sf : (hasHarmony ? 'status-ok' : 'status-warn');
+                const keyCls     = (!hasHarmony && !hasLyrics) ? ' key-urgent' : '';
                 return `<div class="show-cell ${rowCls}" data-id="${s.id}"
                     ${isDragMode ? 'draggable="true"' : ''}>
                     <span class="show-title">${esc(s.title)}</span>
                     <span class="show-key${keyCls}">${esc(s.original_key || '?')}</span>
-                    <button class="show-alert-btn${isAlert ? ' active' : ''}" title="${isAlert ? 'Remover alerta' : 'Marcar alerta'}">
+                    <button class="show-alert-btn sf-${sf}" title="Ciclar bandeira">
                         <i class="fa-solid fa-flag"></i>
                     </button>
                 </div>`;
@@ -1490,17 +1491,17 @@
             });
         },
 
-        // ── Alert flag ────────────────────────────────────────────
+        // ── Status flag (0=none 1=green 2=yellow 3=red) ──────────
         _handleToggleAlert: async function (id) {
             const song = _state.songs.find(s => s.id === id);
             if (!song) return;
-            const newVal = !song.is_alert;
+            const newVal = ((song.status_flag || 0) + 1) % 4;
             try {
-                await window.HMSAPI.Songs.update(id, { is_alert: newVal });
-                song.is_alert = newVal;
+                await window.HMSAPI.Songs.update(id, { status_flag: newVal });
+                song.status_flag = newVal;
                 RepertoireComponent._renderSongList();
             } catch (err) {
-                window.HMSApp.showToast('Erro ao atualizar alerta: ' + err.message, 'error');
+                window.HMSApp.showToast('Erro ao atualizar bandeira: ' + err.message, 'error');
             }
         },
 

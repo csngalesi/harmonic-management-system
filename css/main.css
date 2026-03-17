@@ -729,17 +729,26 @@ tbody tr:hover td { background: var(--glass-bg); }
 .flex-center { display: flex; align-items: center; justify-content: center; }
 .flex-gap { display: flex; align-items: center; gap: 8px; }
 
-/* ── Repertoire — Alert flag ───────────────────────────────── */
-.song-card.song-alert { background: #2a2200; border-color: #c9a800 !important; }
-.show-cell.status-alert { background: #2a2200 !important; border-color: #c9a800 !important; }
+/* ── Repertoire — Status flag (0=none 1=green 2=yellow 3=red) ─ */
+.song-card.song-flag-1 { background: #001a00; border-color: #22c55e !important; }
+.song-card.song-flag-2 { background: #2a2200; border-color: #f59e0b !important; }
+.song-card.song-flag-3 { background: #2a0000; border-color: #ef4444 !important; }
 
-.alert-flag { background: none; border: none; cursor: pointer; font-size: .95rem; opacity: .35; padding: 0 3px; transition: opacity .15s; }
-.alert-flag.is-alert { opacity: 1; }
-.alert-flag:hover { opacity: .75; }
+.show-cell.status-flag-1 { background: #002200 !important; border-color: #22c55e !important; }
+.show-cell.status-flag-2 { background: #2a2200 !important; border-color: #f59e0b !important; }
+.show-cell.status-flag-3 { background: #2a0000 !important; border-color: #ef4444 !important; }
 
-.show-alert-btn { position: absolute; top: 4px; right: 4px; background: none; border: none; cursor: pointer; font-size: .85rem; opacity: .35; padding: 0; transition: opacity .15s; }
-.show-alert-btn.active { opacity: 1; }
-.show-alert-btn:hover { opacity: .75; }
+.alert-flag { background: none; border: none; cursor: pointer; font-size: .95rem; opacity: .25; padding: 0 3px; transition: color .15s, opacity .15s; color: var(--text-muted); }
+.alert-flag.sf-1 { opacity: 1; color: #22c55e; }
+.alert-flag.sf-2 { opacity: 1; color: #f59e0b; }
+.alert-flag.sf-3 { opacity: 1; color: #ef4444; }
+.alert-flag:hover { opacity: .7; }
+
+.show-alert-btn { position: absolute; top: 4px; right: 4px; background: none; border: none; cursor: pointer; font-size: .85rem; opacity: .25; padding: 0; transition: color .15s, opacity .15s; color: var(--text-muted); }
+.show-alert-btn.sf-1 { opacity: 1; color: #22c55e; }
+.show-alert-btn.sf-2 { opacity: 1; color: #f59e0b; }
+.show-alert-btn.sf-3 { opacity: 1; color: #ef4444; }
+.show-alert-btn:hover { opacity: .7; }
 
 /* ── Repertoire — Drag & Drop ──────────────────────────────── */
 .drag-handle { cursor: grab; color: var(--text-muted); padding: 0 4px; font-size: .85rem; opacity: .4; }
