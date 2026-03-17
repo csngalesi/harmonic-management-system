@@ -49,7 +49,7 @@
                             <i class="fa-solid fa-chevron-${_state.headerCollapsed ? 'down' : 'up'}"></i>
                         </button>
                     </div>
-                    <div class="page-actions">
+                    <div class="page-actions"${_state.headerCollapsed ? ' style="display:none"' : ''}>
                         <button class="btn btn-secondary${_state.viewMode === 'show' ? ' active' : ''}" id="btn-toggle-show" title="Modo Show — grid condensado">
                             <i class="fa-solid fa-table-cells"></i> Show
                         </button>
@@ -162,8 +162,10 @@
                 const controls = document.getElementById('rep-controls');
                 const btn      = document.getElementById('btn-collapse-header');
                 const sub      = document.querySelector('.page-title p');
+                const actions  = document.querySelector('.page-actions');
                 controls.style.display = _state.headerCollapsed ? 'none' : '';
-                if (sub) sub.style.display = _state.headerCollapsed ? 'none' : '';
+                if (sub)     sub.style.display     = _state.headerCollapsed ? 'none' : '';
+                if (actions) actions.style.display  = _state.headerCollapsed ? 'none' : '';
                 btn.querySelector('i').className = `fa-solid fa-chevron-${_state.headerCollapsed ? 'down' : 'up'}`;
                 btn.title = _state.headerCollapsed ? 'Expandir controles' : 'Minimizar controles';
             });
