@@ -516,14 +516,14 @@
               ).join(' ')
             : `<span style="font-size:.6rem;color:var(--text-muted);">—</span>`;
 
-        // Dur chips: 2n 4n 8n 8n. 16n
-        const durChips = ['2n', '4n', '8n', '8n.', '16n'].map(d =>
+        // Dur chips: 2n 4n 8n 16n  (8n. removed — user types the dot manually)
+        const durChips = ['2n', '4n', '8n', '16n'].map(d =>
             _chipBtn(d, def.dur === d, `class="hm-dur-btn" data-ci="${ci}" data-dur="${d}"`,
-                { '2n': 'Mínima', '4n': 'Semínima', '8n': 'Colcheia', '8n.': 'C. pontuada', '16n': 'Semicolcheia' }[d])
+                { '2n': 'Mínima', '4n': 'Semínima', '8n': 'Colcheia', '16n': 'Semicolcheia' }[d])
         ).join('');
 
-        // Oct chips: -1  0  +1
-        const octChips = [[-1, '-1'], [0, '0'], [1, '+1']].map(([v, label]) =>
+        // Oct chips: -  0  +
+        const octChips = [[-1, '−'], [0, '0'], [1, '+']].map(([v, label]) =>
             _chipBtn(label, def.oct === v, `class="hm-oct-btn" data-ci="${ci}" data-oct="${v}"`,
                 { '-1': 'Oitava grave', '0': 'Oitava padrão', '1': 'Oitava aguda' }[v])
         ).join('');
