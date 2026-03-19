@@ -677,6 +677,20 @@ tbody tr:hover td { background: var(--glass-bg); }
     padding:0 4px; color:var(--text-muted);
     font-size:.75rem; align-self:center;
 }
+.sd-mod {
+    display:inline-block; padding:2px 7px; font-size:.7rem; font-weight:700;
+    color:#a78bfa; background:rgba(167,139,250,0.12);
+    border:1px solid rgba(167,139,250,0.3); border-radius:var(--radius-sm);
+    letter-spacing:.04em; align-self:center;
+}
+/* harmony-mod: same style inside the player chord grid */
+.harmony-mod {
+    display:flex; align-items:center;
+    padding:4px 8px; font-size:.72rem; font-weight:700;
+    color:#a78bfa; background:rgba(167,139,250,0.12);
+    border:1px solid rgba(167,139,250,0.3); border-radius:var(--radius-sm);
+    letter-spacing:.04em; align-self:center; white-space:nowrap;
+}
 
 @media (max-width: 1100px) { .show-grid { grid-template-columns: repeat(3,1fr); } }
 @media (max-width: 700px)  { .show-grid { grid-template-columns: repeat(2,1fr); } }

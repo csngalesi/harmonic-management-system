@@ -109,7 +109,6 @@
         //    appear in user-entered strings or it collides with ¶N¶ substitutions.
         let str = harmonyStr
             .replace(/¶/g, '')
-            .replace(/\s*-\s*/g, ' ')
             .trim();
 
         // 2a. Extract [...]Nx sections BEFORE secDomSlash substitution so the
@@ -133,18 +132,22 @@
         // the global slash injection, which would otherwise break them.
         const secDomSlash = [];
         str = str.replace(
-            /([b#1-7mMho7]+)(\/?)(\(([^)]*)\)|"([^"]*)")/g,
-            (match, prefix, slashPre, _tFull, targetP, targetQ) => {
+            /([b#1-7mMho7/]+)(\/?)(\(([^)]*)\)|"([^"]*)")/g,
+            (match, prefixRaw, slashPre, _tFull, targetP, targetQ) => {
                 const rawTarget = targetP !== undefined ? targetP : (targetQ || '');
-                const slashBeforeTarget = slashPre === '/';
-                const slashAfterTarget = rawTarget.endsWith('/');
+                // Slash before target may be embedded as trailing '/' of the prefix group
+                // (e.g. "2/5/(3/)": prefix captures "2/5/", slashPre captures "")
+                const prefixEndsSlash = prefixRaw.endsWith('/');
+                const cleanPrefix     = prefixEndsSlash ? prefixRaw.slice(0, -1) : prefixRaw;
+                const slashBeforeTarget = prefixEndsSlash || slashPre === '/';
+                const slashAfterTarget  = rawTarget.endsWith('/');
                 if (!slashBeforeTarget && !slashAfterTarget) return match;
-                const showTarget = _tFull[0] === '(';
+                const showTarget  = _tFull[0] === '(';
                 const cleanTarget = rawTarget.replace(/\/$/, '');
                 const i = secDomSlash.length;
                 secDomSlash.push({
                     type: 'SEC_DOM',
-                    prefix: parsePrefixStr(prefix),
+                    prefix: parsePrefixStr(cleanPrefix),
                     target: cleanTarget,
                     showTarget,
                     slashBeforeTarget,
@@ -311,6 +314,7 @@
 
             if (token.type === 'MOD') {
                 applyModulation(token.value, keyState);
+                result.push({ type: 'MOD', value: token.value });
 
             } else if (token.type === 'STRUCT') {
                 result.push({ type: 'STRUCT', value: token.value });
@@ -338,12 +342,21 @@
                         useFlats: keyState.useFlats,
                     };
 
-                    // Render each prefix chord relative to the TARGET key
-                    for (const pd of token.prefix) {
-                        result.push({ type: 'CHORD', value: renderDegreeToken(pd, targetKey) });
+                    // Render each prefix chord relative to the TARGET key.
+                    // parsePrefixStr may include trailing '/' on tokens (e.g. "2/" from "2/5").
+                    // Emit those as STRUCT slashes between prefix chords (but not after the last
+                    // one — slashBeforeTarget handles the gap between last prefix and target).
+                    for (let pi = 0; pi < token.prefix.length; pi++) {
+                        const pd = token.prefix[pi];
+                        const hasSlash = pd.endsWith('/');
+                        const cleanPd  = hasSlash ? pd.slice(0, -1) : pd;
+                        result.push({ type: 'CHORD', value: renderDegreeToken(cleanPd, targetKey) });
+                        if (hasSlash && pi < token.prefix.length - 1) {
+                            result.push({ type: 'STRUCT', value: '/' });
+                        }
                     }
 
-                    // Optional slash between prefix chord(s) and target chord
+                    // Optional slash between last prefix chord and target chord
                     if (token.slashBeforeTarget) {
                         result.push({ type: 'STRUCT', value: '/' });
                     }
