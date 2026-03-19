@@ -41,18 +41,21 @@
         return (!m[1] && qMap[m[2]]) ? qMap[m[2]] : deg;
     }
 
-    // Parse melody string: "1:4n b3:8n 5(-1):4n r:4n"
-    // Token format: [b#]degree[(±oct)]:dur[~]  |  r:dur  (pausa)
+    // Parse melody string: "1:4n b3:8n 5-:4n r:4n"
+    // Token format: [b#]degree[+|-|(±oct)]:dur[~]  |  r:dur  (pausa)
+    // Octave shorthand: "+" = +1, "-" = -1, "(+2)" = +2, etc.
     // dur may be: 1n 2n 4n 4n. 8n 8n. 16n (normal) | 4t 8t 16t (tercinas) | omitted (default 8n)
     // ~ suffix = ligadura (tie to next note)
     function _parseMelodyStr(str, chordName) {
         if (!str || !str.trim()) return [];
         return str.trim().split(/\s+/).map(token => {
-            const m = token.match(/^([b#]?[1-7]|r)(?:\(([+-]?\d+)\))?(?::(1n|2n|4n|4n\.|8n|8n\.|16n|4t|8t|16t))?(~)?$/);
+            const m = token.match(/^([b#]?[1-7]|r)(?:(\+|-|\([+-]?\d+\)))?(?::(1n|2n|4n|4n\.|8n|8n\.|16n|4t|8t|16t))?(~)?$/);
             if (!m) return null;
             if (m[1] === 'r') return { rest: true, dur: m[3] || '8n' };
             const deg = _normalizeDeg(m[1], chordName);
-            const oct = m[2] !== undefined ? parseInt(m[2]) : 0;
+            const octRaw = m[2];
+            const oct = octRaw === '+' ? 1 : octRaw === '-' ? -1
+                      : octRaw ? parseInt(octRaw.replace(/[()]/g, '')) : 0;
             const dur = m[3] || '8n';
             const obj = { deg, oct, dur };
             if (m[4] === '~') obj.tie = true;
@@ -828,7 +831,7 @@
                     if (!/^[b#]?[1-7]$/.test(lastTok)) return;
                     e.preventDefault();
                     const def     = _st.chordDefaults[ci] || { dur: '4n', oct: 0 };
-                    const octStr  = def.oct !== 0 ? `(${def.oct > 0 ? '+' : ''}${def.oct})` : '';
+                    const octStr  = def.oct === 1 ? '+' : def.oct === -1 ? '-' : def.oct !== 0 ? `(${def.oct > 0 ? '+' : ''}${def.oct})` : '';
                     const expanded = lastTok + octStr + ':' + def.dur;
                     const insertAt = before.lastIndexOf(lastTok);
                     const newVal   = inp.value.slice(0, insertAt) + expanded + ' ' + inp.value.slice(pos);
