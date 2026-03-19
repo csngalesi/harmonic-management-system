@@ -9,8 +9,8 @@
  *   '1' '2' 'b3' '3' '4' '#4' '5' 'b6' '6' 'b7' '7'
  *   (b = bemol, # = sustenido)
  *
- * Oitava base = 2  (oct=0 → C2 = MIDI 36 em Tone.js)
- *   oct=-1 → C1 (sub-baixo)   oct=+1 → C3 (médio)
+ * Oitava base = 4  (oct=0 → C4 = MIDI 60 em Tone.js, dó central)
+ *   oct=-1 → C3 (médio-grave)   oct=+1 → C5 (médio-agudo)
  *
  * Formato de texto (parseMelody):
  *   "1:4n 2:4n b3(-1):8n 5:2n"
@@ -32,8 +32,8 @@
         '7' :11,  'b1':11,
     };
 
-    // Em Tone.js: C2 = MIDI 36, C3 = 48, C4 = 60 (middle C)
-    const C2_MIDI = 36;
+    // Em Tone.js: C4 = MIDI 60 (dó central / middle C)
+    const C2_MIDI = 60; // base = C4
 
     function _degSt(deg) {
         const st = DEG_ST[deg];
