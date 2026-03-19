@@ -9,8 +9,8 @@
  *   '1' '2' 'b3' '3' '4' '#4' '5' 'b6' '6' 'b7' '7'
  *   (b = bemol, # = sustenido)
  *
- * Oitava base = 4  (oct=0 → C4 = MIDI 60 em Tone.js, dó central)
- *   oct=-1 → C3 (médio-grave)   oct=+1 → C5 (médio-agudo)
+ * Oitava base = 3  (oct=0 → C3 = MIDI 48 em Tone.js)
+ *   oct=-1 → C2 (grave, 7ª corda)   oct=+1 → C4 (dó central)
  *
  * Formato de texto (parseMelody):
  *   "1:4n 2:4n b3(-1):8n 5:2n"
@@ -32,8 +32,8 @@
         '7' :11,  'b1':11,
     };
 
-    // Em Tone.js: C4 = MIDI 60 (dó central / middle C)
-    const C2_MIDI = 60; // base = C4
+    // Em Tone.js: C3 = MIDI 48 (base do violão de 7 cordas)
+    const C2_MIDI = 48; // base = C3
 
     function _degSt(deg) {
         const st = DEG_ST[deg];
