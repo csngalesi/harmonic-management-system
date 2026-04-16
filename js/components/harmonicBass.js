@@ -1,5 +1,5 @@
 /**
- * HMS — Estudo Harmônico (Linha de Baixo)
+ * HMS — Condução de Baixo
  * Dois graus por acorde · exibição como letras · sem partitura.
  * Exposed via window.HarmonicBassComponent
  */
@@ -213,7 +213,7 @@
                 <div class="page-title">
                     <div class="page-title-icon"><i class="fa-solid fa-bass-guitar"></i></div>
                     <div>
-                        <h2>Estudo Harmônico — Linha de Baixo</h2>
+                        <h2>Condução de Baixo</h2>
                         <p>Dois graus por acorde · exibição como letras</p>
                     </div>
                 </div>
@@ -524,7 +524,7 @@
                     <div class="page-title">
                         <div class="page-title-icon"><i class="fa-solid fa-folder-open"></i></div>
                         <div>
-                            <h2>Estudos de Baixo Salvos</h2>
+                            <h2>Conduções de Baixo Salvas</h2>
                             <p>Linhas de baixo por acorde</p>
                         </div>
                     </div>
