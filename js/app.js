@@ -77,6 +77,7 @@
         fretboard7:     window.Fretboard7Component,
         melodicStudies:   window.MelodicStudiesComponent,
         harmonicMelodic:  window.HarmonicMelodicComponent,
+        harmonicBass:     window.HarmonicBassComponent,
     };
 
     // ── App Controller ───────────────────────────────────────────

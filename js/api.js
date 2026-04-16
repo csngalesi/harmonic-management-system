@@ -231,6 +231,7 @@
             const { data, error } = await db()
                 .from('harmonic_melodic_studies')
                 .select('id, user_id, title, root, is_minor, harmony, bpm, note_dur, slots, created_at')
+                .neq('note_dur', 'bass')
                 .order('created_at', { ascending: false });
             if (error) throw error;
             return data || [];
@@ -256,7 +257,36 @@
         },
     };
 
-    window.HMSAPI = { Songs, Setlists, Profile, MelodicPhrases, HarmonicStudies };
+    const BassStudies = {
+        async getAll() {
+            const { data, error } = await db()
+                .from('harmonic_melodic_studies')
+                .select('id, user_id, title, root, is_minor, harmony, bpm, note_dur, slots, created_at')
+                .eq('note_dur', 'bass')
+                .order('created_at', { ascending: false });
+            if (error) throw error;
+            return data || [];
+        },
+        async create(payload) {
+            const user = await window.HMSAuth.currentUser();
+            const { data, error } = await db()
+                .from('harmonic_melodic_studies')
+                .insert({ ...payload, user_id: user.id })
+                .select()
+                .single();
+            if (error) throw error;
+            return data;
+        },
+        async delete(id) {
+            const { error } = await db()
+                .from('harmonic_melodic_studies')
+                .delete()
+                .eq('id', id);
+            if (error) throw error;
+        },
+    };
+
+    window.HMSAPI = { Songs, Setlists, Profile, MelodicPhrases, HarmonicStudies, BassStudies };
 
     console.info('[HMS] API module loaded.');
 })();
