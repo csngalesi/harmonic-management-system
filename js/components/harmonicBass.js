@@ -138,7 +138,7 @@
         const isPlaying2 = _st.playingCi === ci && _st.playingSlot === 1;
 
         const noteStyle = (active) =>
-            `font-size:1.1rem;font-weight:800;font-family:var(--font-mono);` +
+            `font-size:.8rem;font-weight:800;font-family:var(--font-mono);` +
             `color:${active ? '#fff' : 'var(--chord-blue,#60a5fa)'};` +
             `background:${active ? 'var(--brand,#7c3aed)' : 'transparent'};` +
             `border-radius:4px;padding:1px 4px;min-width:28px;text-align:center;` +
@@ -151,7 +151,7 @@
             background:var(--bg-surface);overflow:hidden;">
             <div style="padding:4px 6px 3px;display:flex;align-items:center;gap:4px;
                 border-bottom:1px solid var(--line-color);background:var(--bg-raised);">
-                <span style="font-family:var(--font-mono);font-size:.8rem;font-weight:700;color:${color};">${esc(chord)}</span>
+                <span style="font-family:var(--font-mono);font-size:1.1rem;font-weight:700;color:${color};">${esc(chord)}</span>
                 <span style="flex:1;"></span>
                 <button class="hb-play-chord btn btn-ghost" data-ci="${ci}"
                     style="padding:0px 5px;font-size:.6rem;">
