@@ -32,8 +32,8 @@
         '7' :11,  'b1':11,
     };
 
-    // Em Tone.js: C3 = MIDI 48 (base do violão de 7 cordas)
-    const C2_MIDI = 48; // base = C3
+    // Em Tone.js: C2 = MIDI 36 (base do violão de 7 cordas — 7ª corda aberta)
+    const C2_MIDI = 36; // base = C2
 
     function _degSt(deg) {
         const st = DEG_ST[deg];
