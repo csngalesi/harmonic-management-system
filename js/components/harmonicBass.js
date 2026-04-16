@@ -138,53 +138,52 @@
         const isPlaying2 = _st.playingCi === ci && _st.playingSlot === 1;
 
         const noteStyle = (active) =>
-            `font-size:2rem;font-weight:800;font-family:var(--font-mono);` +
+            `font-size:1.1rem;font-weight:800;font-family:var(--font-mono);` +
             `color:${active ? '#fff' : 'var(--chord-blue,#60a5fa)'};` +
             `background:${active ? 'var(--brand,#7c3aed)' : 'transparent'};` +
-            `border-radius:6px;padding:2px 8px;min-width:48px;text-align:center;` +
+            `border-radius:4px;padding:1px 4px;min-width:28px;text-align:center;` +
             `transition:background .15s,color .15s;`;
 
         return `
         <div class="hb-card" data-ci="${ci}"
-            style="flex-shrink:0;min-width:150px;max-width:200px;border-radius:8px;
+            style="flex-shrink:0;min-width:80px;max-width:120px;border-radius:8px;
             border:1px solid var(--glass-border,rgba(255,255,255,.08));
             background:var(--bg-surface);overflow:hidden;">
-            <div style="padding:6px 10px 5px;display:flex;align-items:center;gap:6px;
+            <div style="padding:4px 6px 3px;display:flex;align-items:center;gap:4px;
                 border-bottom:1px solid var(--line-color);background:var(--bg-raised);">
-                <span style="font-family:var(--font-mono);font-size:.95rem;font-weight:700;color:${color};">${esc(chord)}</span>
-                <span style="font-size:.65rem;color:var(--text-muted);">acorde ${ci+1}</span>
+                <span style="font-family:var(--font-mono);font-size:.8rem;font-weight:700;color:${color};">${esc(chord)}</span>
                 <span style="flex:1;"></span>
                 <button class="hb-play-chord btn btn-ghost" data-ci="${ci}"
-                    style="padding:1px 7px;font-size:.7rem;">
+                    style="padding:0px 5px;font-size:.6rem;">
                     <i class="fa-solid fa-play"></i>
                 </button>
             </div>
             <div style="display:flex;align-items:stretch;gap:0;">
                 <!-- Slot 1 -->
                 <div style="flex:1;display:flex;flex-direction:column;align-items:center;
-                    padding:10px 6px 10px;border-right:1px solid var(--line-color);">
+                    padding:5px 4px 6px;border-right:1px solid var(--line-color);">
                     <input class="hb-deg-input" data-ci="${ci}" data-slot="0"
                         value="${esc(slot.n1)}"
                         placeholder="1"
                         style="width:100%;box-sizing:border-box;text-align:center;background:var(--bg-raised);
-                        border:1px solid var(--glass-border);border-radius:4px;outline:none;
-                        font-family:var(--font-mono);font-size:.8rem;font-weight:600;
-                        color:var(--text-primary);padding:3px 4px;margin-bottom:8px;" />
+                        border:1px solid var(--glass-border);border-radius:3px;outline:none;
+                        font-family:var(--font-mono);font-size:.7rem;font-weight:600;
+                        color:var(--text-primary);padding:2px 2px;margin-bottom:4px;" />
                     <div id="hb-letter-${ci}-0" style="${noteStyle(isPlaying1)}">${esc(letter1)||'—'}</div>
-                    <div style="font-size:.6rem;color:var(--text-muted);margin-top:4px;">1º tempo</div>
+                    <div style="font-size:.5rem;color:var(--text-muted);margin-top:2px;">T1</div>
                 </div>
                 <!-- Slot 2 -->
                 <div style="flex:1;display:flex;flex-direction:column;align-items:center;
-                    padding:10px 6px 10px;">
+                    padding:5px 4px 6px;">
                     <input class="hb-deg-input" data-ci="${ci}" data-slot="1"
                         value="${esc(slot.n2)}"
                         placeholder="5"
                         style="width:100%;box-sizing:border-box;text-align:center;background:var(--bg-raised);
-                        border:1px solid var(--glass-border);border-radius:4px;outline:none;
-                        font-family:var(--font-mono);font-size:.8rem;font-weight:600;
-                        color:var(--text-primary);padding:3px 4px;margin-bottom:8px;" />
+                        border:1px solid var(--glass-border);border-radius:3px;outline:none;
+                        font-family:var(--font-mono);font-size:.7rem;font-weight:600;
+                        color:var(--text-primary);padding:2px 2px;margin-bottom:4px;" />
                     <div id="hb-letter-${ci}-1" style="${noteStyle(isPlaying2)}">${esc(letter2)||'—'}</div>
-                    <div style="font-size:.6rem;color:var(--text-muted);margin-top:4px;">2º tempo</div>
+                    <div style="font-size:.5rem;color:var(--text-muted);margin-top:2px;">T2</div>
                 </div>
             </div>
         </div>`;
@@ -264,7 +263,7 @@
 
             <!-- Chord grid -->
             <div id="hb-chord-grid"
-                style="display:flex;flex-wrap:wrap;gap:10px;padding-bottom:6px;margin-bottom:.75rem;
+                style="display:flex;flex-wrap:wrap;gap:6px;padding-bottom:6px;margin-bottom:.75rem;
                 align-items:flex-start;">
                 ${chordsHtml}
             </div>
