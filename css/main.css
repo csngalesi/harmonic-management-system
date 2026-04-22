@@ -632,6 +632,20 @@ tbody tr:hover td { background: var(--glass-bg); }
 }
 .show-key.key-urgent { background: rgba(239,68,68,0.5); color:#fff; }
 
+/* ── Show key colours ───────────────────────────────────────── */
+.show-key[data-key="C"]   { background: rgba(185,28,28,.55);  color:#fca5a5; }
+.show-key[data-key="Cm"]  { background: rgba(185,28,28,.22);  color:#fca5a5; }
+.show-key[data-key="D"]   { background: rgba(161,98,7,.55);   color:#fde68a; }
+.show-key[data-key="Dm"]  { background: rgba(161,98,7,.22);   color:#fde68a; }
+.show-key[data-key="E"]   { background: rgba(21,128,61,.55);  color:#86efac; }
+.show-key[data-key="Em"]  { background: rgba(21,128,61,.22);  color:#86efac; }
+.show-key[data-key="F"]   { background: rgba(120,53,15,.65);  color:#d4a06a; }
+.show-key[data-key="Fm"]  { background: rgba(120,53,15,.28);  color:#d4a06a; }
+.show-key[data-key="G"]   { background: rgba(29,78,216,.55);  color:#93c5fd; }
+.show-key[data-key="Gm"]  { background: rgba(29,78,216,.22);  color:#93c5fd; }
+.show-key[data-key="A"]   { background: rgba(190,24,93,.55);  color:#f9a8d4; }
+.show-key[data-key="Am"]  { background: rgba(190,24,93,.22);  color:#f9a8d4; }
+
 /* ── Show Detail Modal ─────────────────────────────────────── */
 .sd-modal { display:flex; flex-direction:column; min-width:320px; max-width:580px; }
 .sd-header {
