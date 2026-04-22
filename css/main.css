@@ -666,6 +666,12 @@ tbody tr:hover td { background: var(--glass-bg); }
     .sd-title { font-size: 1.2rem; }
     .sd-tab { font-size: .9rem; padding: 10px 18px; }
     .sd-header { padding: 20px 28px 16px; }
+    .harmony-preview { font-size: 1.75rem; }
+    .sd-chord { font-size: 1.7rem; padding: 6px 18px; }
+    .sd-label { font-size: 1.44rem; padding: 5px 14px; }
+    .sd-sep   { font-size: 1.5rem; }
+    .sd-mod   { font-size: 1.4rem; padding: 4px 12px; }
+    .sd-chords { gap: 10px; }
 }
 .sd-chords { display:flex; flex-wrap:wrap; gap:6px; }
 .sd-chord {
