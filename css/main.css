@@ -471,7 +471,7 @@ tbody tr:hover td { background: var(--glass-bg); }
 /* .chord-cell.label kept for legacy — new text annotations use .harmony-text */
 .harmony-text {
     display: flex; align-items: center;
-    color: var(--text-muted); font-size: 0.85rem; font-style: italic;
+    color: var(--chord-amber); font-size: 0.85rem;
     padding: 4px 6px; align-self: center; white-space: nowrap;
 }
 .chord-cell.chord-highlight { color: var(--chord-amber); border-color: var(--chord-amber); background: rgba(251,191,36,.08); }
@@ -690,10 +690,8 @@ tbody tr:hover td { background: var(--glass-bg); }
     font-size:1.7rem; color:var(--chord-green);
 }
 .sd-label {
-    display:inline-block; padding:5px 14px; font-size:1.44rem; font-weight:600;
-    text-transform:uppercase; letter-spacing:.05em;
-    color:var(--chord-amber); background:rgba(251,191,36,0.1);
-    border-radius:var(--radius-sm);
+    display:inline-block; padding:2px 6px; font-size:1.1rem; font-weight:500;
+    color:var(--chord-amber);
 }
 .sd-sep {
     display:inline-flex; align-items:center;

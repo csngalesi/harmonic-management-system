@@ -1724,7 +1724,7 @@
                     const tokens = window.HarmonyEngine.translate(norm, root, isMinor);
                     return tokens.map(t => {
                         if (t.type === 'STRUCT') return t.value;
-                        if (t.type === 'LABEL')  return '[' + t.value + ']';
+                        if (t.type === 'LABEL')  return t.value;
                         if (t.type === 'MOD')    return '!' + t.value + '!';
                         return t.value;
                     }).join(' ');
