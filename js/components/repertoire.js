@@ -513,6 +513,7 @@
             const isMinor  = origKey.endsWith('m');
             const root     = origKey.replace(/m$/, '');
             const tokens   = window.HarmonyEngine.translate(song.harmony_str || '', root, isMinor);
+            const funcToks = window.HarmonyEngine.tokenize(song.harmony_str || '');
 
             const SD_KEYS = window.HarmonyEngine.allKeys();
             const keyOptionsHtml = SD_KEYS.map(k =>
@@ -525,7 +526,16 @@
                         if (t.type === 'LABEL')  return `<span class="sd-label">${esc(t.value)}</span>`;
                         if (t.type === 'STRUCT') return `<span class="sd-sep">${esc(t.value) || '·'}</span>`;
                         if (t.type === 'MOD')    return `<span class="sd-mod">${esc('!' + t.value + '!')}</span>`;
-                        return `<span class="sd-chord">${esc(t.value)}</span>`;
+                        if (t.type === 'SECTION') {
+                            const wrap = t.style === '[' ? `[${t.content}]${t.times}x` : `{${t.content}}x${t.times}`;
+                            return `<span class="sd-label">${esc(wrap)}</span>`;
+                        }
+                        if (t.type === 'DOT_DEGREE') return `<span class="sd-chord">${esc(t.outer + '.' + t.inner)}</span>`;
+                        if (t.type === 'SEC_DOM') {
+                            const prefix = (t.prefix || []).join('');
+                            return `<span class="sd-chord">${esc(prefix + (t.showTarget ? '(' + t.target + ')' : t.target))}</span>`;
+                        }
+                        return `<span class="sd-chord">${esc(t.value || '')}</span>`;
                       }).join('')
                     : `<span style="color:var(--text-muted);font-size:.85rem;">Sem harmonia cadastrada.</span>`;
             }
@@ -550,7 +560,7 @@
                     </div>
                     <div class="sd-body">
                         <div class="sd-pane active" id="sd-pane-func">
-                            <div class="harmony-preview">${esc(song.harmony_str || 'Sem harmonia cadastrada.')}</div>
+                            <div class="sd-chords">${buildChordsHtml(funcToks)}</div>
                         </div>
                         <div class="sd-pane" id="sd-pane-acor">
                             <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">

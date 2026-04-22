@@ -756,6 +756,9 @@
 
         allKeys,
 
+        /** Returns raw functional tokens (no transposition). */
+        tokenize,
+
         // For unit testing
         _noteToIdx: noteToIdx,
         _idxToNote: idxToNote,
