@@ -1659,28 +1659,27 @@
                             Todas as harmonias estão higienizadas!
                         </div>
                     ` : `
-                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
                             <input type="checkbox" id="chk-select-all" checked />
                             <label for="chk-select-all" style="font-size:.82rem;color:var(--text-secondary);cursor:pointer;">Selecionar todas (${total})</label>
+                            <input type="text" id="hygiene-search" class="form-input" placeholder="Pesquisar por nome…"
+                                style="flex:1;padding:4px 10px;font-size:.82rem;" />
                         </div>
-                        <div id="hygiene-list" style="max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;">
+                        <div id="hygiene-list" style="max-height:400px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;">
                             ${candidates.map((s, idx) => `
-                                <div style="background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:8px;padding:10px 12px;">
-                                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+                                <div class="hygiene-card" data-idx="${idx}" data-title="${esc((s.title || '').toLowerCase())}"
+                                    style="background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:8px;padding:10px 12px;">
+                                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
                                         <input type="checkbox" class="hygiene-chk" data-idx="${idx}" checked />
                                         <strong style="font-size:.875rem;">${esc(s.title)}</strong>
                                         ${s.artist ? `<span style="font-size:.78rem;color:var(--text-muted);">— ${esc(s.artist)}</span>` : ''}
+                                        ${s.original_key ? `<span style="font-size:.72rem;font-family:var(--font-mono);background:var(--glass-bg);border:1px solid var(--glass-border);padding:1px 6px;border-radius:4px;margin-left:auto;">${esc(s.original_key)}</span>` : ''}
                                     </div>
-                                    <div style="font-size:.72rem;font-family:var(--font-mono);line-height:1.9;display:flex;flex-direction:column;gap:3px;">
-                                        <div style="color:var(--text-secondary);">+ ${esc(s.harmony_str)}</div>
-                                        <div style="color:#f87171;opacity:.75;">− ${esc(s._sanitized)}</div>
-                                        <div style="display:flex;align-items:center;gap:6px;">
-                                            <span style="color:var(--text-muted);">--</span>
-                                            <input class="hygiene-edit form-input" data-idx="${idx}"
-                                                value="${esc(s._sanitized)}"
-                                                style="flex:1;font-family:var(--font-mono);font-size:.72rem;padding:3px 7px;background:var(--bg-raised);border-radius:4px;" />
-                                        </div>
-                                    </div>
+                                    <input class="hygiene-edit form-input" data-idx="${idx}"
+                                        value="${esc(s._sanitized)}"
+                                        style="width:100%;font-family:var(--font-mono);font-size:.78rem;padding:4px 8px;background:var(--bg-raised);border-radius:4px;margin-bottom:5px;" />
+                                    <div class="hygiene-acor" data-idx="${idx}"
+                                        style="font-size:.72rem;color:var(--chord-green);font-family:var(--font-mono);min-height:1.2em;opacity:.8;padding:2px 2px;word-break:break-word;"></div>
                                 </div>
                             `).join('')}
                         </div>
@@ -1702,8 +1701,44 @@
             document.getElementById('modal-cancel-btn').addEventListener('click', window.HMSApp.closeModal);
 
             if (total > 0) {
+                // Search filter
+                document.getElementById('hygiene-search').addEventListener('input', (e) => {
+                    const q = e.target.value.toLowerCase();
+                    document.querySelectorAll('.hygiene-card').forEach(card => {
+                        card.style.display = (card.dataset.title || '').includes(q) ? '' : 'none';
+                    });
+                });
+
+                // Select all
                 document.getElementById('chk-select-all').addEventListener('change', (e) => {
                     document.querySelectorAll('.hygiene-chk').forEach(chk => { chk.checked = e.target.checked; });
+                });
+
+                // Chord preview helper
+                function renderAcorPreview(harmStr, originalKey) {
+                    const key = originalKey || 'C';
+                    const isMinor = key.endsWith('m');
+                    const root = key.replace(/m$/, '');
+                    const norm = (harmStr || '').replace(/(?<![b#0-9mMho7])\((\S+?)\/\)/g, '$1 /');
+                    const tokens = window.HarmonyEngine.translate(norm, root, isMinor);
+                    return tokens.map(t => {
+                        if (t.type === 'STRUCT') return t.value;
+                        if (t.type === 'LABEL')  return '[' + t.value + ']';
+                        if (t.type === 'MOD')    return '!' + t.value + '!';
+                        return t.value;
+                    }).join(' ');
+                }
+
+                // Render initial previews + wire live update
+                candidates.forEach((s, idx) => {
+                    const acorEl = document.querySelector(`.hygiene-acor[data-idx="${idx}"]`);
+                    const editEl = document.querySelector(`.hygiene-edit[data-idx="${idx}"]`);
+                    if (acorEl && editEl) {
+                        acorEl.textContent = renderAcorPreview(editEl.value, s.original_key);
+                        editEl.addEventListener('input', () => {
+                            acorEl.textContent = renderAcorPreview(editEl.value, s.original_key);
+                        });
+                    }
                 });
 
                 document.getElementById('btn-apply-hygiene').addEventListener('click', () => {
