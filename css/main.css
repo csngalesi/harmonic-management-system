@@ -666,22 +666,17 @@ tbody tr:hover td { background: var(--glass-bg); }
     .sd-title { font-size: 1.2rem; }
     .sd-tab { font-size: .9rem; padding: 10px 18px; }
     .sd-header { padding: 20px 28px 16px; }
-    .harmony-preview { font-size: 1.75rem; }
-    .sd-chord { font-size: 1.7rem; padding: 6px 18px; }
-    .sd-label { font-size: 1.44rem; padding: 5px 14px; }
-    .sd-sep   { font-size: 1.5rem; }
-    .sd-mod   { font-size: 1.4rem; padding: 4px 12px; }
-    .sd-chords { gap: 10px; }
 }
-.sd-chords { display:flex; flex-wrap:wrap; gap:6px; }
+
+.sd-chords { display:flex; flex-wrap:wrap; gap:10px; }
 .sd-chord {
-    display:inline-block; padding:4px 10px;
+    display:inline-block; padding:6px 18px;
     background:var(--glass-bg); border:1px solid var(--glass-border);
     border-radius:var(--radius-sm); font-family:var(--font-mono);
-    font-size:.85rem; color:var(--chord-green);
+    font-size:1.7rem; color:var(--chord-green);
 }
 .sd-label {
-    display:inline-block; padding:3px 8px; font-size:.72rem; font-weight:600;
+    display:inline-block; padding:5px 14px; font-size:1.44rem; font-weight:600;
     text-transform:uppercase; letter-spacing:.05em;
     color:var(--chord-amber); background:rgba(251,191,36,0.1);
     border-radius:var(--radius-sm);
@@ -689,10 +684,10 @@ tbody tr:hover td { background: var(--glass-bg); }
 .sd-sep {
     display:inline-flex; align-items:center;
     padding:0 4px; color:var(--text-muted);
-    font-size:.75rem; align-self:center;
+    font-size:1.5rem; align-self:center;
 }
 .sd-mod {
-    display:inline-block; padding:2px 7px; font-size:.7rem; font-weight:700;
+    display:inline-block; padding:4px 12px; font-size:1.4rem; font-weight:700;
     color:#a78bfa; background:rgba(167,139,250,0.12);
     border:1px solid rgba(167,139,250,0.3); border-radius:var(--radius-sm);
     letter-spacing:.04em; align-self:center;
@@ -732,7 +727,7 @@ tbody tr:hover td { background: var(--glass-bg); }
 
 /* ── Harmony String Preview ────────────────────────────────── */
 .harmony-preview {
-    font-family: var(--font-mono); font-size: .875rem;
+    font-family: var(--font-mono); font-size: 1.75rem;
     color: var(--text-secondary); background: var(--bg-deep);
     border: 1px solid var(--glass-border); border-radius: var(--radius-sm);
     padding: 10px 14px;
