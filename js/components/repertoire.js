@@ -99,6 +99,7 @@
                             <i class="fa-solid fa-magnifying-glass"></i>
                         </button>
                     </div>
+                    <div style="text-align:right;font-size:.75rem;color:var(--text-muted);margin-top:4px;" id="song-count"></div>
                 </div>
 
                 <!-- Filter bar -->
@@ -386,6 +387,9 @@
                 if (va > vb) return _state.sortDir === 'asc' ?  1 : -1;
                 return 0;
             });
+
+            const countEl = document.getElementById('song-count');
+            if (countEl) countEl.textContent = `${sorted.length} música${sorted.length !== 1 ? 's' : ''}`;
 
             if (sorted.length === 0) {
                 el.innerHTML = `
