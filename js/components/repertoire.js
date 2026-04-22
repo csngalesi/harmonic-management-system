@@ -1675,6 +1675,7 @@
                                         ${s.artist ? `<span style="font-size:.78rem;color:var(--text-muted);">— ${esc(s.artist)}</span>` : ''}
                                         ${s.original_key ? `<span style="font-size:.72rem;font-family:var(--font-mono);background:var(--glass-bg);border:1px solid var(--glass-border);padding:1px 6px;border-radius:4px;margin-left:auto;">${esc(s.original_key)}</span>` : ''}
                                     </div>
+                                    <div style="font-family:var(--font-mono);font-size:.75rem;color:var(--text-secondary);background:var(--bg-deep);border:1px solid var(--glass-border);border-radius:4px;padding:5px 8px;margin-bottom:5px;line-height:1.6;word-break:break-all;">${esc(s._sanitized)}</div>
                                     <input class="hygiene-edit form-input" data-idx="${idx}"
                                         value="${esc(s._sanitized)}"
                                         style="width:100%;font-family:var(--font-mono);font-size:.78rem;padding:4px 8px;background:var(--bg-raised);border-radius:4px;margin-bottom:5px;" />
