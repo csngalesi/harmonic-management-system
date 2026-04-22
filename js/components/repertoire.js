@@ -514,7 +514,7 @@
             const root     = origKey.replace(/m$/, '');
             // Normalize standalone (X/) shorthand (e.g. "(3/)" = "3rd degree + repeat") → "3 /"
             // Negative lookbehind ensures we don't touch SEC_DOM targets like 25(4/)
-            const harmNorm = (song.harmony_str || '').replace(/(?<![b#0-9mMho7])\((\S+?)\/\)/g, '$1 /');
+            const harmNorm = (song.harmony_str || '').replace(/(?<![b#0-9mMho7/])\((\S+?)\/\)/g, '$1 /');
             const tokens   = window.HarmonyEngine.translate(harmNorm, root, isMinor);
 
             const SD_KEYS = window.HarmonyEngine.allKeys();
