@@ -512,8 +512,9 @@
             const origKey  = song.original_key || 'C';
             const isMinor  = origKey.endsWith('m');
             const root     = origKey.replace(/m$/, '');
-            // Normalize (X/) shorthand (e.g. "(3/)" = "3rd degree + repeat") → "3 /"
-            const harmNorm = (song.harmony_str || '').replace(/\((\S+?)\/\)/g, '$1 /');
+            // Normalize standalone (X/) shorthand (e.g. "(3/)" = "3rd degree + repeat") → "3 /"
+            // Negative lookbehind ensures we don't touch SEC_DOM targets like 25(4/)
+            const harmNorm = (song.harmony_str || '').replace(/(?<![b#0-9mMho7])\((\S+?)\/\)/g, '$1 /');
             const tokens   = window.HarmonyEngine.translate(harmNorm, root, isMinor);
 
             const SD_KEYS = window.HarmonyEngine.allKeys();
