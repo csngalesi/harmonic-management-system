@@ -702,6 +702,7 @@ tbody tr:hover td { background: var(--glass-bg); }
 }
 
 @media (min-width: 768px)  { .show-grid { grid-template-columns: repeat(5,1fr); } }
+@media (min-width: 768px)  { .show-cell { padding: 4px 6px; gap: 4px; } .show-title { font-size: .72rem; } .show-key { font-size: .68rem; padding: 1px 4px; } }
 @media (max-width: 767px)  { .show-grid { grid-template-columns: repeat(2,1fr); } }
 
 /* ── Setlist Sidebar ───────────────────────────────────────── */
