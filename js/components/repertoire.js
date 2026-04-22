@@ -513,13 +513,27 @@
             const isMinor  = origKey.endsWith('m');
             const root     = origKey.replace(/m$/, '');
             const tokens   = window.HarmonyEngine.translate(song.harmony_str || '', root, isMinor);
-            const funcToks = window.HarmonyEngine.tokenize(song.harmony_str || '');
 
             const SD_KEYS = window.HarmonyEngine.allKeys();
             const keyOptionsHtml = SD_KEYS.map(k =>
                 `<option value="${k.value}"${k.value === origKey ? ' selected' : ''}>${k.label}</option>`
             ).join('');
 
+            // Harm Func: render raw DB string as chips, no engine interpretation
+            function buildFuncHtml(str) {
+                const parts = (str || '').trim().split(/\s+/).filter(Boolean);
+                if (!parts.length) return `<span style="color:var(--text-muted);font-size:.85rem;">Sem harmonia cadastrada.</span>`;
+                return parts.map(p => {
+                    if (p === '-' || p === '+') return `<span class="sd-sep">${esc(p)}</span>`;
+                    if (p.startsWith('!') && p.endsWith('!') && p.length > 2)
+                        return `<span class="sd-mod">${esc(p)}</span>`;
+                    if (p.startsWith('$') && p.endsWith('$') && p.length > 2)
+                        return `<span class="sd-label">${esc(p.slice(1, -1))}</span>`;
+                    return `<span class="sd-chord">${esc(p)}</span>`;
+                }).join('');
+            }
+
+            // Harm Acor: render translated tokens as chips
             function buildChordsHtml(toks) {
                 return toks.length
                     ? toks.map(t => {
@@ -528,15 +542,6 @@
                             ? `<span class="sd-chord">/</span>`
                             : `<span class="sd-sep">${esc(t.value) || '·'}</span>`;
                         if (t.type === 'MOD')    return `<span class="sd-mod">${esc('!' + t.value + '!')}</span>`;
-                        if (t.type === 'SECTION') {
-                            const wrap = t.style === '[' ? `[${t.content}]${t.times}x` : `{${t.content}}x${t.times}`;
-                            return `<span class="sd-label">${esc(wrap)}</span>`;
-                        }
-                        if (t.type === 'DOT_DEGREE') return `<span class="sd-chord">${esc(t.outer + '.' + t.inner)}</span>`;
-                        if (t.type === 'SEC_DOM') {
-                            const prefix = (t.prefix || []).join('');
-                            return `<span class="sd-chord">${esc(prefix + (t.showTarget ? '(' + t.target + ')' : t.target))}</span>`;
-                        }
                         return `<span class="sd-chord">${esc(t.value || '')}</span>`;
                       }).join('')
                     : `<span style="color:var(--text-muted);font-size:.85rem;">Sem harmonia cadastrada.</span>`;
@@ -562,7 +567,7 @@
                     </div>
                     <div class="sd-body">
                         <div class="sd-pane active" id="sd-pane-func">
-                            <div class="sd-chords">${buildChordsHtml(funcToks)}</div>
+                            <div class="sd-chords">${buildFuncHtml(song.harmony_str)}</div>
                         </div>
                         <div class="sd-pane" id="sd-pane-acor">
                             <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
