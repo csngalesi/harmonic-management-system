@@ -524,7 +524,9 @@
                 return toks.length
                     ? toks.map(t => {
                         if (t.type === 'LABEL')  return `<span class="sd-label">${esc(t.value)}</span>`;
-                        if (t.type === 'STRUCT') return `<span class="sd-sep">${esc(t.value) || '·'}</span>`;
+                        if (t.type === 'STRUCT') return t.value === '/'
+                            ? `<span class="sd-chord">/</span>`
+                            : `<span class="sd-sep">${esc(t.value) || '·'}</span>`;
                         if (t.type === 'MOD')    return `<span class="sd-mod">${esc('!' + t.value + '!')}</span>`;
                         if (t.type === 'SECTION') {
                             const wrap = t.style === '[' ? `[${t.content}]${t.times}x` : `{${t.content}}x${t.times}`;
