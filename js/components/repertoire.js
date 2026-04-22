@@ -532,6 +532,9 @@
                         return `<span class="sd-mod">${esc(p)}</span>`;
                     if (p.startsWith('$') && p.endsWith('$') && p.length > 2)
                         return `<span class="sd-label">${esc(p.slice(1, -1))}</span>`;
+                    // Free text: doesn't start with a harmonic degree or special symbol
+                    if (!/^[b#]?[1-7]|^[/()\[\]!$]/.test(p))
+                        return `<span class="sd-label">${esc(p)}</span>`;
                     return `<span class="sd-chord">${esc(p)}</span>`;
                 }).join('');
             }
