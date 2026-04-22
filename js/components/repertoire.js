@@ -512,7 +512,9 @@
             const origKey  = song.original_key || 'C';
             const isMinor  = origKey.endsWith('m');
             const root     = origKey.replace(/m$/, '');
-            const tokens   = window.HarmonyEngine.translate(song.harmony_str || '', root, isMinor);
+            // Normalize (X/) shorthand (e.g. "(3/)" = "3rd degree + repeat") → "3 /"
+            const harmNorm = (song.harmony_str || '').replace(/\((\S+?)\/\)/g, '$1 /');
+            const tokens   = window.HarmonyEngine.translate(harmNorm, root, isMinor);
 
             const SD_KEYS = window.HarmonyEngine.allKeys();
             const keyOptionsHtml = SD_KEYS.map(k =>
