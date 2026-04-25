@@ -1,6 +1,8 @@
 /**
  * HMS — Condução de Baixo
- * Dois graus por acorde · exibição como letras · sem partitura.
+ * Dois grupos de graus por acorde (B1, B2) · até 4 graus/silêncios por grupo.
+ * Playback divide o tempo pelo número de notas: 2=colcheias, 3=tercinas, 4=semicolcheias.
+ * Notas no registro grave (violão de 7 cordas).
  * Exposed via window.HarmonicBassComponent
  */
 (function () {
@@ -51,25 +53,42 @@
         if (!rawDeg || !rawDeg.trim()) return '';
         const deg = _normalizeDeg(rawDeg.trim(), chordName);
         const { root } = _parseChordName(chordName);
-        const rootIdx = _NOTE_NAMES.indexOf(root);
+        const rootIdx     = _NOTE_NAMES.indexOf(root);
         const rootIdxFlat = _FLAT_NAMES.indexOf(root);
-        const ri = rootIdx >= 0 ? rootIdx : (rootIdxFlat >= 0 ? rootIdxFlat : 0);
-        const st = DEG_ST[deg] ?? 0;
+        const ri  = rootIdx >= 0 ? rootIdx : (rootIdxFlat >= 0 ? rootIdxFlat : 0);
+        const st  = DEG_ST[deg] ?? 0;
         const idx = (ri + st) % 12;
-        // Prefer flat names for flat-based keys
         const useFlatKey = ['F','Bb','Eb','Ab','Db','Gb'].includes(root) || deg.startsWith('b');
         return useFlatKey ? _FLAT_NAMES[idx] : _NOTE_NAMES[idx];
     }
 
-    function _degToNote(rawDeg, chordName) {
-        // Returns a Tone.js note string (with octave) for playback
-        if (!rawDeg || !rawDeg.trim()) return null;
+    function _degToNote7str(rawDeg, chordName) {
+        // Bass register: oct -2 (7-string guitar range)
+        if (!rawDeg || rawDeg === '-' || !rawDeg.trim()) return null;
         try {
             const deg = _normalizeDeg(rawDeg.trim(), chordName);
             const { root } = _parseChordName(chordName);
-            const result = window.MelodyEngine.translate([{ deg, oct: 0, dur: '4n' }], root);
+            const result = window.MelodyEngine.translate([{ deg, oct: -2, dur: '4n' }], root);
             return result.length ? result[0].note : null;
         } catch (_) { return null; }
+    }
+
+    // ── Parse up to 4 degree tokens from a space-separated string ────────────
+    function _parseDegs(str) {
+        return (str || '').trim().split(/\s+/).filter(s => s.length > 0).slice(0, 4);
+    }
+
+    // ── Subdivide slot duration by note count ─────────────────────────────────
+    function _subdivDur(baseDur, count) {
+        if (count <= 1) return baseDur;
+        const splits = {
+            '1n':  { 2:'2n',  3:'2t',  4:'4n'   },
+            '2n':  { 2:'4n',  3:'4t',  4:'8n'   },
+            '4n':  { 2:'8n',  3:'8t',  4:'16n'  },
+            '4n.': { 2:'8n.', 3:'8n',  4:'16n.' },
+            '8n':  { 2:'16n', 3:'16t', 4:'32n'  },
+        };
+        return splits[baseDur]?.[count] ?? baseDur;
     }
 
     // ── Duration per slot based on time signature ─────────────────────────────
@@ -78,13 +97,17 @@
         if (num === 2) return '4n';
         if (num === 4) return '2n';
         if (num === 3) return '4n.';
-        if (num === 6) return '4n.'; // 6/8: each half = 3 eighths
+        if (num === 6) return '4n.';
         return '4n';
     }
 
     function _durToMs(dur, bpm) {
         const b = 60000 / bpm;
-        const map = { '1n':b*4,'2n':b*2,'4n':b,'4n.':b*1.5,'8n':b/2,'8n.':b*.75,'16n':b/4 };
+        const map = {
+            '1n':b*4, '2n':b*2, '4n':b, '4n.':b*1.5, '8n':b/2, '8n.':b*.75,
+            '16n':b/4, '16n.':b*.375, '32n':b/8,
+            '2t':b*4/3, '4t':b*2/3, '8t':b/3, '16t':b/6,
+        };
         return map[dur] ?? b;
     }
 
@@ -96,9 +119,10 @@
         bpm:           80,
         timeSig:       '2/4',
         chords:        [],
-        slots:         [],   // [{n1:'1', n2:'5'}, ...] — one per chord
+        slots:         [],   // [{b1:'1 5', b2:''}, ...] — one per chord
         playingCi:     null,
-        playingSlot:   null,
+        playingCol:    null,
+        playingDeg:    null,
         playing:       false,
         playTimers:    [],
         tab:           'editor',
@@ -108,7 +132,7 @@
     };
 
     function _ensureSlots() {
-        while (_st.slots.length < _st.chords.length) _st.slots.push({ n1: '1', n2: '5' });
+        while (_st.slots.length < _st.chords.length) _st.slots.push({ b1: '1 5', b2: '' });
         _st.slots.length = _st.chords.length;
     }
 
@@ -128,25 +152,39 @@
         return 'var(--chord-green,#34d399)';
     }
 
+    // ── Note row HTML for one column ─────────────────────────────────────────
+    function _noteRowHtml(degs, chord, ci, colIdx) {
+        if (!degs.length) return `<div style="min-height:20px;"></div>`;
+        const cells = degs.map((deg, di) => {
+            const isSil  = deg === '-';
+            const letter = isSil ? '—' : (_degToLetter(deg, chord) || '?');
+            const isPlay = _st.playingCi === ci && _st.playingCol === colIdx && _st.playingDeg === di;
+            return `<span id="hb-note-${ci}-${colIdx}-${di}"
+                style="font-size:.68rem;font-weight:700;font-family:var(--font-mono);
+                color:${isPlay ? '#fff' : isSil ? 'var(--text-muted)' : 'var(--chord-blue,#60a5fa)'};
+                background:${isPlay ? 'var(--brand,#7c3aed)' : 'transparent'};
+                border-radius:3px;padding:1px 3px;min-width:16px;text-align:center;
+                transition:background .15s,color .15s;">${esc(letter)}</span>`;
+        }).join('');
+        return `<div style="display:flex;gap:2px;justify-content:center;flex-wrap:nowrap;">${cells}</div>`;
+    }
+
     // ── Chord Card HTML ───────────────────────────────────────────────────────
     function _cardHtml(chord, ci) {
-        const slot  = _st.slots[ci] || { n1: '1', n2: '5' };
+        const slot  = _st.slots[ci] || { b1: '1 5', b2: '' };
+        const degs1 = _parseDegs(slot.b1);
+        const degs2 = _parseDegs(slot.b2);
         const color = _chordColor(chord);
-        const letter1 = _degToLetter(slot.n1, chord);
-        const letter2 = _degToLetter(slot.n2, chord);
-        const isPlaying1 = _st.playingCi === ci && _st.playingSlot === 0;
-        const isPlaying2 = _st.playingCi === ci && _st.playingSlot === 1;
 
-        const noteStyle = (active) =>
-            `font-size:.8rem;font-weight:800;font-family:var(--font-mono);` +
-            `color:${active ? '#fff' : 'var(--chord-blue,#60a5fa)'};` +
-            `background:${active ? 'var(--brand,#7c3aed)' : 'transparent'};` +
-            `border-radius:4px;padding:1px 4px;min-width:28px;text-align:center;` +
-            `transition:background .15s,color .15s;`;
+        const inputStyle =
+            `width:100%;box-sizing:border-box;text-align:center;background:var(--bg-raised);` +
+            `border:1px solid var(--glass-border);border-radius:3px;outline:none;` +
+            `font-family:var(--font-mono);font-size:.65rem;font-weight:600;` +
+            `color:var(--text-primary);padding:2px 3px;margin-bottom:4px;`;
 
         return `
         <div class="hb-card" data-ci="${ci}"
-            style="flex-shrink:0;min-width:80px;max-width:120px;border-radius:8px;
+            style="flex-shrink:0;min-width:110px;max-width:160px;border-radius:8px;
             border:1px solid var(--glass-border,rgba(255,255,255,.08));
             background:var(--bg-surface);overflow:hidden;">
             <div style="padding:4px 6px 3px;display:flex;align-items:center;gap:4px;
@@ -159,31 +197,25 @@
                 </button>
             </div>
             <div style="display:flex;align-items:stretch;gap:0;">
-                <!-- Slot 1 -->
+                <!-- B1 -->
                 <div style="flex:1;display:flex;flex-direction:column;align-items:center;
                     padding:5px 4px 6px;border-right:1px solid var(--line-color);">
-                    <input class="hb-deg-input" data-ci="${ci}" data-slot="0"
-                        value="${esc(slot.n1)}"
-                        placeholder="1"
-                        style="width:100%;box-sizing:border-box;text-align:center;background:var(--bg-raised);
-                        border:1px solid var(--glass-border);border-radius:3px;outline:none;
-                        font-family:var(--font-mono);font-size:.7rem;font-weight:600;
-                        color:var(--text-primary);padding:2px 2px;margin-bottom:4px;" />
-                    <div id="hb-letter-${ci}-0" style="${noteStyle(isPlaying1)}">${esc(letter1)||'—'}</div>
-                    <div style="font-size:.5rem;color:var(--text-muted);margin-top:2px;">T1</div>
+                    <input class="hb-deg-input" data-ci="${ci}" data-col="0"
+                        value="${esc(slot.b1)}"
+                        placeholder="1 5"
+                        style="${inputStyle}" />
+                    ${_noteRowHtml(degs1, chord, ci, 0)}
+                    <div style="font-size:.48rem;color:var(--text-muted);margin-top:3px;">B1</div>
                 </div>
-                <!-- Slot 2 -->
+                <!-- B2 -->
                 <div style="flex:1;display:flex;flex-direction:column;align-items:center;
                     padding:5px 4px 6px;">
-                    <input class="hb-deg-input" data-ci="${ci}" data-slot="1"
-                        value="${esc(slot.n2)}"
-                        placeholder="5"
-                        style="width:100%;box-sizing:border-box;text-align:center;background:var(--bg-raised);
-                        border:1px solid var(--glass-border);border-radius:3px;outline:none;
-                        font-family:var(--font-mono);font-size:.7rem;font-weight:600;
-                        color:var(--text-primary);padding:2px 2px;margin-bottom:4px;" />
-                    <div id="hb-letter-${ci}-1" style="${noteStyle(isPlaying2)}">${esc(letter2)||'—'}</div>
-                    <div style="font-size:.5rem;color:var(--text-muted);margin-top:2px;">T2</div>
+                    <input class="hb-deg-input" data-ci="${ci}" data-col="1"
+                        value="${esc(slot.b2)}"
+                        placeholder="—"
+                        style="${inputStyle}" />
+                    ${_noteRowHtml(degs2, chord, ci, 1)}
+                    <div style="font-size:.48rem;color:var(--text-muted);margin-top:3px;">B2</div>
                 </div>
             </div>
         </div>`;
@@ -213,7 +245,7 @@
                     <div class="page-title-icon"><i class="fa-solid fa-bass-guitar"></i></div>
                     <div>
                         <h2>Condução de Baixo</h2>
-                        <p>Dois graus por acorde · exibição como letras</p>
+                        <p>Até 4 graus por tempo · B1 e B2 por acorde</p>
                     </div>
                 </div>
             </div>
@@ -256,9 +288,9 @@
             <!-- Hint -->
             <div style="font-size:.7rem;color:var(--text-muted);margin-bottom:.75rem;padding:5px 10px;
                 background:var(--bg-raised);border-radius:var(--radius-sm);border-left:3px solid var(--brand);">
-                Digite o grau em cada tempo · ex: <code>1</code> <code>5</code> <code>b3</code> <code>4</code> ·
-                A nota aparece como letra abaixo · Grau relativo ao acorde (<code>3</code> em m7→b3) ·
-                Tab=próximo acorde
+                B1/B2: graus separados por espaço · ex: <code>1 5</code> <code>1 b3 5 1</code> ·
+                Use <code>-</code> para silêncio · 2 notas=colcheias · 3=tercinas · 4=semicolcheias ·
+                Registro grave (7 cordas) · Tab=próximo acorde
             </div>
 
             <!-- Chord grid -->
@@ -351,28 +383,27 @@
             grid?.addEventListener('input', e => {
                 const inp = e.target.closest('.hb-deg-input');
                 if (!inp) return;
-                const ci   = +inp.dataset.ci;
-                const slot = +inp.dataset.slot;
+                const ci  = +inp.dataset.ci;
+                const col = +inp.dataset.col;
                 _ensureSlots();
-                if (slot === 0) _st.slots[ci].n1 = inp.value;
-                else            _st.slots[ci].n2 = inp.value;
-                C._refreshLetter(ci, slot);
+                if (col === 0) _st.slots[ci].b1 = inp.value;
+                else           _st.slots[ci].b2 = inp.value;
+                C._refreshNoteRow(ci, col);
             });
 
             grid?.addEventListener('keydown', e => {
                 const inp = e.target.closest('.hb-deg-input');
                 if (!inp) return;
-                const ci   = +inp.dataset.ci;
-                const slot = +inp.dataset.slot;
+                const ci  = +inp.dataset.ci;
+                const col = +inp.dataset.col;
                 if (e.key === 'Tab') {
                     e.preventDefault();
-                    // Tab within card: slot 0 → slot 1; slot 1 → next card slot 0
-                    if (slot === 0) {
-                        document.querySelector(`.hb-deg-input[data-ci="${ci}"][data-slot="1"]`)?.focus();
+                    if (col === 0) {
+                        document.querySelector(`.hb-deg-input[data-ci="${ci}"][data-col="1"]`)?.focus();
                     } else {
                         const nextCi = e.shiftKey ? ci - 1 : ci + 1;
                         if (nextCi >= 0 && nextCi < _st.chords.length) {
-                            document.querySelector(`.hb-deg-input[data-ci="${nextCi}"][data-slot="0"]`)?.focus();
+                            document.querySelector(`.hb-deg-input[data-ci="${nextCi}"][data-col="0"]`)?.focus();
                         }
                     }
                 }
@@ -390,8 +421,8 @@
         },
 
         _refreshGrid() {
-            const gridEl   = document.getElementById('hb-chord-grid');
-            const saveBar  = document.getElementById('hb-save-bar');
+            const gridEl  = document.getElementById('hb-chord-grid');
+            const saveBar = document.getElementById('hb-save-bar');
             if (!gridEl) return;
             _ensureSlots();
             const hasChords = _st.chords.length > 0;
@@ -403,23 +434,33 @@
             if (saveBar) saveBar.style.display = hasChords ? 'flex' : 'none';
         },
 
-        _refreshLetter(ci, slotIdx) {
-            const el = document.getElementById(`hb-letter-${ci}-${slotIdx}`);
-            if (!el) return;
+        _refreshNoteRow(ci, col) {
             const chord = _st.chords[ci];
             if (!chord) return;
-            const deg = slotIdx === 0 ? _st.slots[ci].n1 : _st.slots[ci].n2;
-            el.textContent = _degToLetter(deg, chord) || '—';
+            const slot = _st.slots[ci];
+            if (!slot) return;
+            const degs = _parseDegs(col === 0 ? slot.b1 : slot.b2);
+            const inp  = document.querySelector(`.hb-deg-input[data-ci="${ci}"][data-col="${col}"]`);
+            if (!inp) return;
+            const row = inp.nextElementSibling;
+            if (row) row.outerHTML = _noteRowHtml(degs, chord, ci, col);
         },
 
-        _setPlayHighlight(ci, slotIdx, active) {
-            [0, 1].forEach(s => {
-                const el = document.getElementById(`hb-letter-${ci}-${s}`);
-                if (!el) return;
-                const on = active && s === slotIdx;
-                el.style.background = on ? 'var(--brand,#7c3aed)' : 'transparent';
-                el.style.color      = on ? '#fff' : 'var(--chord-blue,#60a5fa)';
-            });
+        // ── Highlight ─────────────────────────────────────────────────────────
+
+        _clearHighlight() {
+            if (_st.playingCi !== null && _st.playingCol !== null && _st.playingDeg !== null) {
+                const el = document.getElementById(`hb-note-${_st.playingCi}-${_st.playingCol}-${_st.playingDeg}`);
+                if (el) { el.style.background = 'transparent'; el.style.color = 'var(--chord-blue,#60a5fa)'; }
+            }
+            _st.playingCi = null; _st.playingCol = null; _st.playingDeg = null;
+        },
+
+        _activateHighlight(ci, col, deg) {
+            C._clearHighlight();
+            _st.playingCi = ci; _st.playingCol = col; _st.playingDeg = deg;
+            const el = document.getElementById(`hb-note-${ci}-${col}-${deg}`);
+            if (el) { el.style.background = 'var(--brand,#7c3aed)'; el.style.color = '#fff'; }
         },
 
         // ── Playback ─────────────────────────────────────────────────────────
@@ -432,12 +473,8 @@
         _stopAll() {
             window.HMSAudio.stop();
             C._clearTimers();
-            if (_st.playingCi !== null) {
-                C._setPlayHighlight(_st.playingCi, _st.playingSlot, false);
-            }
-            _st.playing     = false;
-            _st.playingCi   = null;
-            _st.playingSlot = null;
+            C._clearHighlight();
+            _st.playing = false;
             const btn = document.getElementById('hb-play-btn');
             if (btn) {
                 btn.innerHTML = '<i class="fa-solid fa-play"></i> Tocar Linha';
@@ -445,74 +482,71 @@
             }
         },
 
+        // Build flat sequence of note events for a range of chords [ciStart, ciEnd)
+        _buildSeq(ciStart, ciEnd) {
+            _ensureSlots();
+            const slotDur = _slotDur();
+            const seq = [];
+            for (let ci = ciStart; ci < ciEnd; ci++) {
+                const chord = _st.chords[ci];
+                if (!chord) continue;
+                const slot = _st.slots[ci] || { b1: '1 5', b2: '' };
+                [slot.b1, slot.b2].forEach((str, col) => {
+                    const degs = _parseDegs(str);
+                    if (!degs.length) return;
+                    const perDur = _subdivDur(slotDur, degs.length);
+                    const perMs  = _durToMs(perDur, _st.bpm);
+                    degs.forEach((deg, degIdx) => {
+                        const note = (deg === '-') ? null : _degToNote7str(deg, chord);
+                        seq.push({ ci, col, degIdx, note, dur: perDur, ms: perMs });
+                    });
+                });
+            }
+            return seq;
+        },
+
+        _scheduleHighlights(seq) {
+            let cumMs = 0;
+            seq.forEach(item => {
+                const t = setTimeout(() => {
+                    if (item.note) C._activateHighlight(item.ci, item.col, item.degIdx);
+                    else           C._clearHighlight();
+                }, cumMs);
+                cumMs += item.ms;
+                _st.playTimers.push(t);
+            });
+            return cumMs;
+        },
+
         _togglePlay() {
             if (_st.playing) { C._stopAll(); return; }
 
-            // Build flat sequence: [{ci, slot, note, dur}]
-            _ensureSlots();
-            const dur = _slotDur();
-            const seq = [];
-            for (let ci = 0; ci < _st.chords.length; ci++) {
-                const chord = _st.chords[ci];
-                const s = _st.slots[ci] || { n1:'1', n2:'5' };
-                [s.n1, s.n2].forEach((deg, slotIdx) => {
-                    const note = _degToNote(deg, chord);
-                    if (note) seq.push({ ci, slotIdx, note, dur });
-                });
-            }
-            if (!seq.length) { window.HMSApp.showToast('Sem notas para tocar.', 'warning'); return; }
+            const seq      = C._buildSeq(0, _st.chords.length);
+            const audioSeq = seq.filter(s => s.note).map(s => ({ note: s.note, dur: s.dur }));
+            if (!audioSeq.length) { window.HMSApp.showToast('Sem notas para tocar.', 'warning'); return; }
 
             _st.playing = true;
             const btn = document.getElementById('hb-play-btn');
             if (btn) { btn.innerHTML = '<i class="fa-solid fa-stop"></i> Parar'; btn.className = 'btn btn-secondary'; }
 
-            let cumMs = 0;
-            seq.forEach(item => {
-                const ms = _durToMs(item.dur, _st.bpm);
-                const t = setTimeout(() => {
-                    if (_st.playingCi !== null) C._setPlayHighlight(_st.playingCi, _st.playingSlot, false);
-                    _st.playingCi   = item.ci;
-                    _st.playingSlot = item.slotIdx;
-                    C._setPlayHighlight(item.ci, item.slotIdx, true);
-                }, cumMs);
-                cumMs += ms;
-                _st.playTimers.push(t);
-            });
-
-            _st.playTimers.push(setTimeout(() => C._stopAll(), cumMs + 100));
-            window.HMSAudio.playMelody(seq.map(s => ({ note: s.note, dur: s.dur })), _st.bpm, () => C._stopAll(), _st.timeSig);
+            const totalMs = C._scheduleHighlights(seq);
+            _st.playTimers.push(setTimeout(() => C._stopAll(), totalMs + 100));
+            window.HMSAudio.playMelody(audioSeq, _st.bpm, () => C._stopAll(), _st.timeSig);
         },
 
         _playChord(ci) {
             if (_st.playing) C._stopAll();
             const chord = _st.chords[ci];
             if (!chord) return;
-            _ensureSlots();
-            const dur = _slotDur();
-            const s = _st.slots[ci] || { n1:'1', n2:'5' };
-            const notes = [s.n1, s.n2].map(deg => _degToNote(deg, chord)).filter(Boolean);
-            if (!notes.length) return;
+
+            const seq      = C._buildSeq(ci, ci + 1);
+            const audioSeq = seq.filter(s => s.note).map(s => ({ note: s.note, dur: s.dur }));
+            if (!audioSeq.length) return;
 
             _st.playing = true;
-            let cumMs = 0;
-            [0, 1].forEach(slotIdx => {
-                const note = _degToNote(slotIdx === 0 ? s.n1 : s.n2, chord);
-                if (!note) return;
-                const ms = _durToMs(dur, _st.bpm);
-                const t = setTimeout(() => {
-                    if (_st.playingCi !== null) C._setPlayHighlight(_st.playingCi, _st.playingSlot, false);
-                    _st.playingCi = ci; _st.playingSlot = slotIdx;
-                    C._setPlayHighlight(ci, slotIdx, true);
-                }, cumMs);
-                cumMs += ms;
-                _st.playTimers.push(t);
-            });
-            _st.playTimers.push(setTimeout(() => C._stopAll(), cumMs + 100));
-            const seq = [0, 1].map(si => {
-                const deg = si === 0 ? s.n1 : s.n2;
-                return { note: _degToNote(deg, chord), dur };
-            }).filter(n => n.note);
-            window.HMSAudio.playMelody(seq, _st.bpm, () => C._stopAll(), _st.timeSig);
+            const totalMs = C._scheduleHighlights(seq);
+            _st.playTimers.push(setTimeout(() => C._stopAll(), totalMs + 100));
+            window.HMSAudio.playMelody(audioSeq, _st.bpm, () => C._stopAll(), _st.timeSig);
         },
 
         // ── Studies tab ──────────────────────────────────────────────────────
@@ -600,11 +634,14 @@
             _st.bpm         = study.bpm || 80;
             _st.timeSig     = study.time_sig || '2/4';
             _st.savingTitle = study.title || '';
-            // slots stored as string[] "deg1 deg2" per chord
+            // slots stored as "b1_str|b2_str" per chord
+            // Legacy format "deg1 deg2" (no pipe) is also handled: b1=whole string, b2=''
             const raw = study.slots || [];
             _st.slots = raw.map(item => {
-                const parts = String(item || '').trim().split(/\s+/);
-                return { n1: parts[0] || '1', n2: parts[1] || '5' };
+                const str   = String(item || '');
+                const pipeI = str.indexOf('|');
+                if (pipeI >= 0) return { b1: str.slice(0, pipeI), b2: str.slice(pipeI + 1) };
+                return { b1: str || '1 5', b2: '' };
             });
             _parseHarmony();
             _ensureSlots();
@@ -626,7 +663,7 @@
                     harmony:  _st.harmonyStr,
                     bpm:      _st.bpm,
                     note_dur: 'bass',
-                    slots:    _st.slots.map(s => `${s.n1 || '1'} ${s.n2 || '5'}`),
+                    slots:    _st.slots.map(s => `${s.b1 || '1 5'}|${s.b2 || ''}`),
                 });
                 window.HMSApp.showToast('Estudo salvo!', 'success');
                 _st.savingTitle = '';
