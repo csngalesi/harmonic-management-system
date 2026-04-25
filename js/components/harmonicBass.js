@@ -456,25 +456,17 @@
                 e.preventDefault();
 
                 if (inp) {
+                    // T1/T2 row: Tab cycles only between T1 and T2 of same card
                     const ci   = +inp.dataset.ci;
                     const slot = +inp.dataset.slot;
-                    if (slot === 0) {
-                        document.querySelector(`.hb-deg-input[data-ci="${ci}"][data-slot="1"]`)?.focus();
-                    } else {
-                        // Move to B1 of same card
-                        document.querySelector(`.hb-bass-input[data-ci="${ci}"][data-col="0"]`)?.focus();
-                    }
+                    const next = slot === 0 ? 1 : 0;
+                    document.querySelector(`.hb-deg-input[data-ci="${ci}"][data-slot="${next}"]`)?.focus();
                 } else {
+                    // B1/B2 row: Tab cycles only between B1 and B2 of same card
                     const ci  = +bass.dataset.ci;
                     const col = +bass.dataset.col;
-                    if (col === 0) {
-                        document.querySelector(`.hb-bass-input[data-ci="${ci}"][data-col="1"]`)?.focus();
-                    } else {
-                        const nextCi = e.shiftKey ? ci - 1 : ci + 1;
-                        if (nextCi >= 0 && nextCi < _st.chords.length) {
-                            document.querySelector(`.hb-deg-input[data-ci="${nextCi}"][data-slot="0"]`)?.focus();
-                        }
-                    }
+                    const next = col === 0 ? 1 : 0;
+                    document.querySelector(`.hb-bass-input[data-ci="${ci}"][data-col="${next}"]`)?.focus();
                 }
             });
 
