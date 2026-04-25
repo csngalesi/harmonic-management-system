@@ -233,7 +233,6 @@
                         font-family:var(--font-mono);font-size:.7rem;font-weight:600;
                         color:var(--text-primary);padding:2px 2px;margin-bottom:4px;" />
                     <div id="hb-letter-${ci}-0" style="${noteStyle(isPlaying1)}">${esc(letter1)||'—'}</div>
-                    <div style="font-size:.5rem;color:var(--text-muted);margin-top:2px;">T1</div>
                 </div>
                 <div style="flex:1;display:flex;flex-direction:column;align-items:center;
                     padding:5px 4px 5px;">
@@ -244,7 +243,6 @@
                         font-family:var(--font-mono);font-size:.7rem;font-weight:600;
                         color:var(--text-primary);padding:2px 2px;margin-bottom:4px;" />
                     <div id="hb-letter-${ci}-1" style="${noteStyle(isPlaying2)}">${esc(letter2)||'—'}</div>
-                    <div style="font-size:.5rem;color:var(--text-muted);margin-top:2px;">T2</div>
                 </div>
             </div>
 
@@ -256,7 +254,6 @@
                         value="${esc(slot.b1)}" placeholder="1 5"
                         style="${inputStyle}" />
                     ${_noteRowHtml(degs1, chord, ci, 0)}
-                    <div style="font-size:.48rem;color:var(--text-muted);margin-top:2px;">B1</div>
                 </div>
                 <div style="flex:1;display:flex;flex-direction:column;align-items:center;
                     padding:4px 4px 5px;">
@@ -264,7 +261,6 @@
                         value="${esc(slot.b2)}" placeholder="—"
                         style="${inputStyle}" />
                     ${_noteRowHtml(degs2, chord, ci, 1)}
-                    <div style="font-size:.48rem;color:var(--text-muted);margin-top:2px;">B2</div>
                 </div>
             </div>
         </div>`;
