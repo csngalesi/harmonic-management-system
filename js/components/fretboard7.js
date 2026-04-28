@@ -33,11 +33,11 @@
     // ── Fretboard SVG ─────────────────────────────────────────────────────────
     const FB = {
         W:            600,
-        H:            220,
+        H:            250,
         marginLeft:   38,
         marginRight:  16,
         marginTop:    18,
-        marginBottom: 28,
+        marginBottom: 44,
         FRETS:        5,
         STRINGS:      7,
         get neckW()        { return this.W - this.marginLeft - this.marginRight; },
@@ -70,7 +70,7 @@
                 const midi = OPEN_MIDI[s] + f;
                 for (const d of degrees) {
                     if (pc === degToPc[d]) {
-                        candidates.push({ string: s, fret: f, degree: d, isRoot: d === 1, midi });
+                        candidates.push({ string: s, fret: f, degree: d, isRoot: d === 1, midi, noteName: NOTE_NAMES[pc] });
                         break; // um grau por posição
                     }
                 }
@@ -142,6 +142,7 @@
                 parts.push(`<circle cx="${cx}" cy="${cy}" r="10" fill="${fill}" opacity="0.92"/>`);
                 parts.push(`<text x="${cx}" y="${cy + 4}" text-anchor="middle" font-size="10" font-weight="700" fill="white">${h.degree}</text>`);
             }
+            parts.push(`<text x="${cx}" y="${cy + 22}" text-anchor="middle" font-size="8" font-weight="600" fill="${fill}" opacity="0.85">${h.noteName}</text>`);
         }
 
         parts.push(`</svg>`);
@@ -154,7 +155,7 @@
         render: function () {
             const content = document.getElementById('main-content');
 
-            const rootOptions = NOTE_LABELS.map((n, i) =>
+            const rootOptions = NOTE_LABELS.map((n) =>
                 `<option value="${n}" ${n === _state.root ? 'selected' : ''}>${n}</option>`
             ).join('');
 
