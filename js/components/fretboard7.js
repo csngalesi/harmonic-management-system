@@ -142,7 +142,7 @@
                 parts.push(`<circle cx="${cx}" cy="${cy}" r="10" fill="${fill}" opacity="0.92"/>`);
                 parts.push(`<text x="${cx}" y="${cy + 4}" text-anchor="middle" font-size="10" font-weight="700" fill="white">${h.degree}</text>`);
             }
-            parts.push(`<text x="${cx}" y="${cy + 22}" text-anchor="middle" font-size="8" font-weight="600" fill="${fill}" opacity="0.85">${h.noteName}</text>`);
+            parts.push(`<text x="${cx}" y="${cy + 18}" text-anchor="middle" font-size="7.5" font-weight="600" fill="${fill}" opacity="0.9">${h.noteName}</text>`);
         }
 
         parts.push(`</svg>`);
