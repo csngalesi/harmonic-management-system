@@ -566,7 +566,12 @@
                             <div class="sd-title">${esc(song.title)}</div>
                             <div class="sd-sub">${esc([song.artist, song.genre].filter(Boolean).join(' · '))}</div>
                         </div>
-                        <span class="song-key-badge" style="font-size:1rem;flex-shrink:0;">${esc(origKey)}</span>
+                        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+                            <span class="song-key-badge" style="font-size:1rem;">${esc(origKey)}</span>
+                            <button id="sd-edit-btn" class="btn-icon edit" title="Editar música">
+                                <i class="fa-solid fa-pen-to-square"></i>
+                            </button>
+                        </div>
                     </div>
                     ${song.audio_url ? `
                     <audio controls preload="none" src="${esc(song.audio_url)}"
@@ -601,6 +606,11 @@
                     </div>
                 </div>
             `);
+
+            document.getElementById('sd-edit-btn').addEventListener('click', () => {
+                window.HMSApp.closeModal();
+                RepertoireComponent.openSongModal(song.id);
+            });
 
             document.querySelectorAll('.sd-tab').forEach(tab => {
                 tab.addEventListener('click', () => {
