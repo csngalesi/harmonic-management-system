@@ -313,7 +313,9 @@
                     return `<span class="harmony-text">${esc(t.value)}</span>`;
                 }
                 if (t.type === 'STRUCT') {
-                    return `<div class="chord-cell struct">${esc(t.value)}</div>`;
+                    return t.value === '/'
+                        ? `<div class="chord-cell">${esc(t.value)}</div>`
+                        : `<div class="chord-cell struct">${esc(t.value)}</div>`;
                 }
                 if (t.type === 'MOD') {
                     return `<span class="harmony-mod">${esc('!' + t.value + '!')}</span>`;
