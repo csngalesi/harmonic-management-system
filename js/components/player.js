@@ -308,20 +308,36 @@
                 return;
             }
 
-            grid.innerHTML = tokens.map(t => {
-                if (t.type === 'LABEL') {
-                    return `<span class="harmony-text">${esc(t.value)}</span>`;
+            const out = [];
+            const sep = `<span style="opacity:.35;font-size:.7em;margin:0 3px;">·</span>`;
+            let i = 0;
+            while (i < tokens.length) {
+                const t = tokens[i];
+                if (t.type === 'STRUCT' && t.value === '[') {
+                    const group = [];
+                    i++;
+                    while (i < tokens.length && !(tokens[i].type === 'STRUCT' && tokens[i].value === ']')) {
+                        group.push(tokens[i]);
+                        i++;
+                    }
+                    i++; // skip ]
+                    if (group.length) {
+                        const inner = group.map(g => `<span>${esc(g.value || '')}</span>`).join(sep);
+                        out.push(`<div class="chord-cell">${inner}</div>`);
+                    }
+                    continue;
                 }
-                if (t.type === 'STRUCT') {
-                    return t.value === '/'
-                        ? `<div class="chord-cell">${esc(t.value)}</div>`
-                        : `<div class="chord-cell struct">${esc(t.value)}</div>`;
-                }
-                if (t.type === 'MOD') {
-                    return `<span class="harmony-mod">${esc('!' + t.value + '!')}</span>`;
-                }
-                return `<div class="chord-cell">${esc(t.value)}</div>`;
-            }).join('');
+                if (t.type === 'LABEL')
+                    out.push(`<span class="harmony-text">${esc(t.value)}</span>`);
+                else if (t.type === 'STRUCT')
+                    out.push(t.value === '/' ? `<div class="chord-cell">${esc(t.value)}</div>` : `<div class="chord-cell struct">${esc(t.value)}</div>`);
+                else if (t.type === 'MOD')
+                    out.push(`<span class="harmony-mod">${esc('!' + t.value + '!')}</span>`);
+                else
+                    out.push(`<div class="chord-cell">${esc(t.value)}</div>`);
+                i++;
+            }
+            grid.innerHTML = out.join('');
         },
     };
 
