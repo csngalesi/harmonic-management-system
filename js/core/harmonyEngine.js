@@ -285,6 +285,13 @@
                 continue;
             }
 
+            // Standalone quoted string → section label: "A", "Intro", "2x"
+            // Must come before safety net so "A" isn't swallowed as a chord.
+            if (/^"[^"]*"$/.test(raw)) {
+                tokens.push({ type: 'LABEL', value: raw });
+                continue;
+            }
+
             // Safety net: any token containing harmonic punctuation is never plain text.
             // Rule: ( ) / [ ] " { } together signal harmonic notation, not free text.
             if (/[()\/"\[\]{}]/.test(raw)) {
