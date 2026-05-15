@@ -547,16 +547,38 @@
 
             // Harm Acor: render translated tokens as chips
             function buildChordsHtml(toks) {
-                return toks.length
-                    ? toks.map(t => {
-                        if (t.type === 'LABEL')  return `<span class="sd-label">${esc(t.value)}</span>`;
-                        if (t.type === 'STRUCT') return t.value === '/'
-                            ? `<span class="sd-chord">/</span>`
-                            : `<span class="sd-sep">${esc(t.value) || '·'}</span>`;
-                        if (t.type === 'MOD')    return `<span class="sd-mod">${esc('!' + t.value + '!')}</span>`;
-                        return `<span class="sd-chord">${esc(t.value || '')}</span>`;
-                      }).join('')
-                    : `<span style="color:var(--text-muted);font-size:.85rem;">Sem harmonia cadastrada.</span>`;
+                if (!toks.length) return `<span style="color:var(--text-muted);font-size:.85rem;">Sem harmonia cadastrada.</span>`;
+                const out = [];
+                let i = 0;
+                const sep = `<span style="opacity:.35;font-size:.7em;margin:0 3px;">·</span>`;
+                while (i < toks.length) {
+                    const t = toks[i];
+                    if (t.type === 'STRUCT' && t.value === '[') {
+                        // Collect tokens until ] → single grouped cell
+                        const group = [];
+                        i++;
+                        while (i < toks.length && !(toks[i].type === 'STRUCT' && toks[i].value === ']')) {
+                            group.push(toks[i]);
+                            i++;
+                        }
+                        i++; // skip ]
+                        if (group.length) {
+                            const inner = group.map(g => `<span>${esc(g.value || '')}</span>`).join(sep);
+                            out.push(`<span class="sd-chord">${inner}</span>`);
+                        }
+                        continue;
+                    }
+                    if (t.type === 'LABEL')
+                        out.push(`<span class="sd-label">${esc(t.value)}</span>`);
+                    else if (t.type === 'STRUCT')
+                        out.push(t.value === '/' ? `<span class="sd-chord">/</span>` : `<span class="sd-sep">${esc(t.value) || '·'}</span>`);
+                    else if (t.type === 'MOD')
+                        out.push(`<span class="sd-mod">${esc('!' + t.value + '!')}</span>`);
+                    else
+                        out.push(`<span class="sd-chord">${esc(t.value || '')}</span>`);
+                    i++;
+                }
+                return out.join('');
             }
 
             window.HMSApp.openModal(`
