@@ -470,9 +470,12 @@ tbody tr:hover td { background: var(--glass-bg); }
 .chord-cell.struct { color: var(--text-muted); font-size: 1.1rem; background: transparent; border-style: dashed; }
 /* .chord-cell.label kept for legacy — new text annotations use .harmony-text */
 .harmony-text {
-    display: flex; align-items: center;
-    color: var(--chord-amber); font-size: 0.85rem;
-    padding: 4px 6px; align-self: center; white-space: nowrap;
+    display: inline-flex; align-items: center; align-self: center;
+    color: var(--chord-amber); font-size: 0.85rem; font-weight: 700;
+    padding: 3px 8px; white-space: nowrap;
+    background: rgba(251,191,36,.15);
+    border: 1px solid rgba(251,191,36,.35);
+    border-radius: var(--radius-sm);
 }
 .chord-cell.chord-highlight { color: var(--chord-amber); border-color: var(--chord-amber); background: rgba(251,191,36,.08); }
 
@@ -690,8 +693,13 @@ tbody tr:hover td { background: var(--glass-bg); }
     font-size:1.7rem; color:var(--chord-green);
 }
 .sd-label {
-    display:inline-block; padding:2px 6px; font-size:1.1rem; font-weight:500;
+    display:inline-flex; align-items:center; align-self:center;
+    padding:3px 10px; font-size:1rem; font-weight:700;
     color:var(--chord-amber);
+    background:rgba(251,191,36,.15);
+    border:1px solid rgba(251,191,36,.35);
+    border-radius:var(--radius-sm);
+    letter-spacing:.02em;
 }
 .sd-sep {
     display:inline-flex; align-items:center;
