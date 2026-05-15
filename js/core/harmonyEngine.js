@@ -331,53 +331,72 @@
                 result.push({ type: 'CHORD', value: renderDegreeToken(token.value, keyState) });
 
             } else if (token.type === 'SEC_DOM') {
-                // Resolve target degree to a note and mode
-                const tM = token.target.match(/^([b#]?)([1-7])([mM]?)(.*)$/);
-                if (tM) {
-                    const tAcc = tM[1];
-                    const tDeg = parseInt(tM[2]);
-                    const tMode = tM[3]; // '' | 'm' | 'M'
+                // Resolve target — plain degree ("4", "1m") or DOT_DEGREE ("5.5")
+                const dotM = token.target.match(/^([b#]?)([1-7])\.([b#]?[1-7][mMho7]*)$/);
+                let tNoteIdx, tIsMinor, targetChordStr;
 
-                    const tNoteIdx = degreeNoteIdx(keyState, tDeg, tAcc);
-                    let tIsMinor;
-                    if (tMode === 'm') tIsMinor = true;
-                    else if (tMode === 'M') tIsMinor = false;
-                    else tIsMinor = isMinorDegree(keyState, tDeg);
-
-                    const targetKey = {
-                        rootIdx: tNoteIdx,
-                        isMinor: tIsMinor,
+                if (dotM) {
+                    // DOT_DEGREE target e.g. "5.5": resolve outer then inner
+                    const outerAcc = dotM[1], outerDeg = parseInt(dotM[2]), innerStr = dotM[3];
+                    const outerNoteIdx = degreeNoteIdx(keyState, outerDeg, outerAcc);
+                    const outerKey = {
+                        rootIdx: outerNoteIdx,
+                        isMinor: isMinorDegree(keyState, outerDeg),
                         useFlats: keyState.useFlats,
                     };
+                    const innerM = innerStr.match(/^([b#]?)([1-7])([mM]?)$/);
+                    const innerAcc  = innerM ? innerM[1] : '';
+                    const innerDeg  = innerM ? parseInt(innerM[2]) : 5;
+                    const innerMode = innerM ? innerM[3] : '';
+                    tNoteIdx = degreeNoteIdx(outerKey, innerDeg, innerAcc);
+                    if (innerMode === 'm')      tIsMinor = true;
+                    else if (innerMode === 'M') tIsMinor = false;
+                    else                        tIsMinor = isMinorDegree(outerKey, innerDeg);
+                    targetChordStr = renderDegreeToken(innerStr, outerKey);
+                } else {
+                    const tM = token.target.match(/^([b#]?)([1-7])([mM]?)(.*)$/);
+                    if (!tM) continue;
+                    const tAcc = tM[1], tDeg = parseInt(tM[2]), tMode = tM[3];
+                    tNoteIdx = degreeNoteIdx(keyState, tDeg, tAcc);
+                    if (tMode === 'm')      tIsMinor = true;
+                    else if (tMode === 'M') tIsMinor = false;
+                    else                   tIsMinor = isMinorDegree(keyState, tDeg);
+                    targetChordStr = renderDegreeToken(token.target, keyState);
+                }
 
-                    // Render each prefix chord relative to the TARGET key.
-                    // parsePrefixStr may include trailing '/' on tokens (e.g. "2/" from "2/5").
-                    // Emit those as STRUCT slashes between prefix chords (but not after the last
-                    // one — slashBeforeTarget handles the gap between last prefix and target).
-                    for (let pi = 0; pi < token.prefix.length; pi++) {
-                        const pd = token.prefix[pi];
-                        const hasSlash = pd.endsWith('/');
-                        const cleanPd  = hasSlash ? pd.slice(0, -1) : pd;
-                        result.push({ type: 'CHORD', value: renderDegreeToken(cleanPd, targetKey) });
-                        if (hasSlash && pi < token.prefix.length - 1) {
-                            result.push({ type: 'STRUCT', value: '/' });
-                        }
-                    }
+                const targetKey = {
+                    rootIdx: tNoteIdx,
+                    isMinor: tIsMinor,
+                    useFlats: keyState.useFlats,
+                };
 
-                    // Optional slash between last prefix chord and target chord
-                    if (token.slashBeforeTarget) {
+                // Render each prefix chord relative to the TARGET key.
+                // parsePrefixStr may include trailing '/' on tokens (e.g. "2/" from "2/5").
+                // Emit those as STRUCT slashes between prefix chords (but not after the last
+                // one — slashBeforeTarget handles the gap between last prefix and target).
+                for (let pi = 0; pi < token.prefix.length; pi++) {
+                    const pd = token.prefix[pi];
+                    const hasSlash = pd.endsWith('/');
+                    const cleanPd  = hasSlash ? pd.slice(0, -1) : pd;
+                    result.push({ type: 'CHORD', value: renderDegreeToken(cleanPd, targetKey) });
+                    if (hasSlash && pi < token.prefix.length - 1) {
                         result.push({ type: 'STRUCT', value: '/' });
                     }
+                }
 
-                    // Show target chord if parens notation
-                    if (token.showTarget) {
-                        result.push({ type: 'CHORD', value: renderDegreeToken(token.target, keyState) });
-                    }
+                // Optional slash between last prefix chord and target chord
+                if (token.slashBeforeTarget) {
+                    result.push({ type: 'STRUCT', value: '/' });
+                }
 
-                    // Optional slash after target chord
-                    if (token.slashAfterTarget) {
-                        result.push({ type: 'STRUCT', value: '/' });
-                    }
+                // Show target chord if parens notation
+                if (token.showTarget) {
+                    result.push({ type: 'CHORD', value: targetChordStr });
+                }
+
+                // Optional slash after target chord
+                if (token.slashAfterTarget) {
+                    result.push({ type: 'STRUCT', value: '/' });
                 }
 
             } else if (token.type === 'DOT_DEGREE') {
