@@ -118,14 +118,14 @@
         str = str.replace(/\[([^\]]*)\](\d+)x/gi, (_, content, n) => {
             const i = sections.length;
             sections.push({ content: content.trim(), times: parseInt(n, 10), style: '[' });
-            return `§${i}§`;
+            return ` §${i}§ `;
         });
 
         // 2b. Extract {section}xN blocks (same reason — raw content preserved)
         str = str.replace(/\{([^}]*)\}x(\d+)/g, (_, content, n) => {
             const i = sections.length;
             sections.push({ content: content.trim(), times: parseInt(n, 10), style: '{' });
-            return `§${i}§`;
+            return ` §${i}§ `;
         });
 
         // Pre-process SEC_DOM patterns that contain slashes (e.g. 5/(3/)) BEFORE
@@ -153,7 +153,7 @@
                     slashBeforeTarget,
                     slashAfterTarget,
                 });
-                return `¶${i}¶`;
+                return ` ¶${i}¶ `;
             }
         );
 
