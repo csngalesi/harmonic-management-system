@@ -287,8 +287,9 @@
 
             // Standalone quoted string → section label: "A", "Intro", "2x"
             // Must come before safety net so "A" isn't swallowed as a chord.
+            // No prefix → can never be a SEC_DOM hidden target (those require a degree prefix).
             if (/^"[^"]*"$/.test(raw)) {
-                tokens.push({ type: 'LABEL', value: raw });
+                tokens.push({ type: 'LABEL', value: raw.slice(1, -1) });
                 continue;
             }
 
