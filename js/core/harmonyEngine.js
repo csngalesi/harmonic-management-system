@@ -159,10 +159,12 @@
 
         str = str.replace(/\//g, ' / '); // Ensure slashes are distinct structural tokens
 
-        // Ensure bare [ and ] that survived section extraction become their own tokens.
+        // Ensure bare [ ] { } that survived section extraction become their own tokens.
         // Preserve [1. and [2. (volta brackets) — they stay as a single token.
         str = str.replace(/\[(?![12]\.)/g, ' [ ');
         str = str.replace(/\]/g, ' ] ');
+        str = str.replace(/\{/g, ' { ');
+        str = str.replace(/\}/g, ' } ');
 
         // 3. Split by whitespace
         const rawTokens = str.split(/\s+/).filter(Boolean);
@@ -194,6 +196,8 @@
             if (raw === '/') { tokens.push({ type: 'STRUCT', value: '/' }); continue; }
             if (raw === '[') { tokens.push({ type: 'STRUCT', value: '[' }); continue; }
             if (raw === ']') { tokens.push({ type: 'STRUCT', value: ']' }); continue; }
+            if (raw === '{') { tokens.push({ type: 'STRUCT', value: '{' }); continue; }
+            if (raw === '}') { tokens.push({ type: 'STRUCT', value: '}' }); continue; }
             if (raw === '[1.') { tokens.push({ type: 'STRUCT', value: '[1.' }); continue; }
             if (raw === '[2.') { tokens.push({ type: 'STRUCT', value: '[2.' }); continue; }
             if (raw === '-') { tokens.push({ type: 'STRUCT', value: '-' }); continue; }

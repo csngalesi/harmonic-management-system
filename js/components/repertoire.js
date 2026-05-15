@@ -531,7 +531,7 @@
                 const parts = (str || '').trim().split(/\s+/).filter(Boolean);
                 if (!parts.length) return `<span style="color:var(--text-muted);font-size:.85rem;">Sem harmonia cadastrada.</span>`;
                 return parts.map(p => {
-                    if (p === '-' || p === '+') return `<span class="sd-sep">${esc(p)}</span>`;
+                    if (p === '-' || p === '+' || p === '{' || p === '}') return `<span class="sd-sep">${esc(p)}</span>`;
                     if (p.startsWith('!') && p.endsWith('!') && p.length > 2)
                         return `<span class="sd-mod">${esc(p)}</span>`;
                     if (p.startsWith('$') && p.endsWith('$') && p.length > 2)
