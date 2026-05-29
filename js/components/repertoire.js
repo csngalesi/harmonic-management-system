@@ -146,11 +146,8 @@
                             : '';
                         return `<button class="sort-btn${isActive ? ' active' : ''}${isDisabled ? ' disabled' : ''}" data-sort="${field}"${isDisabled ? ' disabled' : ''}>${label} ${icon}</button>`;
                     }).join('')}
-                    <span style="color: var(--text-muted); margin: 0 8px; font-weight: 300; font-size: 1.1rem; display: inline-block; vertical-align: middle;">|</span>
-                    ${['A', 'Bb', 'B', 'C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'Am', 'Bbm', 'Bm', 'Cm', 'C#m', 'Dm', 'Ebm', 'Em', 'Fm', 'F#m', 'Gm', 'G#m'].map(k => {
-                        const isActive = _state.filterKey === k;
-                        return `<button class="sort-btn key-filter-btn${isActive ? ' active' : ''}" data-key="${k}" style="padding: 3px 8px; font-size: 0.72rem; min-width: 28px; text-align: center; justify-content: center;">${k}</button>`;
-                    }).join('')}
+                    <span id="key-filter-separator" style="color: var(--text-muted); margin: 0 8px; font-weight: 300; font-size: 1.1rem; display: none; vertical-align: middle;">|</span>
+                    <span id="key-filter-container" style="display: inline-flex; flex-wrap: wrap; gap: 6px; vertical-align: middle;"></span>
                 </div>
 
                 </div><!-- /rep-controls -->
@@ -373,10 +370,37 @@
                 }
             });
 
-            toolbar.querySelectorAll('.key-filter-btn[data-key]').forEach(btn => {
-                const key = btn.dataset.key;
-                btn.classList.toggle('active', _state.filterKey === key);
-            });
+            // Dynamic Key Filters (only show keys that have songs in the current list)
+            const sep = document.getElementById('key-filter-separator');
+            const container = document.getElementById('key-filter-container');
+            if (sep && container) {
+                const uniqueKeys = [...new Set(_state.songs.map(s => s.original_key).filter(Boolean))];
+                if (uniqueKeys.length === 0) {
+                    sep.style.display = 'none';
+                    container.innerHTML = '';
+                    _state.filterKey = null; // Reset filter if no matching keys exist
+                } else {
+                    if (_state.filterKey !== null && !uniqueKeys.includes(_state.filterKey)) {
+                        _state.filterKey = null;
+                    }
+
+                    const standardOrder = ['A', 'Bb', 'B', 'C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'Am', 'Bbm', 'Bm', 'Cm', 'C#m', 'Dm', 'Ebm', 'Em', 'Fm', 'F#m', 'Gm', 'G#m'];
+                    uniqueKeys.sort((a, b) => {
+                        const idxA = standardOrder.indexOf(a);
+                        const idxB = standardOrder.indexOf(b);
+                        if (idxA === -1 && idxB === -1) return a.localeCompare(b);
+                        if (idxA === -1) return 1;
+                        if (idxB === -1) return -1;
+                        return idxA - idxB;
+                    });
+
+                    sep.style.display = 'inline-block';
+                    container.innerHTML = uniqueKeys.map(k => {
+                        const isActive = _state.filterKey === k;
+                        return `<button class="sort-btn key-filter-btn${isActive ? ' active' : ''}" data-key="${k}" style="padding: 3px 8px; font-size: 0.72rem; min-width: 28px; text-align: center; justify-content: center;">${k}</button>`;
+                    }).join('');
+                }
+            }
         },
 
         _renderSongList: function () {
