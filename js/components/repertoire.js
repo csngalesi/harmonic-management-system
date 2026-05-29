@@ -24,6 +24,7 @@
         filterHarm:  null,   // null | true | false
         filterLetra: null,   // null | true | false
         filterLink:  null,   // null | true | false
+        filterKey:   null,   // null | 'C' | 'G' | ...
     };
 
     // Drag state for position reordering
@@ -145,6 +146,11 @@
                             : '';
                         return `<button class="sort-btn${isActive ? ' active' : ''}${isDisabled ? ' disabled' : ''}" data-sort="${field}"${isDisabled ? ' disabled' : ''}>${label} ${icon}</button>`;
                     }).join('')}
+                    <span style="color: var(--text-muted); margin: 0 8px; font-weight: 300; font-size: 1.1rem; display: inline-block; vertical-align: middle;">|</span>
+                    ${['A', 'Bb', 'B', 'C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'Am', 'Bbm', 'Bm', 'Cm', 'C#m', 'Dm', 'Ebm', 'Em', 'Fm', 'F#m', 'Gm', 'G#m'].map(k => {
+                        const isActive = _state.filterKey === k;
+                        return `<button class="sort-btn key-filter-btn${isActive ? ' active' : ''}" data-key="${k}" style="padding: 3px 8px; font-size: 0.72rem; min-width: 28px; text-align: center; justify-content: center;">${k}</button>`;
+                    }).join('')}
                 </div>
 
                 </div><!-- /rep-controls -->
@@ -244,19 +250,29 @@
                 RepertoireComponent._renderSongList();
             });
 
-            // Sort buttons
+            // Sort & Key Filter buttons
             document.getElementById('sort-toolbar').addEventListener('click', (e) => {
-                const btn = e.target.closest('.sort-btn');
-                if (!btn || btn.disabled) return;
-                const field = btn.dataset.sort;
-                if (_state.sortBy === field) {
-                    _state.sortDir = _state.sortDir === 'asc' ? 'desc' : 'asc';
-                } else {
-                    _state.sortBy  = field;
-                    _state.sortDir = 'asc';
+                const sortBtn = e.target.closest('.sort-btn[data-sort]');
+                if (sortBtn && !sortBtn.disabled) {
+                    const field = sortBtn.dataset.sort;
+                    if (_state.sortBy === field) {
+                        _state.sortDir = _state.sortDir === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        _state.sortBy  = field;
+                        _state.sortDir = 'asc';
+                    }
+                    RepertoireComponent._renderSortToolbar();
+                    RepertoireComponent._renderSongList();
+                    return;
                 }
-                RepertoireComponent._renderSortToolbar();
-                RepertoireComponent._renderSongList();
+
+                const keyBtn = e.target.closest('.key-filter-btn[data-key]');
+                if (keyBtn) {
+                    const key = keyBtn.dataset.key;
+                    _state.filterKey = _state.filterKey === key ? null : key;
+                    RepertoireComponent._renderSortToolbar();
+                    RepertoireComponent._renderSongList();
+                }
             });
 
             await Promise.all([
@@ -339,7 +355,7 @@
         _renderSortToolbar: function () {
             const toolbar = document.getElementById('sort-toolbar');
             if (!toolbar) return;
-            toolbar.querySelectorAll('.sort-btn').forEach(btn => {
+            toolbar.querySelectorAll('.sort-btn[data-sort]').forEach(btn => {
                 const field      = btn.dataset.sort;
                 const isActive   = _state.sortBy === field;
                 const isDisabled = field === 'position' && !_state.activeSetlist;
@@ -356,6 +372,11 @@
                     btn.appendChild(i);
                 }
             });
+
+            toolbar.querySelectorAll('.key-filter-btn[data-key]').forEach(btn => {
+                const key = btn.dataset.key;
+                btn.classList.toggle('active', _state.filterKey === key);
+            });
         },
 
         _renderSongList: function () {
@@ -368,6 +389,7 @@
                 if (_state.filterHarm  !== null && !!(s.harmony_str && s.harmony_str.trim()) !== _state.filterHarm) return false;
                 if (_state.filterLetra !== null && !!s.has_lyrics !== _state.filterLetra) return false;
                 if (_state.filterLink  !== null && !!s.audio_url  !== _state.filterLink)  return false;
+                if (_state.filterKey   !== null && s.original_key !== _state.filterKey) return false;
                 return true;
             });
 
