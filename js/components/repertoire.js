@@ -1081,6 +1081,30 @@
 
                     <hr style="border:none;border-top:1px solid rgba(255,255,255,.07);margin:0;">
 
+                    <!-- Simular offline toggle -->
+                    <div id="fm-force-offline-row" style="display:flex;align-items:center;justify-content:space-between;
+                         padding:10px 14px;border-radius:8px;cursor:pointer;
+                         background:${window.HMSOffline._forceOffline ? 'rgba(239,68,68,.12)' : 'rgba(255,255,255,.04)'};
+                         border:1px solid ${window.HMSOffline._forceOffline ? 'rgba(239,68,68,.3)' : 'rgba(255,255,255,.07)'};
+                         transition:background .2s,border .2s;">
+                        <div>
+                            <div style="font-size:.88rem;font-weight:500;color:var(--text-primary);display:flex;align-items:center;gap:7px;">
+                                <i class="fa-solid fa-flask" style="font-size:.8rem;color:${window.HMSOffline._forceOffline ? '#fca5a5' : 'var(--text-muted)'};" id="fm-force-icon"></i>
+                                <span id="fm-force-label">${window.HMSOffline._forceOffline ? 'Desativar modo offline (teste)' : 'Simular modo offline (teste)'}</span>
+                            </div>
+                            <div style="font-size:.72rem;color:var(--text-muted);margin-top:2px;">Testa sem precisar desconectar o WiFi</div>
+                        </div>
+                        <div style="width:38px;height:22px;border-radius:99px;position:relative;
+                             background:${window.HMSOffline._forceOffline ? '#ef4444' : 'rgba(255,255,255,.15)'};
+                             transition:background .25s;flex-shrink:0;" id="fm-force-track">
+                            <div style="width:16px;height:16px;border-radius:50%;background:#fff;position:absolute;
+                                 top:3px;transition:left .25s;
+                                 left:${window.HMSOffline._forceOffline ? '19px' : '3px'};" id="fm-force-thumb"></div>
+                        </div>
+                    </div>
+
+                    <hr style="border:none;border-top:1px solid rgba(255,255,255,.07);margin:0;">
+
                     <button class="btn btn-secondary funcoes-btn" id="fm-import-csv" style="justify-content:flex-start;gap:10px;">
                         <i class="fa-solid fa-file-import" style="width:18px;text-align:center;"></i> Importar CSV
                     </button>
@@ -1100,6 +1124,25 @@
             `);
 
             document.getElementById('modal-close-btn').addEventListener('click', window.HMSApp.closeModal);
+
+            // ── Simular offline toggle ────────────────────────────────
+            document.getElementById('fm-force-offline-row').addEventListener('click', () => {
+                const next = !window.HMSOffline._forceOffline;
+                window.HMSOffline.setForce(next);
+
+                // Update toggle visuals without closing modal
+                const row   = document.getElementById('fm-force-offline-row');
+                const track = document.getElementById('fm-force-track');
+                const thumb = document.getElementById('fm-force-thumb');
+                const label = document.getElementById('fm-force-label');
+                const icon  = document.getElementById('fm-force-icon');
+                row.style.background   = next ? 'rgba(239,68,68,.12)' : 'rgba(255,255,255,.04)';
+                row.style.borderColor  = next ? 'rgba(239,68,68,.3)'  : 'rgba(255,255,255,.07)';
+                track.style.background = next ? '#ef4444' : 'rgba(255,255,255,.15)';
+                thumb.style.left       = next ? '19px' : '3px';
+                label.textContent      = next ? 'Desativar modo offline (teste)' : 'Simular modo offline (teste)';
+                icon.style.color       = next ? '#fca5a5' : 'var(--text-muted)';
+            });
 
             // ── Sync button ──────────────────────────────────────────
             document.getElementById('fm-sync-show').addEventListener('click', async () => {

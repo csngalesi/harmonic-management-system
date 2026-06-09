@@ -7,7 +7,18 @@
 
     // ── Offline State ────────────────────────────────────────────
     window.HMSOffline = {
-        isOffline() { return !navigator.onLine; },
+        _forceOffline: false,
+
+        isOffline() { return this._forceOffline || !navigator.onLine; },
+
+        setForce(val) {
+            this._forceOffline = val;
+            this._update();
+            // Re-render current view if repertoire is active
+            if (window.RepertoireComponent && document.getElementById('song-list')) {
+                RepertoireComponent._renderSongList();
+            }
+        },
 
         init() {
             window.addEventListener('online',  () => HMSOffline._update());
@@ -16,10 +27,15 @@
         },
 
         _update() {
-            const offline = !navigator.onLine;
+            const offline = this.isOffline();
             // Badge
             const badge = document.getElementById('offline-badge');
-            if (badge) badge.classList.toggle('hidden', !offline);
+            if (badge) {
+                badge.classList.toggle('hidden', !offline);
+                badge.title = this._forceOffline ? 'Modo offline simulado (teste)' : 'Sem conexão';
+                badge.innerHTML = `<i class="fa-solid fa-wifi-slash" style="font-size:.65rem;"></i>
+                    ${this._forceOffline ? 'OFFLINE (teste)' : 'OFFLINE'}`;
+            }
             // Logout button
             const logoutBtn = document.getElementById('logout-btn');
             if (logoutBtn) {
@@ -28,7 +44,7 @@
                 logoutBtn.style.opacity = offline ? '0.3' : '';
             }
             if (offline) {
-                console.info('[HMS] Offline mode active — reading from IndexedDB');
+                console.info('[HMS] Offline mode active — reading from IndexedDB', this._forceOffline ? '(FORCED)' : '');
             }
         },
     };
