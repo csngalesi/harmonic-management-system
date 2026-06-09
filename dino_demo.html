@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo: Baixarias do Dino 7 Cordas</title>
+    <!-- Incluindo Tone.js da mesma forma que o projeto pai -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            padding: 40px;
+            background-color: #1a1a2e;
+            color: #fff;
+            max-width: 600px;
+            margin: auto;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            border-bottom: 2px solid #e94560;
+            padding-bottom: 10px;
+        }
+
+        .example-box {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #0f3460;
+        }
+
+        p {
+            font-size: 0.95rem;
+            color: #ccc;
+            line-height: 1.5;
+        }
+
+        button {
+            background: #e94560;
+            color: #fff;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: bold;
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: 0.2s;
+        }
+
+        button:hover {
+            background: #d63d56;
+        }
+
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>🎙️ Baixarias de Violão 7 Cordas</h1>
+    <p>Nesta demonstração rápida, usamos o <strong>Tone.js</strong> para simular as frases rítmicas aplicadas no
+        contraponto dos baixos, explicados no relatório.</p>
+
+    <div class="example-box">
+        <h3>1. Colcheias: Caminhada de Dm para Gm</h3>
+        <p>Aqui o violão caminha entre o acorde de Dm e Gm, usando uma marcação constante de colcheias (o "surdo/walking
+            bass"). <br><em>Ex: D2 - E2 - F2 - F#2 | G2 - D2 - Bb1 - G1</em></p>
+        <button onclick="playColcheias()" id="btn-col">▶️ Ouvir Colcheias</button>
+    </div>
+
+    <div class="example-box">
+        <h3>2. Semicolcheias: Cadência II-V-I rápida</h3>
+        <p>Uma resposta ágil (típica nos breques do sax ou flauta), com arpejos quebrados e ritmo de pandeiro.
+            <br><em>Ex: Preparação para Dó usando notas curtas e rápidas.</em></p>
+        <button onclick="playSemi()" id="btn-semi">▶️ Ouvir Semicolcheias</button>
+    </div>
+
+    <script>
+        // Inicializa o synth (simulando um baixo ou violão grave)
+        const synth = new Tone.PolySynth(Tone.Synth, {
+            oscillator: { type: "triangle" },
+            envelope: { attack: 0.02, decay: 0.3, sustain: 0.2, release: 1 }
+        }).toDestination();
+
+        // Adiciona um reverb leve
+        const reverb = new Tone.Reverb(1.5).toDestination();
+        synth.connect(reverb);
+
+        let isPlaying = false;
+
+        async function initAudio() {
+            if (Tone.context.state !== 'running') {
+                await Tone.start();
+                await reverb.generate();
+            }
+        }
+
+        async function playColcheias() {
+            if (isPlaying) return;
+            await initAudio();
+            isPlaying = true;
+
+            Tone.Transport.stop();
+            Tone.Transport.cancel();
+            Tone.Transport.bpm.value = 80; // Andamento de choro cadenciado
+
+            // Sequência de colcheias (1 compasso e meio = 6 notas, resolve na cabeça)
+            const notas = [
+                { time: "0:0:0", note: "D2", dur: "8n" }, // Dm (tônica)
+                { time: "0:0:2", note: "E2", dur: "8n" },
+                { time: "0:1:0", note: "F2", dur: "8n" }, // Terça menor
+                { time: "0:1:2", note: "F#2", dur: "8n" }, // Aproximação cromática pro G
+                { time: "0:2:0", note: "G2", dur: "4n" }, // Gm (resolução no t1)
+                { time: "0:2:2", note: "D2", dur: "8n" }, // Quinta (Gm)
+                { time: "0:3:0", note: "Bb1", dur: "8n" }, // Terça grave
+                { time: "0:3:2", note: "G1", dur: "2n" }, // Tônica grave (caiu na 7ª corda ou similar)
+            ];
+
+            new Tone.Part((time, event) => {
+                synth.triggerAttackRelease(event.note, event.dur, time);
+            }, notas).start(0);
+
+            Tone.Transport.start();
+            setTimeout(() => { Tone.Transport.stop(); isPlaying = false; }, 3000);
+        }
+
+        async function playSemi() {
+            if (isPlaying) return;
+            await initAudio();
+            isPlaying = true;
+
+            Tone.Transport.stop();
+            Tone.Transport.cancel();
+            Tone.Transport.bpm.value = 80;
+
+            // Sequência de semicolcheias (frase rápida "breque")
+            const notas = [
+                { time: "0:0:0", note: "D2", dur: "16n" }, // Dm arpejo rápido
+                { time: "0:0:1", note: "F2", dur: "16n" },
+                { time: "0:0:2", note: "A2", dur: "16n" },
+                { time: "0:0:3", note: "F2", dur: "16n" },
+
+                { time: "0:1:0", note: "G2", dur: "16n" }, // G7 
+                { time: "0:1:1", note: "B2", dur: "16n" },
+                { time: "0:1:2", note: "D3", dur: "16n" },
+                { time: "0:1:3", note: "G2", dur: "16n" },
+
+                { time: "0:2:0", note: "F#2", dur: "16n" }, // cromatismo repicado
+                { time: "0:2:1", note: "F2", dur: "16n" },
+                { time: "0:2:2", note: "E2", dur: "16n" },
+                { time: "0:2:3", note: "D#2", dur: "16n" },
+
+                { time: "0:3:0", note: "C2", dur: "8n" }, // Resolve C forte!
+            ];
+
+            new Tone.Part((time, event) => {
+                synth.triggerAttackRelease(event.note, event.dur, time);
+            }, notas).start(0);
+
+            Tone.Transport.start();
+            setTimeout(() => { Tone.Transport.stop(); isPlaying = false; }, 3000);
+        }
+    </script>
+</body>
+
+</html>

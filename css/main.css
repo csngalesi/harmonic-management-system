@@ -721,9 +721,48 @@ tbody tr:hover td { background: var(--glass-bg); }
     letter-spacing:.04em; align-self:center; white-space:nowrap;
 }
 
-@media (min-width: 768px)  { .show-grid { grid-template-columns: repeat(5,1fr); } }
+@media (min-width: 768px)  { .show-grid:not([class*="cols-"]) { grid-template-columns: repeat(5,1fr); } }
 @media (min-width: 768px)  { .show-cell { padding: 4px 6px; gap: 4px; } .show-title { font-size: .72rem; } .show-key { font-size: .68rem; padding: 1px 4px; } }
-@media (max-width: 767px)  { .show-grid { grid-template-columns: repeat(2,1fr); } }
+@media (max-width: 767px)  { .show-grid:not([class*="cols-"]) { grid-template-columns: repeat(2,1fr); } }
+
+/* ── Show Grid — Column variants (S=1, 2–5) ──────────────────── */
+.show-grid.cols-S { grid-template-columns: 1fr; }
+.show-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+.show-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.show-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+.show-grid.cols-5 { grid-template-columns: repeat(5, 1fr); }
+
+/* Font scales: fewer cols → bigger text */
+.show-grid.cols-S .show-cell  { padding: 10px 16px; }
+.show-grid.cols-S .show-title { font-size: 1.3rem; }
+.show-grid.cols-S .show-key   { font-size: 1.05rem; padding: 2px 10px; }
+
+.show-grid.cols-2 .show-cell  { padding: 8px 12px; }
+.show-grid.cols-2 .show-title { font-size: 1.0rem; }
+.show-grid.cols-2 .show-key   { font-size: 0.88rem; padding: 2px 8px; }
+
+.show-grid.cols-3 .show-cell  { padding: 6px 10px; }
+.show-grid.cols-3 .show-title { font-size: 0.88rem; }
+.show-grid.cols-3 .show-key   { font-size: 0.78rem; padding: 1px 6px; }
+
+.show-grid.cols-4 .show-cell  { padding: 5px 8px; }
+.show-grid.cols-4 .show-title { font-size: 0.78rem; }
+.show-grid.cols-4 .show-key   { font-size: 0.7rem; padding: 1px 5px; }
+
+.show-grid.cols-5 .show-cell  { padding: 4px 6px; }
+.show-grid.cols-5 .show-title { font-size: 0.7rem; }
+.show-grid.cols-5 .show-key   { font-size: 0.65rem; padding: 1px 4px; }
+
+/* ── Column Picker Buttons ────────────────────────────────────── */
+.col-pick-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; border-radius: 5px;
+    font-size: .7rem; font-weight: 700;
+    background: var(--glass-bg); border: 1px solid var(--glass-border);
+    color: var(--text-secondary); cursor: pointer; transition: all var(--transition);
+}
+.col-pick-btn:hover:not(.active) { border-color: var(--text-secondary); color: var(--text-primary); }
+.col-pick-btn.active { background: var(--brand-dim); border-color: var(--brand); color: var(--brand); }
 
 /* ── Setlist Sidebar ───────────────────────────────────────── */
 .setlist-filter {

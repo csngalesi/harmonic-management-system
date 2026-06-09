@@ -18,6 +18,7 @@
         sortBy:       'title',    // 'title' | 'artist' | 'key' | 'position'
         sortDir:      'asc',      // 'asc' | 'desc'
         viewMode:        'list',     // 'list' | 'show'
+        showColumns:     'N',         // 'S'=1col | 'N'=responsive | '2'-'5'
         headerCollapsed: false,
         // Client-side filters (null = sem filtro)
         filterFlag:  null,   // null | 0 | 1 | 2 | 3
@@ -54,6 +55,9 @@
                         <button class="btn btn-secondary${_state.viewMode === 'show' ? ' active' : ''}" id="btn-toggle-show" title="Modo Show — grid condensado">
                             <i class="fa-solid fa-table-cells"></i> Show
                         </button>
+                        <span id="show-cols-picker" style="display:${_state.viewMode === 'show' ? 'inline-flex' : 'none'};align-items:center;gap:3px;margin-left:2px;" title="Número de colunas no modo Show">
+                            ${['S','N','2','3','4','5'].map(v => `<button class="col-pick-btn${_state.showColumns === v ? ' active' : ''}" data-cols="${v}">${v}</button>`).join('')}
+                        </span>
                         <button class="btn btn-secondary" id="btn-manage-setlists">
                             <i class="fa-solid fa-folder-open"></i> Setlists
                         </button>
@@ -177,7 +181,18 @@
             document.getElementById('btn-toggle-show').addEventListener('click', () => {
                 _state.viewMode = _state.viewMode === 'show' ? 'list' : 'show';
                 document.getElementById('btn-toggle-show').classList.toggle('active', _state.viewMode === 'show');
+                const picker = document.getElementById('show-cols-picker');
+                if (picker) picker.style.display = _state.viewMode === 'show' ? 'inline-flex' : 'none';
                 RepertoireComponent._renderSongList();
+            });
+
+            document.getElementById('show-cols-picker')?.addEventListener('click', (e) => {
+                const btn = e.target.closest('.col-pick-btn');
+                if (!btn) return;
+                _state.showColumns = btn.dataset.cols;
+                document.querySelectorAll('.col-pick-btn').forEach(b =>
+                    b.classList.toggle('active', b.dataset.cols === _state.showColumns));
+                if (_state.viewMode === 'show') RepertoireComponent._renderSongList();
             });
 
             document.getElementById('btn-new-song').addEventListener('click', () => {
@@ -555,7 +570,8 @@
                     </button>
                 </div>`;
             }).join('');
-            return `<div class="show-grid">${cells}</div>`;
+            const colClass = _state.showColumns !== 'N' ? ` cols-${_state.showColumns}` : '';
+            return `<div class="show-grid${colClass}">${cells}</div>`;
         },
 
         _openShowDetail: function (song) {

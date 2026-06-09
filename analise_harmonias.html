@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HMS — Análise Proximidade Harmônica</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    
+    <!-- HMS Styles (Reaproveitando o estilo principal) -->
+    <link rel="stylesheet" href="css/main.css">
+
+    <style>
+        .analysis-container {
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 20px;
+            background: var(--surface-2);
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .analysis-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .analysis-header h1 {
+            color: var(--primary);
+            font-weight: 700;
+        }
+        .analysis-header p {
+            color: var(--text-2);
+            font-size: 1.1rem;
+        }
+        
+        table.hms-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: var(--surface-1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        table.hms-table th, table.hms-table td {
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border);
+            text-align: left;
+        }
+        table.hms-table th {
+            background-color: var(--surface-3);
+            color: var(--text-1);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.9rem;
+        }
+        table.hms-table tr:last-child td {
+            border-bottom: none;
+        }
+        table.hms-table tbody tr:hover {
+            background-color: var(--surface-hover);
+        }
+
+        .harmony-badge {
+            display: inline-block;
+            background: var(--primary);
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            font-size: 1.1em;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 10px rgba(71, 143, 254, 0.3);
+        }
+
+        .song-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .song-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.95rem;
+            color: var(--text-1);
+        }
+        .song-item i {
+            color: var(--primary);
+            font-size: 0.8rem;
+        }
+        .song-artist {
+            color: var(--text-3);
+            font-size: 0.85em;
+        }
+
+        .count-badge {
+            background: var(--surface-3);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-weight: bold;
+            color: var(--text-2);
+            font-size: 0.9rem;
+        }
+
+        .loading-state {
+            text-align: center;
+            padding: 50px;
+            color: var(--text-2);
+            font-size: 1.2rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="analysis-container">
+        <div class="analysis-header">
+            <h1><i class="fa-solid fa-chart-projector"></i> Análise de Proximidade Harmônica</h1>
+            <p>Agrupamento de músicas da sua biblioteca com base em suas progressões funcionais e campos harmônicos.</p>
+        </div>
+
+        <div id="loading" class="loading-state">
+            <i class="fa-solid fa-circle-notch fa-spin"></i> Processando banco de dados...
+        </div>
+
+        <div id="table-wrapper" style="display: none;">
+            <table class="hms-table">
+                <thead>
+                    <tr>
+                        <th width="30%">Progressão Funcional</th>
+                        <th width="15%">Qtd. Músicas</th>
+                        <th width="55%">Músicas Agrupadas</th>
+                    </tr>
+                </thead>
+                <tbody id="analysis-body">
+                    <!-- Linhas injetadas via JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Scripts Supabase e HMS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="js/supabase-client.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/api.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const tbody = document.getElementById('analysis-body');
+            const loading = document.getElementById('loading');
+            const tableWrapper = document.getElementById('table-wrapper');
+
+            try {
+                // Aguarda 1 segundo pro Supabase / Auth inicializarem
+                await new Promise(r => setTimeout(r, 600));
+
+                if (!window.HMSAPI || !window.HMSAPI.Songs) {
+                    throw new Error("Módulo da API não carregou ou você não está logado!");
+                }
+
+                // Busca todas as músicas
+                const songs = await window.HMSAPI.Songs.getAll();
+                
+                // Objeto para agrupar as harmonias
+                const harmonyGroups = {};
+
+                songs.forEach(song => {
+                    let harmony = song.harmony_str;
+                    
+                    // Se não tem harmonia cadastrada, ignora
+                    if (!harmony || harmony.trim() === '') return;
+
+                    // Normalização Forte da Harmonia: 
+                    // Remove barras, traços, vírgulas, espaços extras e deixa padronizado.
+                    // Exemplo: "I - V - vi - IV" vira "I V vi IV"
+                    let normalized = harmony.replace(/[\|\-,\s]+/g, ' ').trim();
+
+                    // Evita bugs de caixa, mas mantém case (I = maior, ii = menor)
+                    // Se o usuário digitou tudo maiúsculo (I VI II V), a gente mantém, 
+                    // mas podemos unificar espaços.
+                    
+                    if (!harmonyGroups[normalized]) {
+                        harmonyGroups[normalized] = [];
+                    }
+                    
+                    harmonyGroups[normalized].push(song);
+                });
+
+                // Converter o objeto em Array e ordenar por Músicas (Decrescente)
+                const groupsArray = Object.keys(harmonyGroups).map(key => {
+                    return {
+                        progression: key,
+                        songs: harmonyGroups[key]
+                    };
+                });
+
+                // Ordenar: Progressões mais comuns primeiro
+                groupsArray.sort((a, b) => b.songs.length - a.songs.length);
+
+                let html = '';
+
+                if (groupsArray.length === 0) {
+                    html = '<tr><td colspan="3" style="text-align:center; padding: 40px;">Nenhuma música com progressão funcional cadastrada foi encontrada.</td></tr>';
+                } else {
+                    groupsArray.forEach(group => {
+                        const songListHtml = group.songs.map(s => 
+                            `<li class="song-item">
+                                <i class="fa-solid fa-music"></i> 
+                                <strong>${s.title}</strong> 
+                                <span class="song-artist">— ${s.artist || 'Desconhecido'}</span>
+                                ${s.original_key ? ` <small style="color:var(--text-3); margin-left:10px;">[Tom: ${s.original_key}]</small>` : ''}
+                            </li>`
+                        ).join('');
+
+                        html += `
+                            <tr>
+                                <td><span class="harmony-badge">${group.progression}</span></td>
+                                <td style="text-align: center;"><span class="count-badge">${group.songs.length}</span></td>
+                                <td>
+                                    <ul class="song-list">
+                                        ${songListHtml}
+                                    </ul>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                }
+
+                tbody.innerHTML = html;
+                loading.style.display = 'none';
+                tableWrapper.style.display = 'block';
+
+            } catch (error) {
+                console.error("Erro ao analisar harmonias:", error);
+                loading.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="color: #ff4757;"></i> Erro: Você precisa estar logado no sistema para efetuar a busca de dados. Abra o index.html principal, faça login e tente novamente!`;
+            }
+        });
+    </script>
+</body>
+</html>
