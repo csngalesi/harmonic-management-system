@@ -50,6 +50,7 @@
                         <button class="btn-icon" id="btn-collapse-header" title="${_state.headerCollapsed ? 'Expandir controles' : 'Minimizar controles'}" style="margin-left:8px;">
                             <i class="fa-solid fa-chevron-${_state.headerCollapsed ? 'down' : 'up'}"></i>
                         </button>
+                        <span id="key-filter-header" style="display:inline-flex;align-items:center;flex-wrap:wrap;gap:4px;margin-left:10px;"></span>
                     </div>
                     <div class="page-actions"${_state.headerCollapsed ? ' style="display:none"' : ''}>
                         <button class="btn btn-secondary${_state.viewMode === 'show' ? ' active' : ''}" id="btn-toggle-show" title="Modo Show — grid condensado">
@@ -176,6 +177,16 @@
                 if (actions) actions.style.display  = _state.headerCollapsed ? 'none' : '';
                 btn.querySelector('i').className = `fa-solid fa-chevron-${_state.headerCollapsed ? 'down' : 'up'}`;
                 btn.title = _state.headerCollapsed ? 'Expandir controles' : 'Minimizar controles';
+            });
+
+            // Key filter clicks in the header (always visible, even when collapsed)
+            document.getElementById('key-filter-header')?.addEventListener('click', (e) => {
+                const keyBtn = e.target.closest('.key-filter-btn[data-key]');
+                if (!keyBtn) return;
+                const key = keyBtn.dataset.key;
+                _state.filterKey = _state.filterKey === key ? null : key;
+                RepertoireComponent._renderSortToolbar();
+                RepertoireComponent._renderSongList();
             });
 
             document.getElementById('btn-toggle-show').addEventListener('click', () => {
@@ -414,6 +425,19 @@
                         const isActive = _state.filterKey === k;
                         return `<button class="sort-btn key-filter-btn${isActive ? ' active' : ''}" data-key="${k}" style="padding: 3px 8px; font-size: 0.72rem; min-width: 28px; text-align: center; justify-content: center;">${k}</button>`;
                     }).join('');
+                }
+
+                // Mirror key filters into the always-visible header slot
+                const headerKeyEl = document.getElementById('key-filter-header');
+                if (headerKeyEl) {
+                    if (uniqueKeys.length === 0) {
+                        headerKeyEl.innerHTML = '';
+                    } else {
+                        headerKeyEl.innerHTML = uniqueKeys.map(k => {
+                            const isActive = _state.filterKey === k;
+                            return `<button class="sort-btn key-filter-btn${isActive ? ' active' : ''}" data-key="${k}" style="padding: 3px 8px; font-size: 0.72rem; min-width: 28px; text-align: center; justify-content: center;">${k}</button>`;
+                        }).join('');
+                    }
                 }
             }
         },
