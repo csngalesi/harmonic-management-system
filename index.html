@@ -4,7 +4,9 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#080a10" />
     <title>HMS — Harmonic Management System</title>
+    <link rel="manifest" href="manifest.json" />
 
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -162,6 +164,13 @@
                 <div class="topbar-brand">
                     <i class="fa-solid fa-music"></i> HMS
                 </div>
+                <!-- Offline badge -->
+                <span id="offline-badge" class="hidden" style="
+                    margin-left:auto;padding:3px 10px;border-radius:99px;
+                    background:rgba(239,68,68,.18);border:1px solid rgba(239,68,68,.4);
+                    color:#fca5a5;font-size:.72rem;font-weight:600;letter-spacing:.04em;
+                    display:inline-flex;align-items:center;gap:5px;
+                "><i class="fa-solid fa-wifi-slash" style="font-size:.65rem;"></i> OFFLINE</span>
             </header>
 
             <!-- Content -->
@@ -186,6 +195,8 @@
     <script src="js/core/chordShapes.js"></script>
     <script src="js/core/audioEngine.js"></script>
     <script src="js/core/melodyEngine.js"></script>
+    <script src="js/core/offlineDB.js"></script>
+    <script src="js/core/syncManager.js"></script>
 
     <!-- Infrastructure -->
     <script src="js/supabase-client.js"></script>
@@ -205,6 +216,17 @@
 
     <!-- SPA Controller -->
     <script src="js/app.js"></script>
+
+    <!-- Service Worker registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.info('[HMS] SW registered:', reg.scope))
+                    .catch(err => console.warn('[HMS] SW registration failed:', err));
+            });
+        }
+    </script>
 
 </body>
 

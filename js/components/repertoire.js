@@ -67,7 +67,8 @@
                         </button>
                         <!-- hidden file input for CSV import (triggered from funções modal) -->
                         <input type="file" id="input-import-csv" accept=".csv,.txt" style="display:none;" />
-                        <button class="btn btn-primary" id="btn-new-song">
+                        <button class="btn btn-primary${window.HMSOffline && window.HMSOffline.isOffline() ? ' disabled' : ''}" id="btn-new-song"
+                            ${window.HMSOffline && window.HMSOffline.isOffline() ? 'disabled title="Sem conexão — edições indisponíveis"' : ''}>
                             <i class="fa-solid fa-plus"></i> Nova Música
                         </button>
                     </div>
@@ -161,6 +162,15 @@
                         <div class="loader-spinner"></div>
                         <p>Carregando músicas…</p>
                     </div>
+                </div>
+
+                <!-- Offline banner -->
+                <div id="offline-banner" style="display:none;margin-top:8px;padding:10px 14px;
+                     background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);
+                     border-radius:8px;font-size:.82rem;color:#fca5a5;display:flex;
+                     align-items:center;gap:8px;">
+                    <i class="fa-solid fa-wifi" style="opacity:.6;"></i>
+                    Modo offline — apenas leitura. Edite as músicas quando estiver online.
                 </div>
             `;
 
@@ -426,6 +436,11 @@
             const el = document.getElementById('song-list');
             if (!el) return;
 
+            // Offline banner visibility
+            const isOffline = window.HMSOffline && window.HMSOffline.isOffline();
+            const banner = document.getElementById('offline-banner');
+            if (banner) banner.style.display = isOffline ? 'flex' : 'none';
+
             // Client-side filter
             const filtered = _state.songs.filter(s => {
                 if (_state.filterFlag  !== null && (s.status_flag || 0) !== _state.filterFlag) return false;
@@ -527,10 +542,14 @@
                         <button class="btn-icon edit" data-action="play" data-id="${s.id}" title="Abrir no Player">
                             <i class="fa-solid fa-play"></i>
                         </button>
-                        <button class="btn-icon edit" data-action="edit" data-id="${s.id}" title="Editar">
+                        <button class="btn-icon edit${isOffline ? ' disabled' : ''}" data-action="edit" data-id="${s.id}"
+                            title="${isOffline ? 'Sem conexão — edição indisponível' : 'Editar'}"
+                            ${isOffline ? 'disabled' : ''}>
                             <i class="fa-solid fa-pen-to-square"></i>
                         </button>
-                        <button class="btn-icon delete" data-action="delete" data-id="${s.id}" title="Excluir">
+                        <button class="btn-icon delete${isOffline ? ' disabled' : ''}" data-action="delete" data-id="${s.id}"
+                            title="${isOffline ? 'Sem conexão — exclusão indisponível' : 'Excluir'}"
+                            ${isOffline ? 'disabled' : ''}>
                             <i class="fa-solid fa-trash"></i>
                         </button>
                     </div>
@@ -1021,13 +1040,47 @@
         },
 
         // ── Funções Modal ─────────────────────────────────────────
-        _openFuncoesModal: function () {
+        _openFuncoesModal: async function () {
+            const lastSyncLabel = await window.HMSSyncManager.getLastSyncLabel();
+            const stats         = await window.HMSSyncManager.getStats();
+            const statsLabel    = stats.songCount
+                ? `${stats.songCount} m\u00fasica${stats.songCount !== 1 ? 's' : ''} \u00b7 ${stats.setlistCount} setlist${stats.setlistCount !== 1 ? 's' : ''}`
+                : 'Nenhuma sync realizada';
+
             window.HMSApp.openModal(`
                 <div class="modal-header">
-                    <h3><i class="fa-solid fa-ellipsis-vertical"></i> Funções</h3>
+                    <h3><i class="fa-solid fa-ellipsis-vertical"></i> Fun\u00e7\u00f5es</h3>
                     <button class="modal-close" id="modal-close-btn"><i class="fa-solid fa-xmark"></i></button>
                 </div>
                 <div class="modal-body" style="display:flex;flex-direction:column;gap:10px;padding:16px;">
+
+                    <!-- Sync para Show -->
+                    <div style="background:rgba(124,111,255,.10);border:1px solid rgba(124,111,255,.25);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                            <div>
+                                <div style="font-weight:600;font-size:.95rem;color:var(--text-primary);display:flex;align-items:center;gap:8px;">
+                                    <i class="fa-solid fa-tower-broadcast" style="color:#7c6fff;"></i> Sync para Show
+                                </div>
+                                <div style="font-size:.75rem;color:var(--text-muted);margin-top:3px;">
+                                    \u00daltima: ${lastSyncLabel}
+                                </div>
+                                <div style="font-size:.75rem;color:var(--text-muted);">${statsLabel}</div>
+                            </div>
+                            <button class="btn btn-primary" id="fm-sync-show" style="white-space:nowrap;flex-shrink:0;">
+                                <i class="fa-solid fa-arrow-rotate-right"></i> Sincronizar
+                            </button>
+                        </div>
+                        <!-- Progress bar (hidden by default) -->
+                        <div id="sync-progress-wrap" style="display:none;flex-direction:column;gap:6px;">
+                            <div style="background:rgba(255,255,255,.08);border-radius:99px;height:6px;overflow:hidden;">
+                                <div id="sync-progress-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#7c6fff,#a78bfa);border-radius:99px;transition:width .3s ease;"></div>
+                            </div>
+                            <div id="sync-progress-msg" style="font-size:.75rem;color:var(--text-muted);text-align:center;"></div>
+                        </div>
+                    </div>
+
+                    <hr style="border:none;border-top:1px solid rgba(255,255,255,.07);margin:0;">
+
                     <button class="btn btn-secondary funcoes-btn" id="fm-import-csv" style="justify-content:flex-start;gap:10px;">
                         <i class="fa-solid fa-file-import" style="width:18px;text-align:center;"></i> Importar CSV
                     </button>
@@ -1041,12 +1094,42 @@
                         <i class="fa-solid fa-upload" style="width:18px;text-align:center;"></i> Upload MP3
                     </button>
                     <button class="btn btn-secondary funcoes-btn" id="fm-link-audio" style="justify-content:flex-start;gap:10px;">
-                        <i class="fa-solid fa-link" style="width:18px;text-align:center;"></i> Vincular Áudio
+                        <i class="fa-solid fa-link" style="width:18px;text-align:center;"></i> Vincular \u00c1udio
                     </button>
                 </div>
             `);
 
             document.getElementById('modal-close-btn').addEventListener('click', window.HMSApp.closeModal);
+
+            // ── Sync button ──────────────────────────────────────────
+            document.getElementById('fm-sync-show').addEventListener('click', async () => {
+                const syncBtn  = document.getElementById('fm-sync-show');
+                const wrapEl   = document.getElementById('sync-progress-wrap');
+                const barEl    = document.getElementById('sync-progress-bar');
+                const msgEl    = document.getElementById('sync-progress-msg');
+
+                syncBtn.disabled = true;
+                syncBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sincronizando\u2026';
+                wrapEl.style.display = 'flex';
+
+                try {
+                    const result = await window.HMSSyncManager.sync((step, total, message) => {
+                        const pct = Math.round((step / total) * 100);
+                        barEl.style.width = pct + '%';
+                        msgEl.textContent = message;
+                    });
+
+                    barEl.style.width = '100%';
+                    msgEl.textContent = `\u2713 ${result.songs} m\u00fasicas e ${result.setlists} setlists sincronizados`;
+                    syncBtn.innerHTML = '<i class="fa-solid fa-circle-check"></i> Conclu\u00eddo';
+                    window.HMSApp.showToast(`Sync completo: ${result.songs} m\u00fasicas salvas offline`, 'success');
+                } catch (err) {
+                    msgEl.textContent = 'Erro: ' + (err.message || 'falha na sync');
+                    syncBtn.disabled = false;
+                    syncBtn.innerHTML = '<i class="fa-solid fa-arrow-rotate-right"></i> Tentar novamente';
+                    window.HMSApp.showToast('Erro na sincroniza\u00e7\u00e3o: ' + err.message, 'error');
+                }
+            });
 
             document.getElementById('fm-import-csv').addEventListener('click', () => {
                 window.HMSApp.closeModal();
@@ -1069,6 +1152,7 @@
                 RepertoireComponent._bulkLinkAudio();
             });
         },
+
 
         // ── CSV Import ────────────────────────────────────────────
         // Parser for Excel-style semicolon CSV (handles quoted fields + "" escaping)

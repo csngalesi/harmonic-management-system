@@ -7,9 +7,51 @@
 
     const db = () => window.supabaseClient;
 
+    // ── Offline guard for write operations ───────────────────────
+    function requireOnline(op) {
+        if (window.HMSOffline && window.HMSOffline.isOffline()) {
+            throw new Error(`Sem conexão — "${op}" indisponível offline`);
+        }
+    }
+
     // ── Songs ────────────────────────────────────────────────────
     const Songs = {
         async getAll({ search = '', setlistId = '', searchType = 'all' } = {}) {
+            // ── Offline: read from IndexedDB ──────────────────────
+            if (window.HMSOffline && window.HMSOffline.isOffline()) {
+                let songs = await window.HMSOfflineDB.songs.getAll();
+
+                // Filter by setlist
+                if (setlistId) {
+                    const links = await window.HMSOfflineDB.setlistSongs.getBySetlist(setlistId);
+                    if (links.length === 0) return [];
+                    const posMap = {};
+                    links.forEach(l => { posMap[l.song_id] = l.position; });
+                    songs = songs
+                        .filter(s => posMap[s.id] !== undefined)
+                        .map(s => ({ ...s, _position: posMap[s.id] ?? null }));
+                }
+
+                // Filter by search
+                if (search) {
+                    const q = search.toLowerCase();
+                    songs = songs.filter(s => {
+                        switch (searchType) {
+                            case 'title':   return (s.title       || '').toLowerCase().includes(q);
+                            case 'artist':  return (s.artist      || '').toLowerCase().includes(q);
+                            case 'genre':   return (s.genre       || '').toLowerCase().includes(q);
+                            case 'harmony': return (s.harmony_str || '').toLowerCase().includes(q);
+                            default: // 'all'
+                                return (s.title + s.artist + s.genre + s.harmony_str)
+                                    .toLowerCase().includes(q);
+                        }
+                    });
+                }
+
+                return songs;
+            }
+
+            // ── Online: Supabase ──────────────────────────────────
             let query = db()
                 .from('songs')
                 .select('id, title, artist, composer, genre, original_key, harmony_str, has_lyrics, is_alert, status_flag, audio_url, created_at')
@@ -47,6 +89,11 @@
         },
 
         async getById(id) {
+            if (window.HMSOffline && window.HMSOffline.isOffline()) {
+                const song = await window.HMSOfflineDB.songs.getById(id);
+                if (!song) throw new Error('Música não encontrada no cache offline');
+                return song;
+            }
             const { data, error } = await db()
                 .from('songs')
                 .select('*')
@@ -57,6 +104,7 @@
         },
 
         async create(payload) {
+            requireOnline('criar música');
             const user = await window.HMSAuth.currentUser();
             const { data, error } = await db()
                 .from('songs')
@@ -68,6 +116,7 @@
         },
 
         async update(id, payload) {
+            requireOnline('editar música');
             const { data, error } = await db()
                 .from('songs')
                 .update(payload)
@@ -79,6 +128,7 @@
         },
 
         async delete(id) {
+            requireOnline('excluir música');
             const { error } = await db()
                 .from('songs')
                 .delete()
@@ -87,6 +137,7 @@
         },
 
         async bulkCreate(rows) {
+            requireOnline('importar músicas');
             const user = await window.HMSAuth.currentUser();
             const payload = rows.map(r => ({ ...r, user_id: user.id }));
             const { data, error } = await db()
@@ -98,9 +149,13 @@
         },
     };
 
+
     // ── Setlists ─────────────────────────────────────────────────
     const Setlists = {
         async getAll() {
+            if (window.HMSOffline && window.HMSOffline.isOffline()) {
+                return window.HMSOfflineDB.setlists.getAll();
+            }
             const { data, error } = await db()
                 .from('setlists')
                 .select('id, name')

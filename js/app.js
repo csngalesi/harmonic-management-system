@@ -5,6 +5,34 @@
 (function () {
     'use strict';
 
+    // ── Offline State ────────────────────────────────────────────
+    window.HMSOffline = {
+        isOffline() { return !navigator.onLine; },
+
+        init() {
+            window.addEventListener('online',  () => HMSOffline._update());
+            window.addEventListener('offline', () => HMSOffline._update());
+            HMSOffline._update();
+        },
+
+        _update() {
+            const offline = !navigator.onLine;
+            // Badge
+            const badge = document.getElementById('offline-badge');
+            if (badge) badge.classList.toggle('hidden', !offline);
+            // Logout button
+            const logoutBtn = document.getElementById('logout-btn');
+            if (logoutBtn) {
+                logoutBtn.disabled = offline;
+                logoutBtn.title = offline ? 'Sem conexão — faça login novamente quando online' : 'Sair';
+                logoutBtn.style.opacity = offline ? '0.3' : '';
+            }
+            if (offline) {
+                console.info('[HMS] Offline mode active — reading from IndexedDB');
+            }
+        },
+    };
+
     // ── Global UI Helpers ────────────────────────────────────────
     window.HMSApp = {
 
@@ -87,6 +115,7 @@
 
         init: async function () {
             window.HMSApp.showLoading();
+            window.HMSOffline.init();
             try {
                 const session = await window.HMSAuth.getSession();
                 if (session) {
