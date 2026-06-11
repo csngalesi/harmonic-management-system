@@ -685,15 +685,15 @@
                            style="width:100%;height:36px;margin:4px 0 8px;">
                     </audio>` : ''}
                     <div class="sd-tabs">
-                        <button class="sd-tab active" data-tab="func">Harm Func</button>
-                        <button class="sd-tab" data-tab="acor">Harm Acor</button>
+                        <button class="sd-tab" data-tab="func">Harm Func</button>
+                        <button class="sd-tab active" data-tab="acor">Harm Acor</button>
                         <button class="sd-tab" data-tab="letra">Letra</button>
                     </div>
                     <div class="sd-body">
-                        <div class="sd-pane active" id="sd-pane-func">
+                        <div class="sd-pane" id="sd-pane-func">
                             <div class="sd-chords">${buildFuncHtml(song.harmony_str)}</div>
                         </div>
-                        <div class="sd-pane" id="sd-pane-acor">
+                        <div class="sd-pane active" id="sd-pane-acor">
                             <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
                                 <span style="font-size:.8rem;color:var(--text-muted);">Tom:</span>
                                 <select id="sd-key-select" class="form-input form-select"
