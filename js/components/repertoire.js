@@ -1178,6 +1178,9 @@
                     <button class="btn btn-secondary funcoes-btn" id="fm-bulk-lyrics" style="justify-content:flex-start;gap:10px;">
                         <i class="fa-solid fa-wand-magic-sparkles" style="width:18px;text-align:center;"></i> Buscar Letras
                     </button>
+                    <button class="btn btn-secondary funcoes-btn" id="fm-refine-lyrics" style="justify-content:flex-start;gap:10px;">
+                        <i class="fa-solid fa-pen-to-square" style="width:18px;text-align:center;"></i> Refinar Letras
+                    </button>
                     <button class="btn btn-secondary funcoes-btn" id="fm-bulk-hygiene" style="justify-content:flex-start;gap:10px;">
                         <i class="fa-solid fa-broom" style="width:18px;text-align:center;"></i> Higienizar Harmonias
                     </button>
@@ -1248,6 +1251,10 @@
             document.getElementById('fm-bulk-lyrics').addEventListener('click', () => {
                 window.HMSApp.closeModal();
                 RepertoireComponent._bulkFetchLyrics();
+            });
+            document.getElementById('fm-refine-lyrics').addEventListener('click', () => {
+                window.HMSApp.closeModal();
+                RepertoireComponent._refineLyrics();
             });
             document.getElementById('fm-bulk-hygiene').addEventListener('click', () => {
                 window.HMSApp.closeModal();
@@ -1494,6 +1501,162 @@
                 confirmBtn.disabled = false;
                 cancelBtn.disabled  = false;
             }
+        },
+
+        // ── Refinar Letras ─────────────────────────────────────────
+        _refineLyrics: function () {
+            const songs = _state.songs.filter(s => !s.has_lyrics);
+            const EDGE_URL = 'https://knwpgznnipufvwobgrzf.supabase.co/functions/v1/musixmatch-proxy';
+
+            const rowsHtml = songs.length === 0
+                ? `<p style="color:var(--text-muted);text-align:center;padding:24px 0;">Todas as músicas já têm letra! 🎉</p>`
+                : songs.map((s, idx) => `
+                    <div class="rl-row" id="rl-row-${idx}" data-id="${s.id}" style="
+                        background:var(--glass-bg);
+                        border:1px solid var(--glass-border);
+                        border-radius:10px;
+                        padding:12px 14px;
+                        margin-bottom:10px;
+                        display:grid;
+                        grid-template-columns:1fr 1fr;
+                        gap:8px;
+                    ">
+                        <!-- Linha 1: título + artista -->
+                        <div style="display:flex;flex-direction:column;gap:4px;">
+                            <label style="font-size:.72rem;color:var(--text-muted);font-weight:600;letter-spacing:.05em;">TÍTULO</label>
+                            <input id="rl-title-${idx}" class="form-input" value="${(s.title||'').replace(/"/g,'&quot;')}" style="height:32px;font-size:.85rem;">
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:4px;">
+                            <label style="font-size:.72rem;color:var(--text-muted);font-weight:600;letter-spacing:.05em;">INTÉRPRETE</label>
+                            <input id="rl-artist-${idx}" class="form-input" value="${(s.artist||'').replace(/"/g,'&quot;')}" style="height:32px;font-size:.85rem;">
+                        </div>
+                        <!-- Linha 2: letra (span 2) -->
+                        <div style="grid-column:1/-1;display:flex;flex-direction:column;gap:4px;">
+                            <label style="font-size:.72rem;color:var(--text-muted);font-weight:600;letter-spacing:.05em;">LETRA</label>
+                            <textarea id="rl-lyrics-${idx}" class="form-input" rows="4" style="font-size:.8rem;resize:vertical;min-height:80px;">${(s.lyrics||'').replace(/</g,'&lt;')}</textarea>
+                        </div>
+                        <!-- Linha 3: botões -->
+                        <div style="grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end;">
+                            <button class="btn btn-secondary rl-mm-btn" data-idx="${idx}" style="font-size:.78rem;padding:5px 12px;height:30px;">
+                                <i class="fa-solid fa-music"></i> MM
+                            </button>
+                            <button class="btn btn-secondary rl-letras-btn" data-idx="${idx}" style="font-size:.78rem;padding:5px 12px;height:30px;">
+                                <i class="fa-solid fa-globe"></i> Letras
+                            </button>
+                            <button class="btn btn-primary rl-save-btn" data-idx="${idx}" style="font-size:.78rem;padding:5px 14px;height:30px;">
+                                <i class="fa-solid fa-floppy-disk"></i> Salvar
+                            </button>
+                        </div>
+                    </div>`).join('');
+
+            window.HMSApp.openModal(`
+                <div class="modal-header">
+                    <h3><i class="fa-solid fa-pen-to-square"></i> Refinar Letras</h3>
+                    <button class="modal-close" id="modal-close-btn"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="modal-body" style="max-height:70vh;overflow-y:auto;padding-right:4px;">
+                    <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:14px;">
+                        <strong style="color:var(--text-primary);">${songs.length}</strong> músicas sem letra.
+                        Edite título/intérprete/letra e salve linha a linha.
+                        <strong>MM</strong> busca no Musixmatch · <strong>Letras</strong> abre letras.mus.br.
+                    </p>
+                    <div id="rl-list">${rowsHtml}</div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="modal-cancel-btn">Fechar</button>
+                </div>
+            `, { wide: true });
+
+            document.getElementById('modal-close-btn').addEventListener('click', window.HMSApp.closeModal);
+            document.getElementById('modal-cancel-btn').addEventListener('click', window.HMSApp.closeModal);
+
+            const listEl = document.getElementById('rl-list');
+
+            // ── Botão MM: busca Musixmatch com título/artista do input ──
+            listEl.addEventListener('click', async (e) => {
+                const mmBtn     = e.target.closest('.rl-mm-btn');
+                const letrasBtn = e.target.closest('.rl-letras-btn');
+                const saveBtn   = e.target.closest('.rl-save-btn');
+
+                if (mmBtn) {
+                    const idx    = mmBtn.dataset.idx;
+                    const artist = document.getElementById(`rl-artist-${idx}`).value.trim();
+                    const title  = document.getElementById(`rl-title-${idx}`).value.trim();
+                    if (!artist || !title) { window.HMSApp.showToast('Preencha título e intérprete.', 'warning'); return; }
+
+                    mmBtn.disabled = true;
+                    mmBtn.innerHTML = '<span class="btn-spinner"></span>';
+
+                    // Tenta artista normal, depois com prefixo "Grupo"
+                    const tryFetch = async (a) => {
+                        try {
+                            const res = await fetch(`${EDGE_URL}?artist=${encodeURIComponent(a)}&title=${encodeURIComponent(title)}`,
+                                { signal: AbortSignal.timeout(12000) });
+                            if (!res.ok) return null;
+                            const data = await res.json();
+                            return data.lyrics || null;
+                        } catch { return null; }
+                    };
+
+                    let lyrics = await tryFetch(artist);
+                    if (!lyrics && !artist.startsWith('Grupo ')) lyrics = await tryFetch('Grupo ' + artist);
+
+                    mmBtn.disabled = false;
+                    mmBtn.innerHTML = '<i class="fa-solid fa-music"></i> MM';
+
+                    if (lyrics) {
+                        document.getElementById(`rl-lyrics-${idx}`).value = lyrics.trim();
+                        window.HMSApp.showToast('Letra encontrada! Confira e salve.', 'success');
+                    } else {
+                        window.HMSApp.showToast('Musixmatch não encontrou esta música.', 'warning');
+                    }
+                }
+
+                if (letrasBtn) {
+                    const idx    = letrasBtn.dataset.idx;
+                    const artist = document.getElementById(`rl-artist-${idx}`).value.trim();
+                    const title  = document.getElementById(`rl-title-${idx}`).value.trim();
+                    const query  = encodeURIComponent(`${artist} ${title}`);
+                    window.open(`https://www.letras.mus.br/busca.html#q=${query}`, '_blank');
+                }
+
+                if (saveBtn) {
+                    const idx    = saveBtn.dataset.idx;
+                    const rowEl  = document.getElementById(`rl-row-${idx}`);
+                    const songId = rowEl.dataset.id;
+                    const title  = document.getElementById(`rl-title-${idx}`).value.trim();
+                    const artist = document.getElementById(`rl-artist-${idx}`).value.trim();
+                    const lyrics = document.getElementById(`rl-lyrics-${idx}`).value.trim();
+
+                    if (!title) { window.HMSApp.showToast('Título não pode ser vazio.', 'warning'); return; }
+
+                    saveBtn.disabled = true;
+                    saveBtn.innerHTML = '<span class="btn-spinner"></span>';
+
+                    try {
+                        const payload = { title, artist };
+                        if (lyrics) payload.lyrics = lyrics;
+                        await window.HMSAPI.Songs.update(songId, payload);
+
+                        // Remove a linha da lista se letra foi salva
+                        if (lyrics) {
+                            rowEl.style.transition = 'opacity .3s';
+                            rowEl.style.opacity = '0';
+                            setTimeout(() => rowEl.remove(), 300);
+                            window.HMSApp.showToast(`"${title}" salvo!`, 'success');
+                        } else {
+                            saveBtn.disabled = false;
+                            saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Salvar';
+                            window.HMSApp.showToast(`"${title}" atualizado (sem letra ainda).`, 'info');
+                        }
+                        await RepertoireComponent._loadSongs();
+                    } catch (err) {
+                        saveBtn.disabled = false;
+                        saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Salvar';
+                        window.HMSApp.showToast('Erro ao salvar: ' + err.message, 'error');
+                    }
+                }
+            });
         },
 
         // ── Bulk Lyrics Fetch ─────────────────────────────────────
