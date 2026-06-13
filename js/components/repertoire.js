@@ -1099,9 +1099,14 @@
             return _state.setlists.map(sl => `
                 <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--glass-border);">
                     <span style="font-size:.9rem;">${esc(sl.name)}</span>
-                    <button class="btn-icon delete sl-delete-btn" data-id="${sl.id}" title="Excluir setlist">
-                        <i class="fa-solid fa-trash"></i>
-                    </button>
+                    <div style="display:flex;gap:6px;">
+                        <button class="btn-icon sl-copy-btn" data-id="${sl.id}" title="Copiar setlist" style="color:var(--brand);">
+                            <i class="fa-regular fa-clone"></i>
+                        </button>
+                        <button class="btn-icon delete sl-delete-btn" data-id="${sl.id}" title="Excluir setlist">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
                 </div>
             `).join('');
         },
@@ -2479,6 +2484,7 @@
         },
 
         _bindSetlistDeleteButtons: function () {
+            // ── Excluir setlist ──────────────────────────────────────────
             document.querySelectorAll('.sl-delete-btn').forEach(btn => {
                 btn.addEventListener('click', async () => {
                     const sl = _state.setlists.find(s => s.id === btn.dataset.id);
@@ -2490,6 +2496,42 @@
                         RepertoireComponent._bindSetlistDeleteButtons();
                     } catch (err) {
                         window.HMSApp.showToast('Erro: ' + err.message, 'error');
+                    }
+                });
+            });
+
+            // ── Copiar setlist ──────────────────────────────────────────
+            document.querySelectorAll('.sl-copy-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const sl = _state.setlists.find(s => s.id === btn.dataset.id);
+                    if (!sl) return;
+
+                    const newName = prompt('Nome da cópia:', `Cópia de ${sl.name}`);
+                    if (!newName || !newName.trim()) return;
+
+                    btn.disabled = true;
+                    btn.innerHTML = '<span class="btn-spinner"></span>';
+
+                    try {
+                        // 1. Busca todas as músicas da setlist original (com _position)
+                        const songs = await window.HMSAPI.Songs.getAll({ setlistId: sl.id });
+
+                        // 2. Cria a nova setlist
+                        const newSl = await window.HMSAPI.Setlists.create(newName.trim());
+
+                        // 3. Copia os vínculos preservando a ordem
+                        for (const s of songs) {
+                            await window.HMSAPI.Setlists.addSong(newSl.id, s.id, s._position ?? 0);
+                        }
+
+                        await RepertoireComponent._loadSetlists();
+                        document.getElementById('setlist-list').innerHTML = RepertoireComponent._renderSetlistItems();
+                        RepertoireComponent._bindSetlistDeleteButtons();
+                        window.HMSApp.showToast(`"${newName.trim()}" criada com ${songs.length} música${songs.length !== 1 ? 's' : ''}!`, 'success');
+                    } catch (err) {
+                        window.HMSApp.showToast('Erro ao copiar: ' + err.message, 'error');
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fa-regular fa-clone"></i>';
                     }
                 });
             });
