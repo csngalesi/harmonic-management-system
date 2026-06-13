@@ -10,7 +10,7 @@
     const VAGALUME_KEY    = '';
 
     // Musixmatch API key — register free at https://developer.musixmatch.com
-    const MUSIXMATCH_KEY  = '';
+    const MUSIXMATCH_KEY  = '3fd8d1d54037fb7d46e77b7849c4059c';
 
     let _state = {
         songs:        [],
