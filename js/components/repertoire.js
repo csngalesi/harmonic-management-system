@@ -1616,8 +1616,20 @@
                     const idx    = letrasBtn.dataset.idx;
                     const artist = document.getElementById(`rl-artist-${idx}`).value.trim();
                     const title  = document.getElementById(`rl-title-${idx}`).value.trim();
-                    const query  = encodeURIComponent(`${artist} ${title}`);
-                    window.open(`https://www.letras.mus.br/busca.html#q=${query}`, '_blank');
+
+                    // Converte para slug no formato do letras.mus.br
+                    // ex: "Zeca Pagodinho" + "Camarão que dorme" → /zeca-pagodinho/camarao-que-dorme/
+                    const toSlug = (str) => str
+                        .normalize('NFD')
+                        .replace(/[\u0300-\u036f]/g, '')   // remove acentos
+                        .toLowerCase()
+                        .replace(/[^a-z0-9\s-]/g, '')      // remove especiais
+                        .trim()
+                        .replace(/\s+/g, '-');             // espaço → hífen
+
+                    const artistSlug = toSlug(artist);
+                    const titleSlug  = toSlug(title);
+                    window.open(`https://www.letras.mus.br/${artistSlug}/${titleSlug}/`, '_blank');
                 }
 
                 if (saveBtn) {
