@@ -9,8 +9,8 @@
     // Vagalume API key — register free at https://api.vagalume.com.br
     const VAGALUME_KEY    = '';
 
-    // Musixmatch API key — register free at https://developer.musixmatch.com
-    const MUSIXMATCH_KEY  = '3fd8d1d54037fb7d46e77b7849c4059c';
+    // Musixmatch é chamado via Supabase Edge Function (server-side).
+    // A API key fica segura como secret no Supabase — não exposta no frontend.
 
     let _state = {
         songs:        [],
