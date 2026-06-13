@@ -869,7 +869,27 @@
             try {
                 let lyrics = null;
 
-                // ── 1. lyrics.ovh (free, no key, CORS ok) ────────────────
+                // ── 1. Musixmatch via Edge Function (server-side, sem CORS) ─
+                tried.push('Musixmatch');
+                setStatus('Musixmatch…');
+                try {
+                    const edgeUrl =
+                        `https://knwpgznnipufvwobgrzf.supabase.co/functions/v1/musixmatch-proxy` +
+                        `?artist=${encodeURIComponent(artist)}&title=${encodeURIComponent(title)}`;
+                    const res = await fetch(edgeUrl, { signal: AbortSignal.timeout(12000) });
+                    if (res.ok) {
+                        const data = await res.json();
+                        lyrics = data.lyrics || null;
+                    }
+                } catch { /* edge function unavailable, continue */ }
+
+                if (lyrics) {
+                    document.getElementById('sf-lyrics').value = lyrics.trim();
+                    window.HMSApp.showToast('Letra encontrada via Musixmatch! ✓', 'success');
+                    return;
+                }
+
+                // ── 2. lyrics.ovh (free, no key, CORS ok) ────────────────
                 tried.push('lyrics.ovh');
                 setStatus('lyrics.ovh…');
                 try {
