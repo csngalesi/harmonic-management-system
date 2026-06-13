@@ -2637,6 +2637,36 @@
                 window.HMSApp.hideLoading();
             }
 
+            // ── Aplica a mesma ordenação vigente na tela de repertório ──
+            // Enriquece allSongs com _position da setlist ativa (para sort por posição)
+            const posMap = {};
+            _state.songs.forEach(s => { posMap[s.id] = s._position ?? null; });
+            allSongs = allSongs.map(s => ({ ...s, _position: posMap[s.id] ?? null }));
+
+            const _sortLabel = (() => {
+                if (_state.sortBy === 'position') return 'Posição';
+                if (_state.sortBy === 'key') return 'Tom';
+                if (_state.sortBy === 'artist') return 'Artista';
+                return 'Título';
+            })();
+
+            const _comparator = (a, b) => {
+                if (_state.sortBy === 'position') {
+                    if (a._position === null && b._position === null) return 0;
+                    if (a._position === null) return 1;
+                    if (b._position === null) return -1;
+                    return _state.sortDir === 'asc' ? a._position - b._position : b._position - a._position;
+                }
+                const colMap = { title: 'title', artist: 'artist', key: 'original_key' };
+                const col = colMap[_state.sortBy] || 'title';
+                const va = (a[col] || '').toLowerCase();
+                const vb = (b[col] || '').toLowerCase();
+                if (va < vb) return _state.sortDir === 'asc' ? -1 : 1;
+                if (va > vb) return _state.sortDir === 'asc' ?  1 : -1;
+                return 0;
+            };
+            allSongs.sort(_comparator);
+
             // IDs already in setlist
             const inSetlistIds = new Set(_state.songs.map(s => s.id));
 
@@ -2671,6 +2701,12 @@
                 <div class="modal-header">
                     <h3><i class="fa-solid fa-list-check"></i> Músicas — ${esc(sl.name)}</h3>
                     <button class="modal-close" id="modal-close-btn"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div style="padding:6px 20px 0;font-size:.75rem;color:var(--text-muted);">
+                    <i class="fa-solid fa-arrow-up-a-z" style="margin-right:4px;"></i>
+                    Ordenado por <strong style="color:var(--text-secondary);">${_sortLabel}</strong>
+                    ${_state.sortDir === 'desc' ? '↓' : '↑'}
+                    &nbsp;·&nbsp; Músicas da setlist destacadas em roxo.
                 </div>
                 <div class="modal-body">
                     <div class="search-bar" style="margin-bottom:12px;">
