@@ -1511,7 +1511,7 @@
                     <p style="font-size:.875rem;color:var(--text-muted);margin-bottom:14px;">
                         <strong style="color:var(--text-primary);">${total}</strong> músicas sem letra
                         de <strong style="color:var(--text-primary);">${totalAll}</strong> no repertório atual.<br>
-                        Fonte: <strong>lrclib.net</strong> (com fallback "Grupo " para pagode/samba). Delay de 300ms entre buscas.
+                        Fonte: <strong>Musixmatch</strong> (1ª tentativa), <strong>Musixmatch + "Grupo"</strong> (2ª), <strong>lrclib.net</strong> (3ª). Delay de 400ms entre buscas.
                     </p>
                     <div id="bulk-progress" style="display:none;">
                         <div style="font-size:.82rem;color:var(--text-muted);margin-bottom:6px;" id="bulk-status">Iniciando…</div>
@@ -1548,14 +1548,32 @@
             startBtn.disabled = true;
             cancelBtn.disabled = true;
 
+            const EDGE_URL = 'https://knwpgznnipufvwobgrzf.supabase.co/functions/v1/musixmatch-proxy';
+
+            // Busca via Musixmatch Edge Function (server-side, sem CORS)
+            const musixmatchFetch = async (artistName, title) => {
+                try {
+                    const res = await fetch(
+                        `${EDGE_URL}?artist=${encodeURIComponent(artistName)}&title=${encodeURIComponent(title)}`,
+                        { signal: AbortSignal.timeout(12000) }
+                    );
+                    if (!res.ok) return null;
+                    const data = await res.json();
+                    return data.lyrics || null;
+                } catch { return null; }
+            };
+
+            // Busca via lrclib.net (free, sem key)
             const lrclibFetch = async (artistName, title) => {
-                const res = await fetch(
-                    `https://lrclib.net/api/get?artist_name=${encodeURIComponent(artistName)}&track_name=${encodeURIComponent(title)}`,
-                    { signal: AbortSignal.timeout(9000) }
-                );
-                if (!res.ok) return null;
-                const data = await res.json();
-                return data.plainLyrics || data.syncedLyrics || null;
+                try {
+                    const res = await fetch(
+                        `https://lrclib.net/api/get?artist_name=${encodeURIComponent(artistName)}&track_name=${encodeURIComponent(title)}`,
+                        { signal: AbortSignal.timeout(9000) }
+                    );
+                    if (!res.ok) return null;
+                    const data = await res.json();
+                    return data.plainLyrics || data.syncedLyrics || null;
+                } catch { return null; }
             };
 
             const addLog = (msg) => {
@@ -1567,34 +1585,53 @@
             const total = songs.length;
 
             for (let i = 0; i < songs.length; i++) {
-                const s = songs[i];
-                const pct = Math.round((i / total) * 100);
-                barEl.style.width = pct + '%';
-                statusEl.textContent = `${i + 1} / ${total} — ${s.title}`;
+                const s      = songs[i];
+                const artist = (s.artist || '').trim();
+                const title  = (s.title  || '').trim();
+                const pct    = Math.round((i / total) * 100);
+                barEl.style.width    = pct + '%';
+                statusEl.textContent = `${i + 1} / ${total} — ${title}`;
 
                 let lyrics = null;
-                try {
-                    lyrics = await lrclibFetch(s.artist || '', s.title);
-                    if (!lyrics && s.artist && !s.artist.startsWith('Grupo ')) {
-                        lyrics = await lrclibFetch('Grupo ' + s.artist, s.title);
-                    }
-                } catch { /* network */ }
+                let source = '';
+
+                // 1ª tentativa: Musixmatch (artista normal)
+                lyrics = await musixmatchFetch(artist, title);
+                if (lyrics) { source = 'Musixmatch'; }
+
+                // 2ª tentativa: Musixmatch com prefixo "Grupo "
+                if (!lyrics && artist && !artist.startsWith('Grupo ')) {
+                    lyrics = await musixmatchFetch('Grupo ' + artist, title);
+                    if (lyrics) { source = 'Musixmatch+Grupo'; }
+                }
+
+                // 3ª tentativa: lrclib (artista normal)
+                if (!lyrics) {
+                    lyrics = await lrclibFetch(artist, title);
+                    if (lyrics) { source = 'lrclib'; }
+                }
+
+                // 4ª tentativa: lrclib com prefixo "Grupo "
+                if (!lyrics && artist && !artist.startsWith('Grupo ')) {
+                    lyrics = await lrclibFetch('Grupo ' + artist, title);
+                    if (lyrics) { source = 'lrclib+Grupo'; }
+                }
 
                 if (lyrics) {
                     try {
                         await window.HMSAPI.Songs.update(s.id, { lyrics: lyrics.trim() });
                         found++;
-                        addLog(`✓ ${s.title} — ${s.artist}`);
+                        addLog(`✓ [${source}] ${title} — ${artist}`);
                     } catch (err) {
-                        addLog(`✗ Erro ao salvar "${s.title}": ${err.message}`);
+                        addLog(`✗ Erro ao salvar "${title}": ${err.message}`);
                     }
                 } else {
                     notFound++;
-                    addLog(`– Não encontrado: ${s.title} — ${s.artist}`);
+                    addLog(`– Não encontrado: ${title} — ${artist}`);
                 }
 
-                // Rate limiting: 300ms between requests
-                if (i < songs.length - 1) await new Promise(r => setTimeout(r, 300));
+                // Rate limiting: 400ms entre requests (respeita limite da API)
+                if (i < songs.length - 1) await new Promise(r => setTimeout(r, 400));
             }
 
             barEl.style.width = '100%';
