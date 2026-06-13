@@ -869,34 +869,41 @@
             try {
                 let lyrics = null;
 
-                // ── 1. Musixmatch (requires MUSIXMATCH_KEY) ────────────────
-                if (MUSIXMATCH_KEY) {
-                    tried.push('Musixmatch');
-                    setStatus('Musixmatch…');
+                // ── 1. lyrics.ovh (free, no key, CORS ok) ────────────────
+                tried.push('lyrics.ovh');
+                setStatus('lyrics.ovh…');
+                try {
+                    const res = await fetch(
+                        `https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(title)}`,
+                        { signal: AbortSignal.timeout(9000) }
+                    );
+                    if (res.ok) {
+                        const data = await res.json();
+                        lyrics = data.lyrics ? data.lyrics.trim() : null;
+                    }
+                } catch { /* network error, continue */ }
+
+                // Fallback: try with "Grupo " prefix for Brazilian artists
+                if (!lyrics && !artist.startsWith('Grupo ')) {
                     try {
-                        const mmUrl = `https://api.musixmatch.com/ws/1.1/matcher.lyrics.get` +
-                            `?format=json&q_track=${encodeURIComponent(title)}` +
-                            `&q_artist=${encodeURIComponent(artist)}` +
-                            `&apikey=${MUSIXMATCH_KEY}`;
-                        const res = await fetch(mmUrl, { signal: AbortSignal.timeout(9000) });
+                        const res = await fetch(
+                            `https://api.lyrics.ovh/v1/${encodeURIComponent('Grupo ' + artist)}/${encodeURIComponent(title)}`,
+                            { signal: AbortSignal.timeout(9000) }
+                        );
                         if (res.ok) {
                             const data = await res.json();
-                            const body = data?.message?.body?.lyrics?.lyrics_body || null;
-                            if (body) {
-                                // Strip Musixmatch footer/disclaimer appended to lyrics
-                                lyrics = body.replace(/\*{7}.*$/s, '').trim() || null;
-                            }
+                            lyrics = data.lyrics ? data.lyrics.trim() : null;
                         }
-                    } catch { /* network/CORS error, continue */ }
-
-                    if (lyrics) {
-                        document.getElementById('sf-lyrics').value = lyrics.trim();
-                        window.HMSApp.showToast('Letra encontrada via Musixmatch! ✓', 'success');
-                        return;
-                    }
+                    } catch { /* network error, continue */ }
                 }
 
-                // ── 2. lrclib.net (free, no key) ──────────────────────────
+                if (lyrics) {
+                    document.getElementById('sf-lyrics').value = lyrics;
+                    window.HMSApp.showToast('Letra encontrada via lyrics.ovh! ✓', 'success');
+                    return;
+                }
+
+                // ── 2. lrclib.net (free, no key, CORS ok) ─────────────────
                 tried.push('lrclib');
                 setStatus('lrclib…');
 
