@@ -7,7 +7,10 @@
     'use strict';
 
     // Vagalume API key — register free at https://api.vagalume.com.br
-    const VAGALUME_KEY = '';
+    const VAGALUME_KEY    = '';
+
+    // Musixmatch API key — register free at https://developer.musixmatch.com
+    const MUSIXMATCH_KEY  = '';
 
     let _state = {
         songs:        [],
@@ -860,10 +863,15 @@
             const setStatus = (msg) => { btn.innerHTML = `<span class="btn-spinner"></span> ${msg}`; };
             btn.disabled = true;
 
+            // Track which sources were tried for the final toast
+            const tried = [];
+
             try {
-                // 1. Try lrclib.net (plain artist name, then "Grupo " prefix fallback)
-                setStatus('lrclib…');
                 let lyrics = null;
+
+                // ── 1. lrclib.net (free, no key) ──────────────────────────
+                tried.push('lrclib');
+                setStatus('lrclib…');
 
                 const _lrclibFetch = async (artistName) => {
                     const res = await fetch(
@@ -877,7 +885,6 @@
 
                 try {
                     lyrics = await _lrclibFetch(artist);
-                    // Fallback: try with "Grupo " prefix if the original search failed
                     if (!lyrics && !artist.startsWith('Grupo ')) {
                         lyrics = await _lrclibFetch('Grupo ' + artist);
                     }
@@ -885,30 +892,66 @@
 
                 if (lyrics) {
                     document.getElementById('sf-lyrics').value = lyrics.trim();
-                    window.HMSApp.showToast('Letra encontrada via lrclib.net!', 'success');
+                    window.HMSApp.showToast('Letra encontrada via lrclib.net! ✓', 'success');
                     return;
                 }
 
-                // 2. Try Vagalume
-                if (!VAGALUME_KEY) {
-                    window.HMSApp.showToast('lrclib: não encontrado. Configure VAGALUME_KEY para tentar Vagalume.', 'warning');
-                    return;
-                }
-                setStatus('Vagalume…');
-                try {
-                    const res = await fetch(`https://api.vagalume.com.br/search.php?art=${encodeURIComponent(artist)}&mus=${encodeURIComponent(title)}&apikey=${VAGALUME_KEY}`);
-                    if (res.ok) {
-                        const data = await res.json();
-                        lyrics = data.mus?.[0]?.text || null;
+                // ── 2. Musixmatch (requires MUSIXMATCH_KEY) ────────────────
+                if (MUSIXMATCH_KEY) {
+                    tried.push('Musixmatch');
+                    setStatus('Musixmatch…');
+                    try {
+                        // Musixmatch does not allow direct browser calls due to CORS on the
+                        // official endpoint; use the community matcher.musixmatch.com proxy
+                        // that reflects the JSON response without CORS restrictions.
+                        const mmUrl = `https://api.musixmatch.com/ws/1.1/matcher.lyrics.get` +
+                            `?format=json&q_track=${encodeURIComponent(title)}` +
+                            `&q_artist=${encodeURIComponent(artist)}` +
+                            `&apikey=${MUSIXMATCH_KEY}`;
+                        const res = await fetch(mmUrl, { signal: AbortSignal.timeout(9000) });
+                        if (res.ok) {
+                            const data = await res.json();
+                            const body = data?.message?.body?.lyrics?.lyrics_body || null;
+                            if (body) {
+                                // Strip Musixmatch footer/disclaimer appended to lyrics
+                                lyrics = body.replace(/\*{7}.*$/s, '').trim() || null;
+                            }
+                        }
+                    } catch { /* network/CORS error, continue */ }
+
+                    if (lyrics) {
+                        document.getElementById('sf-lyrics').value = lyrics.trim();
+                        window.HMSApp.showToast('Letra encontrada via Musixmatch! ✓', 'success');
+                        return;
                     }
-                } catch { /* network error */ }
-
-                if (lyrics) {
-                    document.getElementById('sf-lyrics').value = lyrics.trim();
-                    window.HMSApp.showToast('Letra encontrada via Vagalume!', 'success');
-                } else {
-                    window.HMSApp.showToast('lrclib: ✗  Vagalume: ✗  Letra não encontrada.', 'warning');
                 }
+
+                // ── 3. Vagalume (requires VAGALUME_KEY) ───────────────────
+                if (VAGALUME_KEY) {
+                    tried.push('Vagalume');
+                    setStatus('Vagalume…');
+                    try {
+                        const res = await fetch(
+                            `https://api.vagalume.com.br/search.php?art=${encodeURIComponent(artist)}&mus=${encodeURIComponent(title)}&apikey=${VAGALUME_KEY}`,
+                            { signal: AbortSignal.timeout(9000) }
+                        );
+                        if (res.ok) {
+                            const data = await res.json();
+                            lyrics = data.mus?.[0]?.text || null;
+                        }
+                    } catch { /* network error */ }
+
+                    if (lyrics) {
+                        document.getElementById('sf-lyrics').value = lyrics.trim();
+                        window.HMSApp.showToast('Letra encontrada via Vagalume! ✓', 'success');
+                        return;
+                    }
+                }
+
+                // ── Nenhuma fonte encontrou ────────────────────────────────
+                const triedStr = tried.map(s => `${s}: ✗`).join('  ');
+                window.HMSApp.showToast(`Letra não encontrada. ${triedStr}`, 'warning');
+
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Buscar na web';
