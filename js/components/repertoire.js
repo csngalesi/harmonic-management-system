@@ -825,61 +825,82 @@
             });
 
             // ── BPM auto-scroll ────────────────────────────────────
-            let _bpm = 90;   // default preset
+            // PX_PER_BEAT = 10 → ~15 px/s at 90 BPM (≈1 line/2s)
+            const PX_PER_BEAT = 10;
+            let _bpm = 90;
             let _scrolling = false;
             let _rafId = null;
             let _lastTs = null;
-            const PX_PER_BEAT = 1.8;
 
             const _scrollBtn = document.getElementById('sd-scroll-btn');
+            const _sdBody    = document.querySelector('.sd-body');
 
-            // Resolve the scrollable element lazily (lyrics load async)
-            const _getScrollEl = () => {
-                const sdBody = document.querySelector('.sd-body');
-                if (sdBody && sdBody.scrollHeight > sdBody.clientHeight + 2) return sdBody;
-                const mc = document.querySelector('.modal-container');
-                if (mc && mc.scrollHeight > mc.clientHeight + 2) return mc;
-                return sdBody || mc;
+            const _getPre = () => _lyricsPaneEl?.querySelector('pre');
+
+            // Switch pre to 1 column so sd-body has full scroll distance
+            const _enterTeleprompter = () => {
+                const pre = _getPre();
+                if (pre) {
+                    pre.style.columnCount = '1';
+                    pre.style.columns     = '1';
+                }
+                if (_sdBody) _sdBody.scrollTop = 0;
+            };
+
+            // Restore 2-column layout
+            const _exitTeleprompter = () => {
+                const pre = _getPre();
+                if (pre) {
+                    pre.style.columnCount = '';
+                    pre.style.columns     = '';
+                }
             };
 
             const _stopScroll = () => {
                 _scrolling = false;
                 if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
                 _lastTs = null;
+                _exitTeleprompter();
                 if (_scrollBtn) {
-                    _scrollBtn.style.background = 'transparent';
-                    _scrollBtn.style.color = 'var(--text-muted)';
+                    _scrollBtn.style.background  = 'transparent';
+                    _scrollBtn.style.color       = 'var(--text-muted)';
                     _scrollBtn.style.borderColor = 'var(--glass-border)';
                     _scrollBtn.innerHTML = '<i class="fa-solid fa-play"></i> Scroll';
                 }
             };
 
             const _startScroll = () => {
-                const scrollEl = _getScrollEl();
-                if (!scrollEl) return;
-                _scrolling = true;
-                _lastTs = null;
-                if (_scrollBtn) {
-                    _scrollBtn.style.background = '#22c55e';
-                    _scrollBtn.style.color = '#fff';
-                    _scrollBtn.style.borderColor = '#22c55e';
-                    _scrollBtn.innerHTML = '<i class="fa-solid fa-pause"></i> Pausar';
-                }
-                const tick = (ts) => {
-                    if (!_scrolling) return;
-                    if (_lastTs !== null) {
-                        const dt = (ts - _lastTs) / 1000;
-                        const pxPerSec = (_bpm / 60) * PX_PER_BEAT;
-                        scrollEl.scrollTop += pxPerSec * dt;
-                        if (scrollEl.scrollTop >= scrollEl.scrollHeight - scrollEl.clientHeight - 2) {
-                            _stopScroll();
-                            return;
-                        }
+                const pre = _getPre();
+                if (!pre || !_sdBody) return;
+
+                _enterTeleprompter();
+
+                // Give the browser one frame to reflow to single-column
+                requestAnimationFrame(() => {
+                    _scrolling = true;
+                    _lastTs = null;
+                    if (_scrollBtn) {
+                        _scrollBtn.style.background  = '#22c55e';
+                        _scrollBtn.style.color       = '#fff';
+                        _scrollBtn.style.borderColor = '#22c55e';
+                        _scrollBtn.innerHTML = '<i class="fa-solid fa-pause"></i> Pausar';
                     }
-                    _lastTs = ts;
+                    const tick = (ts) => {
+                        if (!_scrolling) return;
+                        if (_lastTs !== null) {
+                            const dt = (ts - _lastTs) / 1000;
+                            const pxPerSec = (_bpm / 60) * PX_PER_BEAT;
+                            _sdBody.scrollTop += pxPerSec * dt;
+                            if (_sdBody.scrollTop >= _sdBody.scrollHeight - _sdBody.clientHeight - 2) {
+                                _stopScroll();
+                                return;
+                            }
+                        }
+                        _lastTs = ts;
+                        _rafId = requestAnimationFrame(tick);
+                    };
                     _rafId = requestAnimationFrame(tick);
-                };
-                _rafId = requestAnimationFrame(tick);
+                });
             };
 
             _scrollBtn?.addEventListener('click', () => {
@@ -892,15 +913,15 @@
                 _bpm = val;
                 _presetBtns.forEach(b => {
                     const active = parseInt(b.dataset.bpm) === val;
-                    b.style.background = active ? 'var(--brand-dim)' : 'var(--glass-bg)';
-                    b.style.borderColor = active ? 'var(--brand)' : 'var(--glass-border)';
-                    b.style.color = active ? 'var(--brand)' : 'var(--text-secondary)';
+                    b.style.background  = active ? 'var(--brand-dim)' : 'var(--glass-bg)';
+                    b.style.borderColor = active ? 'var(--brand)'     : 'var(--glass-border)';
+                    b.style.color       = active ? 'var(--brand)'     : 'var(--text-secondary)';
                 });
             };
             _presetBtns.forEach(b =>
                 b.addEventListener('click', () => _setActiveBpm(parseInt(b.dataset.bpm)))
             );
-            _setActiveBpm(90); // highlight 90 by default
+            _setActiveBpm(90);
 
             // Stop scroll when tab changes or modal closes
             document.querySelectorAll('.sd-tab').forEach(t =>
