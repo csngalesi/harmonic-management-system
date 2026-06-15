@@ -709,21 +709,23 @@
                         <div class="sd-pane" id="sd-pane-letra">
                             <div id="sd-lyrics-toolbar" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
                                 <!-- BPM autoscroll -->
-                                <div style="display:flex;align-items:center;gap:4px;">
-                                    <button id="sd-bpm-minus" title="-5 BPM" style="
-                                        width:26px;height:26px;border-radius:6px;font-size:.8rem;font-weight:700;
+                                <div style="display:flex;align-items:center;gap:6px;">
+                                    <button class="sd-bpm-preset" data-bpm="80" style="
+                                        padding:4px 10px;border-radius:20px;font-size:.75rem;font-weight:700;
                                         border:1px solid var(--glass-border);background:var(--glass-bg);
                                         color:var(--text-secondary);cursor:pointer;transition:all .2s;
-                                    ">-</button>
-                                    <span id="sd-bpm-val" style="
-                                        font-size:.75rem;font-weight:700;color:var(--text-secondary);
-                                        min-width:52px;text-align:center;user-select:none;
-                                    ">95 BPM</span>
-                                    <button id="sd-bpm-plus" title="+5 BPM" style="
-                                        width:26px;height:26px;border-radius:6px;font-size:.8rem;font-weight:700;
+                                    ">80</button>
+                                    <button class="sd-bpm-preset" data-bpm="90" style="
+                                        padding:4px 10px;border-radius:20px;font-size:.75rem;font-weight:700;
                                         border:1px solid var(--glass-border);background:var(--glass-bg);
                                         color:var(--text-secondary);cursor:pointer;transition:all .2s;
-                                    ">+</button>
+                                    ">90</button>
+                                    <button class="sd-bpm-preset" data-bpm="100" style="
+                                        padding:4px 10px;border-radius:20px;font-size:.75rem;font-weight:700;
+                                        border:1px solid var(--glass-border);background:var(--glass-bg);
+                                        color:var(--text-secondary);cursor:pointer;transition:all .2s;
+                                    ">100</button>
+                                    <span style="font-size:.7rem;color:var(--text-muted);margin:0 2px;">BPM</span>
                                     <button id="sd-scroll-btn" title="Auto-scroll" style="
                                         display:flex;align-items:center;gap:5px;
                                         padding:5px 11px;border-radius:20px;font-size:.78rem;font-weight:600;
@@ -823,20 +825,21 @@
             });
 
             // ── BPM auto-scroll ────────────────────────────────────
-            let _bpm = 95;
+            let _bpm = 90;   // default preset
             let _scrolling = false;
             let _rafId = null;
             let _lastTs = null;
-            const PX_PER_BEAT = 1.8; // calibrated for ~2-3 min songs
+            const PX_PER_BEAT = 1.8;
 
-            const _bodyScrollEl = document.querySelector('.sd-body');
-            const _scrollBtn  = document.getElementById('sd-scroll-btn');
-            const _bpmValEl   = document.getElementById('sd-bpm-val');
-            const _bpmPlusBtn = document.getElementById('sd-bpm-plus');
-            const _bpmMinusBtn = document.getElementById('sd-bpm-minus');
+            const _scrollBtn = document.getElementById('sd-scroll-btn');
 
-            const _updateBpmLabel = () => {
-                if (_bpmValEl) _bpmValEl.textContent = `${_bpm} BPM`;
+            // Resolve the scrollable element lazily (lyrics load async)
+            const _getScrollEl = () => {
+                const sdBody = document.querySelector('.sd-body');
+                if (sdBody && sdBody.scrollHeight > sdBody.clientHeight + 2) return sdBody;
+                const mc = document.querySelector('.modal-container');
+                if (mc && mc.scrollHeight > mc.clientHeight + 2) return mc;
+                return sdBody || mc;
             };
 
             const _stopScroll = () => {
@@ -852,6 +855,8 @@
             };
 
             const _startScroll = () => {
+                const scrollEl = _getScrollEl();
+                if (!scrollEl) return;
                 _scrolling = true;
                 _lastTs = null;
                 if (_scrollBtn) {
@@ -861,12 +866,12 @@
                     _scrollBtn.innerHTML = '<i class="fa-solid fa-pause"></i> Pausar';
                 }
                 const tick = (ts) => {
-                    if (!_scrolling || !_bodyScrollEl) return;
+                    if (!_scrolling) return;
                     if (_lastTs !== null) {
                         const dt = (ts - _lastTs) / 1000;
                         const pxPerSec = (_bpm / 60) * PX_PER_BEAT;
-                        _bodyScrollEl.scrollTop += pxPerSec * dt;
-                        if (_bodyScrollEl.scrollTop >= _bodyScrollEl.scrollHeight - _bodyScrollEl.clientHeight - 2) {
+                        scrollEl.scrollTop += pxPerSec * dt;
+                        if (scrollEl.scrollTop >= scrollEl.scrollHeight - scrollEl.clientHeight - 2) {
                             _stopScroll();
                             return;
                         }
@@ -881,14 +886,21 @@
                 _scrolling ? _stopScroll() : _startScroll();
             });
 
-            _bpmPlusBtn?.addEventListener('click', () => {
-                _bpm = Math.min(_bpm + 5, 220);
-                _updateBpmLabel();
-            });
-            _bpmMinusBtn?.addEventListener('click', () => {
-                _bpm = Math.max(_bpm - 5, 40);
-                _updateBpmLabel();
-            });
+            // BPM preset buttons — highlight active one
+            const _presetBtns = document.querySelectorAll('.sd-bpm-preset');
+            const _setActiveBpm = (val) => {
+                _bpm = val;
+                _presetBtns.forEach(b => {
+                    const active = parseInt(b.dataset.bpm) === val;
+                    b.style.background = active ? 'var(--brand-dim)' : 'var(--glass-bg)';
+                    b.style.borderColor = active ? 'var(--brand)' : 'var(--glass-border)';
+                    b.style.color = active ? 'var(--brand)' : 'var(--text-secondary)';
+                });
+            };
+            _presetBtns.forEach(b =>
+                b.addEventListener('click', () => _setActiveBpm(parseInt(b.dataset.bpm)))
+            );
+            _setActiveBpm(90); // highlight 90 by default
 
             // Stop scroll when tab changes or modal closes
             document.querySelectorAll('.sd-tab').forEach(t =>
