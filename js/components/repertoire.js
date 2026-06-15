@@ -707,13 +707,36 @@
                             <div class="sd-chords" id="sd-chords-display">${buildChordsHtml(tokens)}</div>
                         </div>
                         <div class="sd-pane" id="sd-pane-letra">
-                            <div id="sd-lyrics-toolbar" style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px;">
+                            <div id="sd-lyrics-toolbar" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+                                <!-- BPM autoscroll -->
+                                <div style="display:flex;align-items:center;gap:4px;">
+                                    <button id="sd-bpm-minus" title="-5 BPM" style="
+                                        width:26px;height:26px;border-radius:6px;font-size:.8rem;font-weight:700;
+                                        border:1px solid var(--glass-border);background:var(--glass-bg);
+                                        color:var(--text-secondary);cursor:pointer;transition:all .2s;
+                                    ">-</button>
+                                    <span id="sd-bpm-val" style="
+                                        font-size:.75rem;font-weight:700;color:var(--text-secondary);
+                                        min-width:52px;text-align:center;user-select:none;
+                                    ">95 BPM</span>
+                                    <button id="sd-bpm-plus" title="+5 BPM" style="
+                                        width:26px;height:26px;border-radius:6px;font-size:.8rem;font-weight:700;
+                                        border:1px solid var(--glass-border);background:var(--glass-bg);
+                                        color:var(--text-secondary);cursor:pointer;transition:all .2s;
+                                    ">+</button>
+                                    <button id="sd-scroll-btn" title="Auto-scroll" style="
+                                        display:flex;align-items:center;gap:5px;
+                                        padding:5px 11px;border-radius:20px;font-size:.78rem;font-weight:600;
+                                        border:1px solid var(--glass-border);cursor:pointer;
+                                        background:transparent;color:var(--text-muted);transition:all .2s;
+                                    "><i class="fa-solid fa-play"></i> Scroll</button>
+                                </div>
+                                <!-- Reading mode -->
                                 <button id="sd-reading-mode-btn" title="Modo leitura" style="
                                     display:flex;align-items:center;gap:6px;
                                     padding:5px 12px;border-radius:20px;font-size:.78rem;font-weight:600;
                                     border:1px solid var(--glass-border);cursor:pointer;
-                                    background:transparent;color:var(--text-muted);
-                                    transition:all .2s;
+                                    background:transparent;color:var(--text-muted);transition:all .2s;
                                 ">
                                     <i class="fa-solid fa-sun"></i> Modo Leitura
                                 </button>
@@ -798,6 +821,80 @@
                 _readingMode = !_readingMode;
                 _applyReadingMode(_readingMode);
             });
+
+            // ── BPM auto-scroll ────────────────────────────────────
+            let _bpm = 95;
+            let _scrolling = false;
+            let _rafId = null;
+            let _lastTs = null;
+            const PX_PER_BEAT = 1.8; // calibrated for ~2-3 min songs
+
+            const _bodyScrollEl = document.querySelector('.sd-body');
+            const _scrollBtn  = document.getElementById('sd-scroll-btn');
+            const _bpmValEl   = document.getElementById('sd-bpm-val');
+            const _bpmPlusBtn = document.getElementById('sd-bpm-plus');
+            const _bpmMinusBtn = document.getElementById('sd-bpm-minus');
+
+            const _updateBpmLabel = () => {
+                if (_bpmValEl) _bpmValEl.textContent = `${_bpm} BPM`;
+            };
+
+            const _stopScroll = () => {
+                _scrolling = false;
+                if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
+                _lastTs = null;
+                if (_scrollBtn) {
+                    _scrollBtn.style.background = 'transparent';
+                    _scrollBtn.style.color = 'var(--text-muted)';
+                    _scrollBtn.style.borderColor = 'var(--glass-border)';
+                    _scrollBtn.innerHTML = '<i class="fa-solid fa-play"></i> Scroll';
+                }
+            };
+
+            const _startScroll = () => {
+                _scrolling = true;
+                _lastTs = null;
+                if (_scrollBtn) {
+                    _scrollBtn.style.background = '#22c55e';
+                    _scrollBtn.style.color = '#fff';
+                    _scrollBtn.style.borderColor = '#22c55e';
+                    _scrollBtn.innerHTML = '<i class="fa-solid fa-pause"></i> Pausar';
+                }
+                const tick = (ts) => {
+                    if (!_scrolling || !_bodyScrollEl) return;
+                    if (_lastTs !== null) {
+                        const dt = (ts - _lastTs) / 1000;
+                        const pxPerSec = (_bpm / 60) * PX_PER_BEAT;
+                        _bodyScrollEl.scrollTop += pxPerSec * dt;
+                        if (_bodyScrollEl.scrollTop >= _bodyScrollEl.scrollHeight - _bodyScrollEl.clientHeight - 2) {
+                            _stopScroll();
+                            return;
+                        }
+                    }
+                    _lastTs = ts;
+                    _rafId = requestAnimationFrame(tick);
+                };
+                _rafId = requestAnimationFrame(tick);
+            };
+
+            _scrollBtn?.addEventListener('click', () => {
+                _scrolling ? _stopScroll() : _startScroll();
+            });
+
+            _bpmPlusBtn?.addEventListener('click', () => {
+                _bpm = Math.min(_bpm + 5, 220);
+                _updateBpmLabel();
+            });
+            _bpmMinusBtn?.addEventListener('click', () => {
+                _bpm = Math.max(_bpm - 5, 40);
+                _updateBpmLabel();
+            });
+
+            // Stop scroll when tab changes or modal closes
+            document.querySelectorAll('.sd-tab').forEach(t =>
+                t.addEventListener('click', _stopScroll)
+            );
+            document.getElementById('sd-close-btn')?.addEventListener('click', _stopScroll, { once: true });
 
             if (song.has_lyrics) {
                 window.HMSAPI.Songs.getById(song.id).then(full => {
