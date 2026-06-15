@@ -708,7 +708,7 @@
                             </div>
                             <div class="sd-chords" id="sd-chords-display">${buildChordsHtml(tokens)}</div>
                         </div>
-                        <div class="sd-pane" id="sd-pane-letra" style="display:flex;flex-direction:column;">
+                        <div class="sd-pane" id="sd-pane-letra">
                             <!-- Reading mode (topo) -->
                             <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
                                 <button id="sd-reading-mode-btn" title="Modo leitura" style="

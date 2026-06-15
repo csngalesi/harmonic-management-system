@@ -670,6 +670,7 @@ tbody tr:hover td { background: var(--glass-bg); }
 .sd-body { padding:16px 20px; max-height:60vh; overflow-y:auto; }
 .sd-pane { display:none; }
 .sd-pane.active { display:block; }
+#sd-pane-letra.active { display:flex; flex-direction:column; }
 #sd-pane-letra pre {
     font-weight: 600;
 }
