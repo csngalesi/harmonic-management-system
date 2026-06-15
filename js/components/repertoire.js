@@ -708,14 +708,18 @@
                         </div>
                         <div class="sd-pane" id="sd-pane-letra">
                             <div id="sd-lyrics-toolbar" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-                                <!-- Page navigation arrows -->
-                                <div style="display:flex;gap:10px;">
+                                <!-- Page navigation arrows + counter -->
+                                <div style="display:flex;align-items:center;gap:10px;">
                                     <button id="sd-pg-up" title="P\u00e1gina anterior" style="
                                         width:44px;height:44px;border-radius:12px;font-size:1.3rem;
                                         border:1px solid var(--glass-border);background:var(--glass-bg);
                                         color:var(--text-secondary);cursor:pointer;transition:all .2s;
-                                        display:flex;align-items:center;justify-content:center;
+                                        display:flex;align-items:center;justify-content:center;opacity:.3;
                                     "><i class="fa-solid fa-chevron-up"></i></button>
+                                    <span id="sd-page-counter" style="
+                                        font-size:.8rem;font-weight:700;color:var(--text-muted);
+                                        min-width:40px;text-align:center;letter-spacing:.04em;
+                                    ">1 / 1</span>
                                     <button id="sd-pg-down" title="Pr\u00f3xima p\u00e1gina" style="
                                         width:44px;height:44px;border-radius:12px;font-size:1.3rem;
                                         border:1px solid var(--glass-border);background:var(--glass-bg);
@@ -766,8 +770,59 @@
 
             // ── Reading mode toggle ────────────────────────────────
             let _readingMode = false;
-            const _readingBtn = document.getElementById('sd-reading-mode-btn');
-            const _lyricsPaneEl = document.getElementById('sd-pane-letra');
+            const _readingBtn    = document.getElementById('sd-reading-mode-btn');
+            const _lyricsPaneEl  = document.getElementById('sd-pane-letra');
+            const _sdBody        = document.querySelector('.sd-body');
+            const _pgUp          = document.getElementById('sd-pg-up');
+            const _pgDown        = document.getElementById('sd-pg-down');
+            const _counter       = document.getElementById('sd-page-counter');
+
+            // ── 2-column paging state ──────────────────────────────
+            let _currentPage = 0;
+            let _totalPages  = 1;
+            let _viewportEl  = null;   // div with overflow:hidden
+            let _preEl       = null;   // the pre element
+
+            const _updateCounter = () => {
+                if (_counter) _counter.textContent = `${_currentPage + 1} / ${_totalPages}`;
+            };
+
+            const _updateArrows = () => {
+                if (_pgUp) {
+                    const dis = _currentPage <= 0;
+                    _pgUp.style.opacity       = dis ? '.3' : '1';
+                    _pgUp.style.pointerEvents = dis ? 'none' : 'auto';
+                }
+                if (_pgDown) {
+                    const dis = _currentPage >= _totalPages - 1;
+                    _pgDown.style.opacity       = dis ? '.3' : '1';
+                    _pgDown.style.pointerEvents = dis ? 'none' : 'auto';
+                }
+            };
+
+            const _goToPage = (page) => {
+                if (!_preEl || !_viewportEl) return;
+                _currentPage = Math.max(0, Math.min(page, _totalPages - 1));
+                const vw = _viewportEl.clientWidth;
+                _preEl.style.transform = `translateX(-${_currentPage * vw}px)`;
+                _updateCounter();
+                _updateArrows();
+            };
+
+            // Recalculate total pages after font change or first load
+            const _calcPages = () => {
+                if (!_preEl || !_viewportEl) return;
+                const vw = _viewportEl.clientWidth;
+                if (!vw) return;
+                _totalPages  = Math.max(1, Math.ceil((_preEl.scrollWidth + 2) / vw));
+                _currentPage = 0;
+                _preEl.style.transform = '';
+                _updateCounter();
+                _updateArrows();
+            };
+
+            _pgUp  ?.addEventListener('click', () => _goToPage(_currentPage - 1));
+            _pgDown?.addEventListener('click', () => _goToPage(_currentPage + 1));
 
             const _applyReadingMode = (active) => {
                 if (active) {
@@ -782,11 +837,10 @@
                     _readingBtn.style.color       = '#fff';
                     _readingBtn.style.borderColor = '#7c6fff';
                     _readingBtn.innerHTML = '<i class="fa-solid fa-moon"></i> Modo Escuro';
-                    const pre = _lyricsPaneEl.querySelector('pre');
-                    if (pre) {
-                        pre.style.color      = '#2d2d2d';
-                        pre.style.fontSize   = '.95rem';
-                        pre.style.lineHeight = '1.9';
+                    if (_preEl) {
+                        _preEl.style.color      = '#2d2d2d';
+                        _preEl.style.fontSize   = '.95rem';
+                        _preEl.style.lineHeight = '1.9';
                     }
                 } else {
                     _lyricsPaneEl.style.cssText = '';
@@ -794,13 +848,14 @@
                     _readingBtn.style.color       = 'var(--text-muted)';
                     _readingBtn.style.borderColor = 'var(--glass-border)';
                     _readingBtn.innerHTML = '<i class="fa-solid fa-sun"></i> Modo Leitura';
-                    const pre = _lyricsPaneEl.querySelector('pre');
-                    if (pre) {
-                        pre.style.color      = 'var(--text-secondary)';
-                        pre.style.fontSize   = '.85rem';
-                        pre.style.lineHeight = '1.7';
+                    if (_preEl) {
+                        _preEl.style.color      = 'var(--text-secondary)';
+                        _preEl.style.fontSize   = '.9rem';
+                        _preEl.style.lineHeight = '1.8';
                     }
                 }
+                // Recalculate pages after font change
+                requestAnimationFrame(_calcPages);
             };
 
             _readingBtn?.addEventListener('click', () => {
@@ -808,28 +863,55 @@
                 _applyReadingMode(_readingMode);
             });
 
-            // ── Page navigation arrows ────────────────────────────────
-            const _sdBody  = document.querySelector('.sd-body');
-            const _pgUp   = document.getElementById('sd-pg-up');
-            const _pgDown = document.getElementById('sd-pg-down');
-
-            const _scrollPage = (dir) => {
-                if (!_sdBody) return;
-                _sdBody.scrollBy({ top: dir * _sdBody.clientHeight * 0.85, behavior: 'smooth' });
-            };
-
-            _pgUp  ?.addEventListener('click', () => _scrollPage(-1));
-            _pgDown?.addEventListener('click', () => _scrollPage( 1));
-
-
             if (song.has_lyrics) {
                 window.HMSAPI.Songs.getById(song.id).then(full => {
                     const el = document.getElementById('sd-lyrics-content');
                     if (!el) return;
                     if (full.lyrics) {
-                        el.innerHTML = `<pre id="sd-lyrics-pre" style="white-space:pre-wrap;font-family:var(--font-ui);font-size:.85rem;color:var(--text-secondary);line-height:1.7;">${esc(full.lyrics)}</pre>`;
-                        // Apply reading mode styles if already active
-                        if (_readingMode) _applyReadingMode(true);
+                        // ── Build viewport + pre for 2-col paging ──
+                        const toolbar   = document.getElementById('sd-lyrics-toolbar');
+                        const viewportH = (_sdBody?.clientHeight || 420)
+                                        - (toolbar?.offsetHeight || 60)
+                                        - 8; // small gap
+
+                        const viewport = document.createElement('div');
+                        viewport.style.cssText = [
+                            'overflow:hidden',
+                            `height:${viewportH}px`,
+                            'position:relative',
+                        ].join(';');
+
+                        const pre = document.createElement('pre');
+                        pre.id = 'sd-lyrics-pre';
+                        pre.style.cssText = [
+                            'white-space:pre-wrap',
+                            'font-family:var(--font-ui)',
+                            'font-size:.9rem',
+                            'color:var(--text-secondary)',
+                            'line-height:1.8',
+                            'font-weight:600',
+                            'column-count:2',
+                            'column-fill:auto',
+                            `height:${viewportH}px`,
+                            'column-gap:24px',
+                            'margin:0',
+                            'transition:transform .4s ease',
+                            'will-change:transform',
+                        ].join(';');
+                        pre.textContent = full.lyrics;
+
+                        viewport.appendChild(pre);
+                        el.innerHTML = '';
+                        el.appendChild(viewport);
+
+                        _viewportEl = viewport;
+                        _preEl      = pre;
+
+                        // Wait one frame for browser to lay out columns
+                        requestAnimationFrame(() => {
+                            _calcPages();
+                            if (_readingMode) _applyReadingMode(true);
+                        });
                     } else {
                         el.innerHTML = `<p style="color:var(--text-muted);font-size:.85rem;">Letra n\u00e3o encontrada.</p>`;
                     }
