@@ -671,28 +671,30 @@
 
             window.HMSApp.openModal(`
                 <div class="sd-modal">
-                    <div class="sd-header">
-                        <div>
-                            <div class="sd-title">${esc(song.title)}</div>
-                            <div class="sd-sub">${esc([song.artist, song.genre].filter(Boolean).join(' · '))}</div>
+                    <div class="sd-header" style="padding:10px 16px 8px;align-items:center;">
+                        <div style="min-width:0;flex:1;">
+                            <div class="sd-title" style="font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(song.title)}</div>
+                            <div class="sd-sub" style="font-size:.7rem;margin-top:1px;">${esc([song.artist, song.genre].filter(Boolean).join(' · '))}</div>
                         </div>
                         <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-                            <span class="song-key-badge" style="font-size:1rem;">${esc(origKey)}</span>
-                            <button id="sd-edit-btn" class="btn-icon edit" title="Editar música">
+                            <span class="song-key-badge" style="font-size:.9rem;">${esc(origKey)}</span>
+                            <button id="sd-edit-btn" class="btn-icon edit" title="Editar música" style="width:30px;height:30px;">
                                 <i class="fa-solid fa-pen-to-square"></i>
                             </button>
+                            <button class="modal-close" id="sd-close-btn"><i class="fa-solid fa-xmark"></i></button>
                         </div>
                     </div>
-                    ${song.audio_url ? `
-                    <audio controls preload="none" src="${esc(song.audio_url)}"
-                           style="width:100%;height:36px;margin:4px 0 8px;">
-                    </audio>` : ''}
-                    <div class="sd-tabs">
+                    <div class="sd-tabs" style="padding:0 12px;">
                         <button class="sd-tab" data-tab="func">Harm Func</button>
                         <button class="sd-tab active" data-tab="acor">Harm Acor</button>
                         <button class="sd-tab" data-tab="letra">Letra</button>
                     </div>
                     <div class="sd-body">
+                        ${song.audio_url ? `
+                        <div id="sd-audio-wrap" style="padding:0 0 8px;">
+                            <audio id="sd-audio" controls preload="none" src="${esc(song.audio_url)}"
+                                   style="width:100%;height:34px;display:block;"></audio>
+                        </div>` : ''}
                         <div class="sd-pane" id="sd-pane-func">
                             <div class="sd-chords">${buildFuncHtml(song.harmony_str)}</div>
                         </div>
@@ -753,12 +755,24 @@
                 RepertoireComponent.openSongModal(song.id);
             });
 
+            document.getElementById('sd-close-btn')?.addEventListener('click', () => {
+                window.HMSApp.closeModal();
+            });
+
             document.querySelectorAll('.sd-tab').forEach(tab => {
                 tab.addEventListener('click', () => {
                     document.querySelectorAll('.sd-tab').forEach(t => t.classList.remove('active'));
                     document.querySelectorAll('.sd-pane').forEach(p => p.classList.remove('active'));
                     tab.classList.add('active');
                     document.getElementById(`sd-pane-${tab.dataset.tab}`).classList.add('active');
+
+                    // Show/hide audio player — only on harm tabs
+                    const audioWrap = document.getElementById('sd-audio-wrap');
+                    if (audioWrap) {
+                        const isLetra = tab.dataset.tab === 'letra';
+                        audioWrap.style.display = isLetra ? 'none' : '';
+                        if (isLetra) document.getElementById('sd-audio')?.pause();
+                    }
                 });
             });
 
