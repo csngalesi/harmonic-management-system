@@ -757,23 +757,24 @@
             const _applyReadingMode = (active) => {
                 if (active) {
                     _lyricsPaneEl.style.cssText = [
-                        'background:#fffef8',
+                        'background:#faf9f4',
                         'border-radius:12px',
-                        'padding:24px 32px',
+                        'padding:20px 28px',
                         'margin:-4px',
-                        'box-shadow:0 2px 24px rgba(0,0,0,.12)',
+                        'box-shadow:0 4px 32px rgba(0,0,0,.15)',
                     ].join(';');
-                    _readingBtn.style.background = '#f5a623';
+                    _readingBtn.style.background = '#7c6fff';
                     _readingBtn.style.color = '#fff';
-                    _readingBtn.style.borderColor = '#f5a623';
+                    _readingBtn.style.borderColor = '#7c6fff';
                     _readingBtn.innerHTML = '<i class="fa-solid fa-moon"></i> Modo Escuro';
-                    // Update pre if already rendered
                     const pre = _lyricsPaneEl.querySelector('pre');
                     if (pre) {
-                        pre.style.color = '#1a1a2e';
-                        pre.style.fontSize = '1.05rem';
-                        pre.style.lineHeight = '2';
-                        pre.style.columns = '1';
+                        pre.style.color = '#2d2d2d';
+                        pre.style.fontSize = '.95rem';
+                        pre.style.lineHeight = '1.9';
+                        pre.style.columns = '2';
+                        pre.style.columnGap = '2.5rem';
+                        pre.style.columnRule = '1px solid #e0ddd5';
                     }
                 } else {
                     _lyricsPaneEl.style.cssText = '';
@@ -787,6 +788,8 @@
                         pre.style.fontSize = '.85rem';
                         pre.style.lineHeight = '1.7';
                         pre.style.columns = '';
+                        pre.style.columnGap = '';
+                        pre.style.columnRule = '';
                     }
                 }
             };
