@@ -706,28 +706,9 @@
                             </div>
                             <div class="sd-chords" id="sd-chords-display">${buildChordsHtml(tokens)}</div>
                         </div>
-                        <div class="sd-pane" id="sd-pane-letra">
-                            <div id="sd-lyrics-toolbar" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-                                <!-- Page navigation arrows + counter -->
-                                <div style="display:flex;align-items:center;gap:10px;">
-                                    <button id="sd-pg-up" title="P\u00e1gina anterior" style="
-                                        width:44px;height:44px;border-radius:12px;font-size:1.3rem;
-                                        border:1px solid var(--glass-border);background:var(--glass-bg);
-                                        color:var(--text-secondary);cursor:pointer;transition:all .2s;
-                                        display:flex;align-items:center;justify-content:center;opacity:.3;
-                                    "><i class="fa-solid fa-chevron-up"></i></button>
-                                    <span id="sd-page-counter" style="
-                                        font-size:.8rem;font-weight:700;color:var(--text-muted);
-                                        min-width:40px;text-align:center;letter-spacing:.04em;
-                                    ">1 / 1</span>
-                                    <button id="sd-pg-down" title="Pr\u00f3xima p\u00e1gina" style="
-                                        width:44px;height:44px;border-radius:12px;font-size:1.3rem;
-                                        border:1px solid var(--glass-border);background:var(--glass-bg);
-                                        color:var(--text-secondary);cursor:pointer;transition:all .2s;
-                                        display:flex;align-items:center;justify-content:center;
-                                    "><i class="fa-solid fa-chevron-down"></i></button>
-                                </div>
-                                <!-- Reading mode -->
+                        <div class="sd-pane" id="sd-pane-letra" style="display:flex;flex-direction:column;">
+                            <!-- Reading mode (topo) -->
+                            <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
                                 <button id="sd-reading-mode-btn" title="Modo leitura" style="
                                     display:flex;align-items:center;gap:6px;
                                     padding:5px 12px;border-radius:20px;font-size:.78rem;font-weight:600;
@@ -737,10 +718,30 @@
                                     <i class="fa-solid fa-sun"></i> Modo Leitura
                                 </button>
                             </div>
-                            <div id="sd-lyrics-content">
+                            <!-- Lyrics content (cresce) -->
+                            <div id="sd-lyrics-content" style="flex:1;">
                                 ${song.has_lyrics
                                     ? `<div class="content-loader" style="padding:12px;"><div class="loader-spinner" style="width:20px;height:20px;border-width:2px;"></div></div>`
                                     : `<p style="color:var(--text-muted);font-size:.85rem;">Sem letra cadastrada.</p>`}
+                            </div>
+                            <!-- Navega\u00e7\u00e3o: setas grandes na base -->
+                            <div style="display:flex;align-items:center;gap:12px;margin-top:10px;">
+                                <button id="sd-pg-up" title="P\u00e1gina anterior" style="
+                                    flex:1;height:60px;border-radius:14px;font-size:1.15rem;font-weight:700;
+                                    display:flex;align-items:center;justify-content:center;gap:10px;
+                                    border:1px solid var(--glass-border);background:var(--glass-bg);
+                                    color:var(--text-secondary);cursor:pointer;transition:all .2s;opacity:.3;
+                                "><i class="fa-solid fa-chevron-up"></i> Anterior</button>
+                                <span id="sd-page-counter" style="
+                                    font-size:.85rem;font-weight:700;color:var(--text-muted);
+                                    min-width:44px;text-align:center;white-space:nowrap;
+                                ">1 / 1</span>
+                                <button id="sd-pg-down" title="Pr\u00f3xima p\u00e1gina" style="
+                                    flex:1;height:60px;border-radius:14px;font-size:1.15rem;font-weight:700;
+                                    display:flex;align-items:center;justify-content:center;gap:10px;
+                                    border:1px solid var(--glass-border);background:var(--glass-bg);
+                                    color:var(--text-secondary);cursor:pointer;transition:all .2s;
+                                ">Pr\u00f3xima <i class="fa-solid fa-chevron-down"></i></button>
                             </div>
                         </div>
                     </div>
@@ -869,10 +870,9 @@
                     if (!el) return;
                     if (full.lyrics) {
                         // ── Build viewport + pre for 2-col paging ──
-                        const toolbar   = document.getElementById('sd-lyrics-toolbar');
-                        const viewportH = (_sdBody?.clientHeight || 420)
-                                        - (toolbar?.offsetHeight || 60)
-                                        - 8; // small gap
+                        // Use window.innerHeight so height is correct
+                        // regardless of when sd-body was measured
+                        const viewportH = Math.floor(window.innerHeight * 0.52);
 
                         const viewport = document.createElement('div');
                         viewport.style.cssText = [
@@ -893,7 +893,7 @@
                             'column-count:2',
                             'column-fill:auto',
                             `height:${viewportH}px`,
-                            'column-gap:24px',
+                            'column-gap:28px',
                             'margin:0',
                             'transition:transform .4s ease',
                             'will-change:transform',
