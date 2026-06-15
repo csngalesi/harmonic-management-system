@@ -707,31 +707,21 @@
                             <div class="sd-chords" id="sd-chords-display">${buildChordsHtml(tokens)}</div>
                         </div>
                         <div class="sd-pane" id="sd-pane-letra">
-                            <div id="sd-lyrics-toolbar" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
-                                <!-- BPM autoscroll -->
-                                <div style="display:flex;align-items:center;gap:6px;">
-                                    <button class="sd-bpm-preset" data-bpm="80" style="
-                                        padding:4px 10px;border-radius:20px;font-size:.75rem;font-weight:700;
+                            <div id="sd-lyrics-toolbar" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                                <!-- Page navigation arrows -->
+                                <div style="display:flex;gap:10px;">
+                                    <button id="sd-pg-up" title="P\u00e1gina anterior" style="
+                                        width:44px;height:44px;border-radius:12px;font-size:1.3rem;
                                         border:1px solid var(--glass-border);background:var(--glass-bg);
                                         color:var(--text-secondary);cursor:pointer;transition:all .2s;
-                                    ">80</button>
-                                    <button class="sd-bpm-preset" data-bpm="90" style="
-                                        padding:4px 10px;border-radius:20px;font-size:.75rem;font-weight:700;
+                                        display:flex;align-items:center;justify-content:center;
+                                    "><i class="fa-solid fa-chevron-up"></i></button>
+                                    <button id="sd-pg-down" title="Pr\u00f3xima p\u00e1gina" style="
+                                        width:44px;height:44px;border-radius:12px;font-size:1.3rem;
                                         border:1px solid var(--glass-border);background:var(--glass-bg);
                                         color:var(--text-secondary);cursor:pointer;transition:all .2s;
-                                    ">90</button>
-                                    <button class="sd-bpm-preset" data-bpm="100" style="
-                                        padding:4px 10px;border-radius:20px;font-size:.75rem;font-weight:700;
-                                        border:1px solid var(--glass-border);background:var(--glass-bg);
-                                        color:var(--text-secondary);cursor:pointer;transition:all .2s;
-                                    ">100</button>
-                                    <span style="font-size:.7rem;color:var(--text-muted);margin:0 2px;">BPM</span>
-                                    <button id="sd-scroll-btn" title="Auto-scroll" style="
-                                        display:flex;align-items:center;gap:5px;
-                                        padding:5px 11px;border-radius:20px;font-size:.78rem;font-weight:600;
-                                        border:1px solid var(--glass-border);cursor:pointer;
-                                        background:transparent;color:var(--text-muted);transition:all .2s;
-                                    "><i class="fa-solid fa-play"></i> Scroll</button>
+                                        display:flex;align-items:center;justify-content:center;
+                                    "><i class="fa-solid fa-chevron-down"></i></button>
                                 </div>
                                 <!-- Reading mode -->
                                 <button id="sd-reading-mode-btn" title="Modo leitura" style="
@@ -788,33 +778,27 @@
                         'margin:-4px',
                         'box-shadow:0 4px 32px rgba(0,0,0,.15)',
                     ].join(';');
-                    _readingBtn.style.background = '#7c6fff';
-                    _readingBtn.style.color = '#fff';
+                    _readingBtn.style.background  = '#7c6fff';
+                    _readingBtn.style.color       = '#fff';
                     _readingBtn.style.borderColor = '#7c6fff';
                     _readingBtn.innerHTML = '<i class="fa-solid fa-moon"></i> Modo Escuro';
                     const pre = _lyricsPaneEl.querySelector('pre');
                     if (pre) {
-                        pre.style.color = '#2d2d2d';
-                        pre.style.fontSize = '.95rem';
+                        pre.style.color      = '#2d2d2d';
+                        pre.style.fontSize   = '.95rem';
                         pre.style.lineHeight = '1.9';
-                        pre.style.columns = '2';
-                        pre.style.columnGap = '2.5rem';
-                        pre.style.columnRule = '1px solid #e0ddd5';
                     }
                 } else {
                     _lyricsPaneEl.style.cssText = '';
-                    _readingBtn.style.background = 'transparent';
-                    _readingBtn.style.color = 'var(--text-muted)';
+                    _readingBtn.style.background  = 'transparent';
+                    _readingBtn.style.color       = 'var(--text-muted)';
                     _readingBtn.style.borderColor = 'var(--glass-border)';
                     _readingBtn.innerHTML = '<i class="fa-solid fa-sun"></i> Modo Leitura';
                     const pre = _lyricsPaneEl.querySelector('pre');
                     if (pre) {
-                        pre.style.color = 'var(--text-secondary)';
-                        pre.style.fontSize = '.85rem';
+                        pre.style.color      = 'var(--text-secondary)';
+                        pre.style.fontSize   = '.85rem';
                         pre.style.lineHeight = '1.7';
-                        pre.style.columns = '';
-                        pre.style.columnGap = '';
-                        pre.style.columnRule = '';
                     }
                 }
             };
@@ -824,110 +808,19 @@
                 _applyReadingMode(_readingMode);
             });
 
-            // ── BPM auto-scroll ────────────────────────────────────
-            // PX_PER_BEAT = 10 → ~15 px/s at 90 BPM (≈1 line/2s)
-            const PX_PER_BEAT = 10;
-            let _bpm = 90;
-            let _scrolling = false;
-            let _rafId = null;
-            let _lastTs = null;
+            // ── Page navigation arrows ────────────────────────────────
+            const _sdBody  = document.querySelector('.sd-body');
+            const _pgUp   = document.getElementById('sd-pg-up');
+            const _pgDown = document.getElementById('sd-pg-down');
 
-            const _scrollBtn = document.getElementById('sd-scroll-btn');
-            const _sdBody    = document.querySelector('.sd-body');
-
-            const _getPre = () => _lyricsPaneEl?.querySelector('pre');
-
-            // Switch pre to 1 column so sd-body has full scroll distance
-            const _enterTeleprompter = () => {
-                const pre = _getPre();
-                if (pre) {
-                    pre.style.columnCount = '1';
-                    pre.style.columns     = '1';
-                }
-                if (_sdBody) _sdBody.scrollTop = 0;
+            const _scrollPage = (dir) => {
+                if (!_sdBody) return;
+                _sdBody.scrollBy({ top: dir * _sdBody.clientHeight * 0.85, behavior: 'smooth' });
             };
 
-            // Restore 2-column layout
-            const _exitTeleprompter = () => {
-                const pre = _getPre();
-                if (pre) {
-                    pre.style.columnCount = '';
-                    pre.style.columns     = '';
-                }
-            };
+            _pgUp  ?.addEventListener('click', () => _scrollPage(-1));
+            _pgDown?.addEventListener('click', () => _scrollPage( 1));
 
-            const _stopScroll = () => {
-                _scrolling = false;
-                if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
-                _lastTs = null;
-                _exitTeleprompter();
-                if (_scrollBtn) {
-                    _scrollBtn.style.background  = 'transparent';
-                    _scrollBtn.style.color       = 'var(--text-muted)';
-                    _scrollBtn.style.borderColor = 'var(--glass-border)';
-                    _scrollBtn.innerHTML = '<i class="fa-solid fa-play"></i> Scroll';
-                }
-            };
-
-            const _startScroll = () => {
-                const pre = _getPre();
-                if (!pre || !_sdBody) return;
-
-                _enterTeleprompter();
-
-                // Give the browser one frame to reflow to single-column
-                requestAnimationFrame(() => {
-                    _scrolling = true;
-                    _lastTs = null;
-                    if (_scrollBtn) {
-                        _scrollBtn.style.background  = '#22c55e';
-                        _scrollBtn.style.color       = '#fff';
-                        _scrollBtn.style.borderColor = '#22c55e';
-                        _scrollBtn.innerHTML = '<i class="fa-solid fa-pause"></i> Pausar';
-                    }
-                    const tick = (ts) => {
-                        if (!_scrolling) return;
-                        if (_lastTs !== null) {
-                            const dt = (ts - _lastTs) / 1000;
-                            const pxPerSec = (_bpm / 60) * PX_PER_BEAT;
-                            _sdBody.scrollTop += pxPerSec * dt;
-                            if (_sdBody.scrollTop >= _sdBody.scrollHeight - _sdBody.clientHeight - 2) {
-                                _stopScroll();
-                                return;
-                            }
-                        }
-                        _lastTs = ts;
-                        _rafId = requestAnimationFrame(tick);
-                    };
-                    _rafId = requestAnimationFrame(tick);
-                });
-            };
-
-            _scrollBtn?.addEventListener('click', () => {
-                _scrolling ? _stopScroll() : _startScroll();
-            });
-
-            // BPM preset buttons — highlight active one
-            const _presetBtns = document.querySelectorAll('.sd-bpm-preset');
-            const _setActiveBpm = (val) => {
-                _bpm = val;
-                _presetBtns.forEach(b => {
-                    const active = parseInt(b.dataset.bpm) === val;
-                    b.style.background  = active ? 'var(--brand-dim)' : 'var(--glass-bg)';
-                    b.style.borderColor = active ? 'var(--brand)'     : 'var(--glass-border)';
-                    b.style.color       = active ? 'var(--brand)'     : 'var(--text-secondary)';
-                });
-            };
-            _presetBtns.forEach(b =>
-                b.addEventListener('click', () => _setActiveBpm(parseInt(b.dataset.bpm)))
-            );
-            _setActiveBpm(90);
-
-            // Stop scroll when tab changes or modal closes
-            document.querySelectorAll('.sd-tab').forEach(t =>
-                t.addEventListener('click', _stopScroll)
-            );
-            document.getElementById('sd-close-btn')?.addEventListener('click', _stopScroll, { once: true });
 
             if (song.has_lyrics) {
                 window.HMSAPI.Songs.getById(song.id).then(full => {
