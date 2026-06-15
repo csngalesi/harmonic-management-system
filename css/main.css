@@ -674,6 +674,7 @@ tbody tr:hover td { background: var(--glass-bg); }
     column-count: 2;
     column-gap: 24px;
     column-rule: 1px solid var(--glass-border);
+    font-weight: 600;
 }
 @media (max-width: 560px) { #sd-pane-letra pre { column-count: 1; } }
 @media (min-width: 768px) {
