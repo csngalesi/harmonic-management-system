@@ -707,6 +707,17 @@
                             <div class="sd-chords" id="sd-chords-display">${buildChordsHtml(tokens)}</div>
                         </div>
                         <div class="sd-pane" id="sd-pane-letra">
+                            <div id="sd-lyrics-toolbar" style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px;">
+                                <button id="sd-reading-mode-btn" title="Modo leitura" style="
+                                    display:flex;align-items:center;gap:6px;
+                                    padding:5px 12px;border-radius:20px;font-size:.78rem;font-weight:600;
+                                    border:1px solid var(--glass-border);cursor:pointer;
+                                    background:transparent;color:var(--text-muted);
+                                    transition:all .2s;
+                                ">
+                                    <i class="fa-solid fa-sun"></i> Modo Leitura
+                                </button>
+                            </div>
                             <div id="sd-lyrics-content">
                                 ${song.has_lyrics
                                     ? `<div class="content-loader" style="padding:12px;"><div class="loader-spinner" style="width:20px;height:20px;border-width:2px;"></div></div>`
@@ -738,12 +749,64 @@
                 document.getElementById('sd-chords-display').innerHTML = buildChordsHtml(newTokens);
             });
 
+            // ── Reading mode toggle ────────────────────────────────
+            let _readingMode = false;
+            const _readingBtn = document.getElementById('sd-reading-mode-btn');
+            const _lyricsPaneEl = document.getElementById('sd-pane-letra');
+
+            const _applyReadingMode = (active) => {
+                if (active) {
+                    _lyricsPaneEl.style.cssText = [
+                        'background:#fffef8',
+                        'border-radius:12px',
+                        'padding:24px 32px',
+                        'margin:-4px',
+                        'box-shadow:0 2px 24px rgba(0,0,0,.12)',
+                    ].join(';');
+                    _readingBtn.style.background = '#f5a623';
+                    _readingBtn.style.color = '#fff';
+                    _readingBtn.style.borderColor = '#f5a623';
+                    _readingBtn.innerHTML = '<i class="fa-solid fa-moon"></i> Modo Escuro';
+                    // Update pre if already rendered
+                    const pre = _lyricsPaneEl.querySelector('pre');
+                    if (pre) {
+                        pre.style.color = '#1a1a2e';
+                        pre.style.fontSize = '1.05rem';
+                        pre.style.lineHeight = '2';
+                        pre.style.columns = '1';
+                    }
+                } else {
+                    _lyricsPaneEl.style.cssText = '';
+                    _readingBtn.style.background = 'transparent';
+                    _readingBtn.style.color = 'var(--text-muted)';
+                    _readingBtn.style.borderColor = 'var(--glass-border)';
+                    _readingBtn.innerHTML = '<i class="fa-solid fa-sun"></i> Modo Leitura';
+                    const pre = _lyricsPaneEl.querySelector('pre');
+                    if (pre) {
+                        pre.style.color = 'var(--text-secondary)';
+                        pre.style.fontSize = '.85rem';
+                        pre.style.lineHeight = '1.7';
+                        pre.style.columns = '';
+                    }
+                }
+            };
+
+            _readingBtn?.addEventListener('click', () => {
+                _readingMode = !_readingMode;
+                _applyReadingMode(_readingMode);
+            });
+
             if (song.has_lyrics) {
                 window.HMSAPI.Songs.getById(song.id).then(full => {
                     const el = document.getElementById('sd-lyrics-content');
-                    if (el) el.innerHTML = full.lyrics
-                        ? `<pre style="white-space:pre-wrap;font-family:var(--font-ui);font-size:.85rem;color:var(--text-secondary);line-height:1.7;">${esc(full.lyrics)}</pre>`
-                        : `<p style="color:var(--text-muted);font-size:.85rem;">Letra não encontrada.</p>`;
+                    if (!el) return;
+                    if (full.lyrics) {
+                        el.innerHTML = `<pre id="sd-lyrics-pre" style="white-space:pre-wrap;font-family:var(--font-ui);font-size:.85rem;color:var(--text-secondary);line-height:1.7;">${esc(full.lyrics)}</pre>`;
+                        // Apply reading mode styles if already active
+                        if (_readingMode) _applyReadingMode(true);
+                    } else {
+                        el.innerHTML = `<p style="color:var(--text-muted);font-size:.85rem;">Letra n\u00e3o encontrada.</p>`;
+                    }
                 }).catch(() => {});
             }
         },
