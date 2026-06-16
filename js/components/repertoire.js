@@ -772,13 +772,20 @@
 
                     // Show/hide audio player — only on harm tabs
                     const audioWrap = document.getElementById('sd-audio-wrap');
+                    const isLetra = tab.dataset.tab === 'letra';
                     if (audioWrap) {
-                        const isLetra = tab.dataset.tab === 'letra';
                         audioWrap.style.display = isLetra ? 'none' : '';
                         if (isLetra) document.getElementById('sd-audio')?.pause();
                     }
+
+                    // Reading mode: harm tabs = sempre escuro; letra = segue _readingMode
+                    // Isso garante que Harm Func/Acor nunca ficam brancos
+                    if (_readingMode) {
+                        _applyReadingMode(isLetra); // branco na letra, escuro no harm
+                    }
                 });
             });
+
 
             document.getElementById('sd-key-select')?.addEventListener('change', function () {
                 const newIsMinor = this.value.endsWith('m');
