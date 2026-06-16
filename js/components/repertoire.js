@@ -87,15 +87,8 @@
                     </div>
                 </div>
 
-                <!-- Search block: type pills + input -->
+                <!-- Search block: duas lupas -->
                 <div class="search-block mb-2">
-                    <div class="search-type-bar" id="search-type-bar">
-                        <button class="search-type-pill ${_state.searchType === 'all'     ? 'active' : ''}" data-type="all">Tudo</button>
-                        <button class="search-type-pill ${_state.searchType === 'title'   ? 'active' : ''}" data-type="title">Título</button>
-                        <button class="search-type-pill ${_state.searchType === 'artist'  ? 'active' : ''}" data-type="artist">Artista</button>
-                        <button class="search-type-pill ${_state.searchType === 'genre'   ? 'active' : ''}" data-type="genre">Gênero</button>
-                        <button class="search-type-pill ${_state.searchType === 'harmony' ? 'active' : ''}" data-type="harmony">Harmonia</button>
-                    </div>
                     <div class="search-bar">
                         <input type="text" id="song-search" class="form-input"
                             placeholder="Buscar…"
@@ -105,8 +98,14 @@
                             style="${_state.searchQuery ? '' : 'display:none'}">
                             <i class="fa-solid fa-xmark"></i>
                         </button>
-                        <button class="btn btn-secondary" id="btn-search">
+                        <button class="btn btn-secondary${_state.searchType !== 'harmony' ? ' active' : ''}" id="btn-search"
+                            title="Buscar em tudo">
                             <i class="fa-solid fa-magnifying-glass"></i>
+                        </button>
+                        <button class="btn btn-secondary${_state.searchType === 'harmony' ? ' active' : ''}" id="btn-search-harm"
+                            title="Buscar em harmonia" style="font-weight:700;position:relative;">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <span style="position:absolute;top:3px;right:4px;font-size:.55rem;font-weight:800;line-height:1;">H</span>
                         </button>
                     </div>
                     <div style="text-align:right;font-size:.75rem;color:var(--text-muted);margin-top:4px;" id="song-count"></div>
@@ -259,14 +258,22 @@
                 }
             });
 
-            // Search type pills
-            document.getElementById('search-type-bar').addEventListener('click', (e) => {
-                const pill = e.target.closest('.search-type-pill');
-                if (!pill) return;
-                _state.searchType = pill.dataset.type;
-                document.querySelectorAll('.search-type-pill')
-                    .forEach(p => p.classList.toggle('active', p.dataset.type === _state.searchType));
-                if (_state.searchQuery) RepertoireComponent._loadSongs();
+            // Lupa geral (busca em tudo)
+            document.getElementById('btn-search').addEventListener('click', () => {
+                _state.searchType = 'all';
+                _state.searchQuery = document.getElementById('song-search').value.trim();
+                document.getElementById('btn-search').classList.add('active');
+                document.getElementById('btn-search-harm').classList.remove('active');
+                RepertoireComponent._loadSongs();
+            });
+
+            // Lupa H (busca em harmonia)
+            document.getElementById('btn-search-harm').addEventListener('click', () => {
+                _state.searchType = 'harmony';
+                _state.searchQuery = document.getElementById('song-search').value.trim();
+                document.getElementById('btn-search-harm').classList.add('active');
+                document.getElementById('btn-search').classList.remove('active');
+                RepertoireComponent._loadSongs();
             });
 
             // Filter bar
