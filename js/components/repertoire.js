@@ -671,23 +671,23 @@
 
             window.HMSApp.openModal(`
                 <div class="sd-modal">
-                    <div class="sd-header" style="padding:10px 16px 8px;align-items:center;">
-                        <div style="min-width:0;flex:1;">
-                            <div class="sd-title" style="font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(song.title)}</div>
-                            <div class="sd-sub" style="font-size:.7rem;margin-top:1px;">${esc([song.artist, song.genre].filter(Boolean).join(' · '))}</div>
+                    <div class="sd-header" style="padding:8px 14px;align-items:center;gap:8px;">
+                        <div style="min-width:0;flex:1;overflow:hidden;">
+                            <div class="sd-title" style="font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(song.title)}</div>
+                            <div class="sd-sub" style="font-size:.68rem;margin-top:1px;">${esc([song.artist, song.genre].filter(Boolean).join(' · '))}</div>
                         </div>
-                        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-                            <span class="song-key-badge" style="font-size:.9rem;">${esc(origKey)}</span>
-                            <button id="sd-edit-btn" class="btn-icon edit" title="Editar música" style="width:30px;height:30px;">
+                        <div class="sd-header-tabs">
+                            <button class="sd-tab" data-tab="func">Harm Func</button>
+                            <button class="sd-tab active" data-tab="acor">Harm Acor</button>
+                            <button class="sd-tab" data-tab="letra">Letra</button>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+                            <span class="song-key-badge" style="font-size:.85rem;">${esc(origKey)}</span>
+                            <button id="sd-edit-btn" class="btn-icon edit" title="Editar música" style="width:28px;height:28px;">
                                 <i class="fa-solid fa-pen-to-square"></i>
                             </button>
                             <button class="modal-close" id="sd-close-btn"><i class="fa-solid fa-xmark"></i></button>
                         </div>
-                    </div>
-                    <div class="sd-tabs" style="padding:0 12px;">
-                        <button class="sd-tab" data-tab="func">Harm Func</button>
-                        <button class="sd-tab active" data-tab="acor">Harm Acor</button>
-                        <button class="sd-tab" data-tab="letra">Letra</button>
                     </div>
                     <div class="sd-body">
                         ${song.audio_url ? `
