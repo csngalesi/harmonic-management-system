@@ -862,11 +862,27 @@
                 const fontSize = isTablet ? '1.15rem' : '.9rem';
                 const lineH    = '2.0';
 
+                const _sdModal  = document.querySelector('.sd-modal');
+                const _sdHeader = _sdModal?.querySelector('.sd-header');
+                const _sdTitle  = _sdModal?.querySelector('.sd-title');
+                const _sdSub    = _sdModal?.querySelector('.sd-sub');
+                const _sdBody   = _sdModal?.querySelector('.sd-body');
+                const _keyBadge = _sdModal?.querySelector('.song-key-badge');
+
                 if (active) {
-                    // Background on pane WITHOUT padding (padding would shrink columns!)
-                    _lyricsPaneEl.style.background   = '#faf9f4';
-                    _lyricsPaneEl.style.borderRadius = '12px';
-                    _lyricsPaneEl.style.boxShadow    = '0 4px 32px rgba(0,0,0,.15)';
+                    // ── Pintar o modal inteiro de creme ──────────────
+                    if (_sdModal)  { _sdModal.style.background  = '#faf9f4'; _sdModal.style.color = '#2d2d2d'; }
+                    if (_sdHeader) { _sdHeader.style.borderBottomColor = '#ddd'; }
+                    if (_sdTitle)  { _sdTitle.style.color  = '#1a1a1a'; }
+                    if (_sdSub)    { _sdSub.style.color    = '#555'; }
+                    if (_sdBody)   { _sdBody.style.background = '#faf9f4'; }
+                    if (_keyBadge) { _keyBadge.style.background = 'rgba(0,0,0,.08)'; _keyBadge.style.color = '#333'; }
+
+                    // ── Sem estilo na camada da letra (modal já é creme) ──
+                    _lyricsPaneEl.style.background   = '';
+                    _lyricsPaneEl.style.borderRadius = '';
+                    _lyricsPaneEl.style.boxShadow    = '';
+
                     _readingBtn.style.background  = '#7c6fff';
                     _readingBtn.style.color       = '#fff';
                     _readingBtn.style.borderColor = '#7c6fff';
@@ -881,9 +897,14 @@
                     if (_pgDown) { _pgDown.style.color = '#444'; }
                     if (_counter){ _counter.style.color = '#666'; }
                 } else {
-                    _lyricsPaneEl.style.background   = '';
-                    _lyricsPaneEl.style.borderRadius = '';
-                    _lyricsPaneEl.style.boxShadow    = '';
+                    // ── Restaurar modal escuro ────────────────────────
+                    if (_sdModal)  { _sdModal.style.background  = ''; _sdModal.style.color = ''; }
+                    if (_sdHeader) { _sdHeader.style.borderBottomColor = ''; }
+                    if (_sdTitle)  { _sdTitle.style.color  = ''; }
+                    if (_sdSub)    { _sdSub.style.color    = ''; }
+                    if (_sdBody)   { _sdBody.style.background = ''; }
+                    if (_keyBadge) { _keyBadge.style.background = ''; _keyBadge.style.color = ''; }
+
                     _readingBtn.style.background  = 'transparent';
                     _readingBtn.style.color       = 'var(--text-muted)';
                     _readingBtn.style.borderColor = 'var(--glass-border)';
