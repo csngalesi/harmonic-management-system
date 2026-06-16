@@ -824,12 +824,29 @@
                 _updateArrows();
             };
 
-            // Recalculate total pages after font change or first load
+            // Recalculate total pages — measures real content height in
+            // single-column mode (scrollWidth is unreliable on multicol)
             const _calcPages = () => {
                 if (!_preEl || !_viewportEl) return;
                 const vw = _viewportEl.clientWidth;
-                if (!vw) return;
-                _totalPages  = Math.max(1, Math.ceil((_preEl.scrollWidth + 2) / vw));
+                const vh = _viewportEl.clientHeight;
+                if (!vw || !vh) return;
+
+                // 1. Switch to single column + auto height to get true content height
+                const savedTransform = _preEl.style.transform;
+                _preEl.style.transform    = '';
+                _preEl.style.columnCount  = '1';
+                _preEl.style.height       = 'auto';
+                const contentH = _preEl.scrollHeight;
+
+                // 2. Restore
+                _preEl.style.columnCount  = '2';
+                _preEl.style.height       = vh + 'px';
+                _preEl.style.transform    = savedTransform;
+
+                // 3. Each "page" = 2 columns of height vh
+                const columnsNeeded = Math.ceil(contentH / vh);
+                _totalPages  = Math.max(1, Math.ceil(columnsNeeded / 2));
                 _currentPage = 0;
                 _preEl.style.transform = '';
                 _updateCounter();
@@ -840,11 +857,13 @@
             _pgDown?.addEventListener('click', () => _goToPage(_currentPage + 1));
 
             const _applyReadingMode = (active) => {
+                // Responsive font sizes
+                const isTablet = window.innerWidth >= 600;
                 if (active) {
                     _lyricsPaneEl.style.cssText = [
                         'background:#faf9f4',
                         'border-radius:12px',
-                        'padding:20px 28px',
+                        'padding:16px 20px',
                         'margin:-4px',
                         'box-shadow:0 4px 32px rgba(0,0,0,.15)',
                     ].join(';');
@@ -854,8 +873,8 @@
                     _readingBtn.innerHTML = '<i class="fa-solid fa-moon"></i> Modo Escuro';
                     if (_preEl) {
                         _preEl.style.color      = '#2d2d2d';
-                        _preEl.style.fontSize   = '.95rem';
-                        _preEl.style.lineHeight = '1.9';
+                        _preEl.style.fontSize   = isTablet ? '1.15rem' : '1rem';
+                        _preEl.style.lineHeight = '2.0';
                     }
                 } else {
                     _lyricsPaneEl.style.cssText = '';
@@ -865,8 +884,8 @@
                     _readingBtn.innerHTML = '<i class="fa-solid fa-sun"></i> Modo Leitura';
                     if (_preEl) {
                         _preEl.style.color      = 'var(--text-secondary)';
-                        _preEl.style.fontSize   = '.9rem';
-                        _preEl.style.lineHeight = '1.8';
+                        _preEl.style.fontSize   = isTablet ? '1.05rem' : '.9rem';
+                        _preEl.style.lineHeight = '1.9';
                     }
                 }
                 // Recalculate pages after font change
@@ -884,9 +903,11 @@
                     if (!el) return;
                     if (full.lyrics) {
                         // ── Build viewport + pre for 2-col paging ──
-                        // Use window.innerHeight so height is correct
-                        // regardless of when sd-body was measured
-                        const viewportH = Math.floor(window.innerHeight * 0.52);
+                        // Larger on tablet for better readability
+                        const isTablet = window.innerWidth >= 600;
+                        const viewportH = Math.floor(window.innerHeight * (isTablet ? 0.58 : 0.50));
+                        const fontSize  = isTablet ? '1.05rem' : '.9rem';
+                        const lineH     = isTablet ? '1.9' : '1.8';
 
                         const viewport = document.createElement('div');
                         viewport.style.cssText = [
@@ -900,14 +921,14 @@
                         pre.style.cssText = [
                             'white-space:pre-wrap',
                             'font-family:var(--font-ui)',
-                            'font-size:.9rem',
+                            `font-size:${fontSize}`,
                             'color:var(--text-secondary)',
-                            'line-height:1.8',
+                            `line-height:${lineH}`,
                             'font-weight:600',
                             'column-count:2',
                             'column-fill:auto',
                             `height:${viewportH}px`,
-                            'column-gap:28px',
+                            'column-gap:24px',
                             'margin:0',
                             'transition:transform .4s ease',
                             'will-change:transform',
