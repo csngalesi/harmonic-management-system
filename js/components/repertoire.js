@@ -668,6 +668,10 @@
                 }
                 return out.join('');
             }
+            // ── Preferência do usuário ─────────────────────────────────
+            const _pref       = localStorage.getItem('hms_show_pref') || 'acor';
+            const _defaultTab = (_pref === 'func') ? 'func'
+                              : (_pref === 'acor') ? 'acor' : 'letra';
 
             window.HMSApp.openModal(`
                 <div class="sd-modal">
@@ -677,9 +681,9 @@
                             <div class="sd-sub" style="font-size:.68rem;margin-top:1px;">${esc([song.artist, song.genre].filter(Boolean).join(' · '))}</div>
                         </div>
                         <div class="sd-header-tabs">
-                            <button class="sd-tab" data-tab="func">Harm Func</button>
-                            <button class="sd-tab active" data-tab="acor">Harm Acor</button>
-                            <button class="sd-tab" data-tab="letra">Letra</button>
+                            <button class="sd-tab${_defaultTab === 'func' ? ' active' : ''}" data-tab="func">Harm Func</button>
+                            <button class="sd-tab${_defaultTab === 'acor' ? ' active' : ''}" data-tab="acor">Harm Acor</button>
+                            <button class="sd-tab${_defaultTab === 'letra' ? ' active' : ''}" data-tab="letra">Letra</button>
                         </div>
                         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
                             <span class="song-key-badge" style="font-size:.85rem;">${esc(origKey)}</span>
@@ -691,14 +695,14 @@
                     </div>
                     <div class="sd-body">
                         ${song.audio_url ? `
-                        <div id="sd-audio-wrap" style="padding:0 0 8px;">
+                        <div id="sd-audio-wrap" style="padding:0 0 8px;${_defaultTab === 'letra' ? 'display:none;' : ''}">
                             <audio id="sd-audio" controls preload="none" src="${esc(song.audio_url)}"
                                    style="width:100%;height:34px;display:block;"></audio>
                         </div>` : ''}
-                        <div class="sd-pane" id="sd-pane-func">
+                        <div class="sd-pane${_defaultTab === 'func' ? ' active' : ''}" id="sd-pane-func">
                             <div class="sd-chords">${buildFuncHtml(song.harmony_str)}</div>
                         </div>
-                        <div class="sd-pane active" id="sd-pane-acor">
+                        <div class="sd-pane${_defaultTab === 'acor' ? ' active' : ''}" id="sd-pane-acor">
                             <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
                                 <span style="font-size:.8rem;color:var(--text-muted);">Tom:</span>
                                 <select id="sd-key-select" class="form-input form-select"
@@ -708,7 +712,7 @@
                             </div>
                             <div class="sd-chords" id="sd-chords-display">${buildChordsHtml(tokens)}</div>
                         </div>
-                        <div class="sd-pane" id="sd-pane-letra">
+                        <div class="sd-pane${_defaultTab === 'letra' ? ' active' : ''}" id="sd-pane-letra">
                             <!-- Reading mode (topo) -->
                             <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
                                 <button id="sd-reading-mode-btn" title="Modo leitura" style="
@@ -784,7 +788,7 @@
             });
 
             // ── Reading mode toggle ────────────────────────────────
-            let _readingMode = false;
+            let _readingMode = (_pref === 'letra-clara'); // inicia em modo leitura se pref for letra-clara
             const _readingBtn    = document.getElementById('sd-reading-mode-btn');
             const _lyricsPaneEl  = document.getElementById('sd-pane-letra');
             const _sdBody        = document.querySelector('.sd-body');

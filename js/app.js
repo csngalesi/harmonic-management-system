@@ -259,6 +259,13 @@
                 logoutBtn.addEventListener('click', App._handleLogout);
             }
 
+            // Clique no avatar do usuário abre preferências
+            const userInfoEl = document.querySelector('.user-info');
+            if (userInfoEl) {
+                userInfoEl.style.cursor = 'pointer';
+                userInfoEl.addEventListener('click', App._openUserPrefs);
+            }
+
             window.addEventListener('resize', () => {
                 if (!App._isMobile()) App._closeMobileSidebar();
             });
@@ -309,6 +316,73 @@
             });
 
             ROUTES[route].render(payload);
+        },
+
+        // ── Preferências do Usuário ────────────────────────────────
+        _openUserPrefs: function () {
+            const email   = document.getElementById('user-email')?.textContent || '';
+            const current = localStorage.getItem('hms_show_pref') || 'acor';
+
+            const opts = [
+                { key: 'func',         icon: 'fa-music',  label: 'Harm Func',   desc: 'Funções harmônicas' },
+                { key: 'acor',         icon: 'fa-guitar', label: 'Harm Acor',   desc: 'Acordes no tom'     },
+                { key: 'letra-clara',  icon: 'fa-sun',    label: 'Letra Clara', desc: 'Fundo claro'        },
+                { key: 'letra-escura', icon: 'fa-moon',   label: 'Letra Escura',desc: 'Fundo escuro'       },
+            ];
+
+            const optsHtml = opts.map(o => {
+                const active = o.key === current;
+                return `
+                <button class="pref-opt" data-pref="${o.key}" style="
+                    display:flex;flex-direction:column;align-items:center;gap:6px;
+                    padding:16px 8px;border-radius:14px;cursor:pointer;transition:all .2s;
+                    font-family:var(--font-ui);
+                    border:2px solid ${active ? 'var(--brand)' : 'var(--glass-border)'};
+                    background:${active ? 'var(--brand-dim)' : 'var(--glass-bg)'};
+                    color:${active ? 'var(--brand)' : 'var(--text-muted)'};
+                ">
+                    <i class="fa-solid ${o.icon}" style="font-size:1.3rem;"></i>
+                    <span style="font-size:.8rem;font-weight:700;">${o.label}</span>
+                    <span style="font-size:.65rem;opacity:.7;">${o.desc}</span>
+                </button>`;
+            }).join('');
+
+            window.HMSApp.openModal(`
+                <div style="min-width:300px;max-width:420px;">
+                    <div class="modal-header">
+                        <div>
+                            <div style="font-weight:700;font-size:1rem;color:var(--text-primary);">Preferências</div>
+                            <div style="font-size:.75rem;color:var(--text-muted);margin-top:2px;">${email}</div>
+                        </div>
+                        <button class="modal-close" id="prefs-close"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div style="padding:16px 20px 24px;">
+                        <div style="font-size:.68rem;font-weight:700;color:var(--text-muted);letter-spacing:.08em;margin-bottom:14px;">VISUALIZAÇÃO PADRÃO AO ABRIR MÚSICA</div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                            ${optsHtml}
+                        </div>
+                    </div>
+                </div>
+            `);
+
+            document.getElementById('prefs-close')?.addEventListener('click', () => window.HMSApp.closeModal());
+
+            document.querySelectorAll('.pref-opt').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const pref = btn.dataset.pref;
+                    localStorage.setItem('hms_show_pref', pref);
+                    // Atualizar visual
+                    document.querySelectorAll('.pref-opt').forEach(b => {
+                        const on = b.dataset.pref === pref;
+                        b.style.borderColor = on ? 'var(--brand)' : 'var(--glass-border)';
+                        b.style.background  = on ? 'var(--brand-dim)' : 'var(--glass-bg)';
+                        b.style.color       = on ? 'var(--brand)' : 'var(--text-muted)';
+                    });
+                    const label = btn.querySelector('span').textContent;
+                    window.HMSApp.showToast(`Padrão: ${label}`, 'success');
+                    setTimeout(() => window.HMSApp.closeModal(), 700);
+                });
+            });
         },
 
         // ── Logout ───────────────────────────────────────────────
