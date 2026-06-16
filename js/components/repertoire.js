@@ -20,7 +20,7 @@
         searchType:   'all',      // 'all' | 'title' | 'artist' | 'genre' | 'harmony'
         sortBy:       'title',    // 'title' | 'artist' | 'key' | 'position'
         sortDir:      'asc',      // 'asc' | 'desc'
-        viewMode:        'list',     // 'list' | 'show'
+        viewMode:        'show',     // 'list' | 'show'
         showColumns:     'N',         // 'S'=1col | 'N'=responsive | '2'-'5'
         headerCollapsed: false,
         // Client-side filters (null = sem filtro)
@@ -713,8 +713,16 @@
                             <div class="sd-chords" id="sd-chords-display">${buildChordsHtml(tokens)}</div>
                         </div>
                         <div class="sd-pane${_defaultTab === 'letra' ? ' active' : ''}" id="sd-pane-letra">
-                            <!-- Reading mode (topo) -->
-                            <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+                            <!-- Controls: Harm float + Reading mode -->
+                            <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+                                <button id="sd-harm-float-btn" title="Harmonia flutuante" style="
+                                    display:flex;align-items:center;gap:6px;
+                                    padding:5px 12px;border-radius:20px;font-size:.78rem;font-weight:600;
+                                    border:1px solid var(--glass-border);cursor:pointer;
+                                    background:transparent;color:var(--text-muted);transition:all .2s;
+                                ">
+                                    <i class="fa-solid fa-music"></i> Harm
+                                </button>
                                 <button id="sd-reading-mode-btn" title="Modo leitura" style="
                                     display:flex;align-items:center;gap:6px;
                                     padding:5px 12px;border-radius:20px;font-size:.78rem;font-weight:600;
@@ -938,6 +946,133 @@
             _readingBtn?.addEventListener('click', () => {
                 _readingMode = !_readingMode;
                 _applyReadingMode(_readingMode);
+            });
+
+            // ── Painel flutuante de harmonia (arrastável) ──────────
+            const _harmFloatBtn = document.getElementById('sd-harm-float-btn');
+            _harmFloatBtn?.addEventListener('click', () => {
+                // Fechar se já aberto
+                const existing = document.getElementById('sd-harm-float');
+                if (existing) { existing.remove(); return; }
+
+                const sdModal = document.querySelector('.sd-modal');
+                if (!sdModal) return;
+                sdModal.style.position = 'relative'; // âncora para absolute
+
+                // ── Criar painel ──────────────────────────────────
+                const panel = document.createElement('div');
+                panel.id = 'sd-harm-float';
+                panel.style.cssText = [
+                    'position:absolute',
+                    'z-index:300',
+                    'top:56px',
+                    'right:10px',
+                    'width:min(290px,88vw)',
+                    'background:var(--sidebar-bg, #1a1a2e)',
+                    'border:1px solid var(--glass-border)',
+                    'border-radius:16px',
+                    'box-shadow:0 12px 40px rgba(0,0,0,.55)',
+                    'overflow:hidden',
+                    'user-select:none',
+                    'touch-action:none',
+                ].join(';');
+
+                panel.innerHTML = `
+                    <div id="sd-hf-handle" style="
+                        display:flex;align-items:center;justify-content:space-between;
+                        padding:10px 14px;background:rgba(255,255,255,.06);
+                        cursor:grab;border-bottom:1px solid var(--glass-border);
+                    ">
+                        <span style="font-weight:700;font-size:.82rem;color:var(--text-primary);display:flex;align-items:center;gap:6px;">
+                            <i class="fa-solid fa-music" style="color:var(--brand);"></i> Acordes
+                        </span>
+                        <button id="sd-hf-close" style="
+                            background:transparent;border:none;color:var(--text-muted);
+                            cursor:pointer;font-size:1rem;padding:2px 4px;line-height:1;
+                        ">✕</button>
+                    </div>
+                    <div style="padding:12px;max-height:52vh;overflow-y:auto;">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                            <span style="font-size:.78rem;color:var(--text-muted);">Tom:</span>
+                            <select id="sd-hf-key" class="form-input form-select"
+                                    style="width:130px;padding:4px 8px;height:30px;font-size:.8rem;">
+                                ${keyOptionsHtml}
+                            </select>
+                        </div>
+                        <div class="sd-chords" id="sd-hf-chords">
+                            ${buildChordsHtml(tokens)}
+                        </div>
+                    </div>
+                `;
+                sdModal.appendChild(panel);
+
+                // Marcar botão como ativo
+                _harmFloatBtn.style.background  = 'var(--brand)';
+                _harmFloatBtn.style.color       = '#fff';
+                _harmFloatBtn.style.borderColor = 'var(--brand)';
+
+                // Fechar
+                document.getElementById('sd-hf-close')?.addEventListener('click', () => {
+                    panel.remove();
+                    _harmFloatBtn.style.background  = 'transparent';
+                    _harmFloatBtn.style.color       = 'var(--text-muted)';
+                    _harmFloatBtn.style.borderColor = 'var(--glass-border)';
+                });
+
+                // Sincronizar tom com a aba Acor
+                document.getElementById('sd-hf-key')?.addEventListener('change', function () {
+                    const newIsMinor = this.value.endsWith('m');
+                    const newRoot    = this.value.replace(/m$/, '');
+                    const newToks    = window.HarmonyEngine.translate(song.harmony_str || '', newRoot, newIsMinor);
+                    document.getElementById('sd-hf-chords').innerHTML = buildChordsHtml(newToks);
+                    // Sincroniza com o seletor principal
+                    const mainSel = document.getElementById('sd-key-select');
+                    if (mainSel) { mainSel.value = this.value; }
+                    const mainChords = document.getElementById('sd-chords-display');
+                    if (mainChords) mainChords.innerHTML = buildChordsHtml(newToks);
+                });
+
+                // ── Drag (mouse + touch) ──────────────────────────
+                const handle = document.getElementById('sd-hf-handle');
+                let dragging = false, ox = 0, oy = 0, sx = 0, sy = 0;
+
+                const getPoint = e => e.touches ? e.touches[0] : e;
+
+                const onStart = e => {
+                    dragging = true;
+                    const pt = getPoint(e);
+                    ox = pt.clientX; oy = pt.clientY;
+                    sx = panel.offsetLeft; sy = panel.offsetTop;
+                    handle.style.cursor = 'grabbing';
+                    e.preventDefault();
+                };
+                const onMove = e => {
+                    if (!dragging) return;
+                    const pt = getPoint(e);
+                    panel.style.left  = (sx + pt.clientX - ox) + 'px';
+                    panel.style.top   = (sy + pt.clientY - oy) + 'px';
+                    panel.style.right = 'auto';
+                    e.preventDefault();
+                };
+                const onEnd = () => { dragging = false; handle.style.cursor = 'grab'; };
+
+                handle.addEventListener('mousedown',  onStart);
+                handle.addEventListener('touchstart', onStart, { passive: false });
+                document.addEventListener('mousemove',  onMove);
+                document.addEventListener('touchmove',  onMove, { passive: false });
+                document.addEventListener('mouseup',   onEnd);
+                document.addEventListener('touchend',  onEnd);
+
+                // Cleanup quando o painel for removido do DOM
+                new MutationObserver((_, obs) => {
+                    if (!document.getElementById('sd-harm-float')) {
+                        document.removeEventListener('mousemove', onMove);
+                        document.removeEventListener('touchmove', onMove);
+                        document.removeEventListener('mouseup',  onEnd);
+                        document.removeEventListener('touchend', onEnd);
+                        obs.disconnect();
+                    }
+                }).observe(sdModal, { childList: true });
             });
 
             if (song.has_lyrics) {
