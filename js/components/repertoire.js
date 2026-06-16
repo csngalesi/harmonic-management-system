@@ -873,8 +873,8 @@
                     _readingBtn.innerHTML = '<i class="fa-solid fa-moon"></i> Modo Escuro';
                     if (_preEl) {
                         _preEl.style.color      = '#2d2d2d';
-                        _preEl.style.fontSize   = isTablet ? '1.15rem' : '1rem';
-                        _preEl.style.lineHeight = '2.0';
+                        _preEl.style.fontSize   = isTablet ? '1.25rem' : '1rem';
+                        _preEl.style.lineHeight = '2.1';
                     }
                 } else {
                     _lyricsPaneEl.style.cssText = '';
@@ -884,8 +884,8 @@
                     _readingBtn.innerHTML = '<i class="fa-solid fa-sun"></i> Modo Leitura';
                     if (_preEl) {
                         _preEl.style.color      = 'var(--text-secondary)';
-                        _preEl.style.fontSize   = isTablet ? '1.05rem' : '.9rem';
-                        _preEl.style.lineHeight = '1.9';
+                        _preEl.style.fontSize   = isTablet ? '1.15rem' : '.9rem';
+                        _preEl.style.lineHeight = '2.0';
                     }
                 }
                 // Recalculate pages after font change
@@ -905,9 +905,9 @@
                         // ── Build viewport + pre for 2-col paging ──
                         // Larger on tablet for better readability
                         const isTablet = window.innerWidth >= 600;
-                        const viewportH = Math.floor(window.innerHeight * (isTablet ? 0.58 : 0.50));
-                        const fontSize  = isTablet ? '1.05rem' : '.9rem';
-                        const lineH     = isTablet ? '1.9' : '1.8';
+                        const viewportH = Math.floor(window.innerHeight * (isTablet ? 0.65 : 0.50));
+                        const fontSize  = isTablet ? '1.15rem' : '.9rem';
+                        const lineH     = isTablet ? '2.0' : '1.8';
 
                         const viewport = document.createElement('div');
                         viewport.style.cssText = [

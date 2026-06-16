@@ -693,18 +693,16 @@ tbody tr:hover td { background: var(--glass-bg); }
 @media (min-width: 768px) {
     .modal-container { max-width: 860px; }
     .sd-modal { max-width: 100%; }
-    .sd-body { max-height: 72vh; }
+    .sd-body { max-height: 85vh; }
 }
 
 /* ── Tablet portrait/landscape optimisation ─────────────────── */
 @media (min-width: 768px) and (max-width: 1024px) {
     .modal-overlay  { padding: 8px; }
     .modal-container { max-width: 95vw; }
-    .sd-body { max-height: 76vh; }
+    .sd-body { max-height: 88vh; }
     .modal-body  { padding: 16px 18px; }
     .modal-header { padding: 16px 18px 12px; }
-    /* lyrics: slightly bigger font for finger-distance reading */
-    #sd-pane-letra pre { font-size: .92rem !important; line-height: 1.8 !important; }
 }
 
 .sd-chords { display:flex; flex-wrap:wrap; gap:10px; }
