@@ -87,7 +87,7 @@
                     </div>
                 </div>
 
-                <!-- Search block: duas lupas -->
+                <!-- Search block -->
                 <div class="search-block mb-2">
                     <div class="search-bar">
                         <input type="text" id="song-search" class="form-input"
@@ -98,14 +98,8 @@
                             style="${_state.searchQuery ? '' : 'display:none'}">
                             <i class="fa-solid fa-xmark"></i>
                         </button>
-                        <button class="btn btn-secondary${_state.searchType !== 'harmony' ? ' active' : ''}" id="btn-search"
-                            title="Buscar em tudo">
+                        <button class="btn btn-secondary" id="btn-search" title="Buscar">
                             <i class="fa-solid fa-magnifying-glass"></i>
-                        </button>
-                        <button class="btn btn-secondary${_state.searchType === 'harmony' ? ' active' : ''}" id="btn-search-harm"
-                            title="Buscar em harmonia" style="font-weight:700;position:relative;">
-                            <i class="fa-solid fa-magnifying-glass"></i>
-                            <span style="position:absolute;top:3px;right:4px;font-size:.55rem;font-weight:800;line-height:1;">H</span>
                         </button>
                     </div>
                     <div style="text-align:right;font-size:.75rem;color:var(--text-muted);margin-top:4px;" id="song-count"></div>
@@ -258,23 +252,6 @@
                 }
             });
 
-            // Lupa geral (busca em tudo)
-            document.getElementById('btn-search').addEventListener('click', () => {
-                _state.searchType = 'all';
-                _state.searchQuery = document.getElementById('song-search').value.trim();
-                document.getElementById('btn-search').classList.add('active');
-                document.getElementById('btn-search-harm').classList.remove('active');
-                RepertoireComponent._loadSongs();
-            });
-
-            // Lupa H (busca em harmonia)
-            document.getElementById('btn-search-harm').addEventListener('click', () => {
-                _state.searchType = 'harmony';
-                _state.searchQuery = document.getElementById('song-search').value.trim();
-                document.getElementById('btn-search-harm').classList.add('active');
-                document.getElementById('btn-search').classList.remove('active');
-                RepertoireComponent._loadSongs();
-            });
 
             // Filter bar
             document.getElementById('filter-bar').addEventListener('click', (e) => {
