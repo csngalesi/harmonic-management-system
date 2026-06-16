@@ -857,40 +857,51 @@
             _pgDown?.addEventListener('click', () => _goToPage(_currentPage + 1));
 
             const _applyReadingMode = (active) => {
-                // Responsive font sizes
+                // Same font/spacing in both modes — only colors change
                 const isTablet = window.innerWidth >= 600;
+                const fontSize = isTablet ? '1.15rem' : '.9rem';
+                const lineH    = '2.0';
+
                 if (active) {
-                    _lyricsPaneEl.style.cssText = [
-                        'background:#faf9f4',
-                        'border-radius:12px',
-                        'padding:16px 20px',
-                        'margin:-4px',
-                        'box-shadow:0 4px 32px rgba(0,0,0,.15)',
-                    ].join(';');
+                    // Background on pane WITHOUT padding (padding would shrink columns!)
+                    _lyricsPaneEl.style.background   = '#faf9f4';
+                    _lyricsPaneEl.style.borderRadius = '12px';
+                    _lyricsPaneEl.style.boxShadow    = '0 4px 32px rgba(0,0,0,.15)';
                     _readingBtn.style.background  = '#7c6fff';
                     _readingBtn.style.color       = '#fff';
                     _readingBtn.style.borderColor = '#7c6fff';
                     _readingBtn.innerHTML = '<i class="fa-solid fa-moon"></i> Modo Escuro';
                     if (_preEl) {
                         _preEl.style.color      = '#2d2d2d';
-                        _preEl.style.fontSize   = isTablet ? '1.25rem' : '1rem';
-                        _preEl.style.lineHeight = '2.1';
+                        _preEl.style.fontSize   = fontSize;
+                        _preEl.style.lineHeight = lineH;
                     }
+                    // Nav buttons: escurecer para contraste no fundo claro
+                    if (_pgUp)   { _pgUp.style.color   = '#444'; }
+                    if (_pgDown) { _pgDown.style.color = '#444'; }
+                    if (_counter){ _counter.style.color = '#666'; }
                 } else {
-                    _lyricsPaneEl.style.cssText = '';
+                    _lyricsPaneEl.style.background   = '';
+                    _lyricsPaneEl.style.borderRadius = '';
+                    _lyricsPaneEl.style.boxShadow    = '';
                     _readingBtn.style.background  = 'transparent';
                     _readingBtn.style.color       = 'var(--text-muted)';
                     _readingBtn.style.borderColor = 'var(--glass-border)';
                     _readingBtn.innerHTML = '<i class="fa-solid fa-sun"></i> Modo Leitura';
                     if (_preEl) {
                         _preEl.style.color      = 'var(--text-secondary)';
-                        _preEl.style.fontSize   = isTablet ? '1.15rem' : '.9rem';
-                        _preEl.style.lineHeight = '2.0';
+                        _preEl.style.fontSize   = fontSize;
+                        _preEl.style.lineHeight = lineH;
                     }
+                    // Nav buttons: restaurar cor padrão
+                    if (_pgUp)   { _pgUp.style.color   = ''; }
+                    if (_pgDown) { _pgDown.style.color = ''; }
+                    if (_counter){ _counter.style.color = ''; }
                 }
                 // Recalculate pages after font change
                 requestAnimationFrame(_calcPages);
             };
+
 
             _readingBtn?.addEventListener('click', () => {
                 _readingMode = !_readingMode;
