@@ -47,7 +47,7 @@
 
 /* ── Reset ─────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { height: 100%; font-size: 16px; }
+html { height: 100%; font-size: 16px; overscroll-behavior: none; }
 body {
     font-family: var(--font-ui);
     background: var(--bg-deep);
@@ -55,6 +55,7 @@ body {
     min-height: 100%;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
+    overscroll-behavior-y: none; /* desativa pull-to-refresh no Android Chrome */
 }
 a { color: inherit; text-decoration: none; }
 button { font-family: inherit; cursor: pointer; border: none; background: none; }
