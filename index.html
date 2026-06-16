@@ -151,6 +151,18 @@
                     <i class="fa-solid fa-right-from-bracket"></i>
                 </button>
             </div>
+            <div style="padding:0 8px 12px;">
+                <button id="refresh-btn" title="Buscar atualizações" style="
+                    width:100%;display:flex;align-items:center;gap:10px;
+                    padding:9px 12px;border-radius:10px;border:none;cursor:pointer;
+                    background:transparent;color:var(--text-muted);
+                    font-family:var(--font-ui);font-size:.82rem;font-weight:500;
+                    transition:all .2s;text-align:left;
+                ">
+                    <i class="fa-solid fa-rotate" style="font-size:.9rem;"></i>
+                    <span>Atualizar app</span>
+                </button>
+            </div>
         </aside>
 
         <!-- ─── Main Area ────────────────────────────────────────── -->
@@ -226,7 +238,37 @@
                     .catch(err => console.warn('[HMS] SW registration failed:', err));
             });
         }
+
+        // ── Refresh button: limpa cache do SW e recarrega ──────────
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('refresh-btn')?.addEventListener('click', async () => {
+                const btn = document.getElementById('refresh-btn');
+                const icon = btn.querySelector('i');
+                icon.style.animation = 'spin 1s linear infinite';
+                btn.disabled = true;
+                try {
+                    // 1. Limpa todos os caches
+                    if ('caches' in window) {
+                        const keys = await caches.keys();
+                        await Promise.all(keys.map(k => caches.delete(k)));
+                    }
+                    // 2. For\u00e7a o SW a buscar nova vers\u00e3o
+                    if ('serviceWorker' in navigator) {
+                        const regs = await navigator.serviceWorker.getRegistrations();
+                        await Promise.all(regs.map(r => r.update()));
+                    }
+                } finally {
+                    // 3. Recarrega com cache-busting
+                    const url = location.pathname + '?_=' + Date.now();
+                    location.replace(url);
+                }
+            });
+        });
     </script>
+    <style>
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #refresh-btn:hover { background: var(--glass-bg) !important; color: var(--text-secondary) !important; }
+    </style>
 
 </body>
 
