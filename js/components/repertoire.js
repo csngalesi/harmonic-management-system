@@ -600,7 +600,9 @@
 
         // ── Show Grid Drag & Drop (grid reorder by position) ────
         _bindShowGridDrag: function (el) {
-            const grid = el.querySelector('.show-grid');
+            const colMap  = { S: 1, '2': 2, '3': 3, '4': 4, '5': 5 };
+            const numCols = _state.showColumns === 'N' ? 5 : (colMap[_state.showColumns] || 5);
+            const grid    = el.querySelector('.show-grid');
             if (!grid) return;
 
             let _dragId = null;
@@ -629,24 +631,58 @@
                     const targetId = cell.dataset.id;
                     if (!_dragId || _dragId === targetId) return;
 
-                    // Simply swap the _position of the two songs involved.
-                    // The re-render will display them in the correct visual position
-                    // regardless of flow mode (→ or ↓), without disturbing others.
-                    const fromSong = _state.songs.find(s => s.id === _dragId);
-                    const toSong   = _state.songs.find(s => s.id === targetId);
-                    if (!fromSong || !toSong) return;
-
-                    const tmp          = fromSong._position;
-                    fromSong._position = toSong._position;
-                    toSong._position   = tmp;
-
-                    // Re-normalize positions to avoid collisions (1, 2, 3…)
-                    [..._state.songs]
+                    // ── Step 1: Build the current visual display order ──────
+                    // Mirrors exactly what _renderShowGrid computes.
+                    const setlistSongs = [..._state.songs]
                         .filter(s => s._position !== null && s._position !== undefined)
+                        .sort((a, b) => a._position - b._position);
+
+                    let displayList = [...setlistSongs];
+                    if (_state.showFlow === 'col' && displayList.length > 0) {
+                        const n       = displayList.length;
+                        const numRows = Math.ceil(n / numCols);
+                        const colMajor = [];
+                        for (let row = 0; row < numRows; row++) {
+                            for (let col = 0; col < numCols; col++) {
+                                const srcIdx = col * numRows + row;
+                                if (srcIdx < n) colMajor.push(displayList[srcIdx]);
+                            }
+                        }
+                        displayList = colMajor;
+                    }
+
+                    // ── Step 2: Insert-before in display order ──────────────
+                    // Remove dragged song, insert it before the drop target.
+                    const fromIdx = displayList.findIndex(s => s.id === _dragId);
+                    const toIdx   = displayList.findIndex(s => s.id === targetId);
+                    if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
+
+                    const [movedSong] = displayList.splice(fromIdx, 1);
+                    // After splice, if toIdx was after fromIdx it shifted left by 1
+                    const insertAt = fromIdx < toIdx ? toIdx - 1 : toIdx;
+                    displayList.splice(insertAt, 0, movedSong);
+
+                    // ── Step 3: Convert display indices → reading positions ─
+                    // Row mode  → display index is directly the reading order.
+                    // Col mode  → display(row,col) → readPos = col*numRows + row + 1
+                    const total   = displayList.length;
+                    const numRows = Math.ceil(total / numCols);
+                    displayList.forEach((s, di) => {
+                        if (_state.showFlow === 'row') {
+                            s._position = di + 1;
+                        } else {
+                            const row = Math.floor(di / numCols);
+                            const col = di % numCols;
+                            s._position = col * numRows + row + 1;
+                        }
+                    });
+
+                    // ── Step 4: Normalize to sequential 1,2,3… ─────────────
+                    [...displayList]
                         .sort((a, b) => a._position - b._position)
                         .forEach((s, i) => { s._position = i + 1; });
 
-                    // Persist and re-render
+                    // ── Step 5: Persist & re-render ─────────────────────────
                     RepertoireComponent._savePositions();
                     RepertoireComponent._renderSongList();
                 });
