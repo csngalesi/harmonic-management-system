@@ -201,6 +201,16 @@
             if (error) throw error;
         },
 
+        // UPDATE only — avoids RLS INSERT policy when song is already in setlist
+        async updateSongPosition(setlistId, songId, position) {
+            const { error } = await db()
+                .from('setlist_songs')
+                .update({ position })
+                .eq('setlist_id', setlistId)
+                .eq('song_id', songId);
+            if (error) throw error;
+        },
+
         async removeSong(setlistId, songId) {
             const { error } = await db()
                 .from('setlist_songs')

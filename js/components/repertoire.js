@@ -600,11 +600,17 @@
 
         // ── Show Grid Drag & Drop (grid reorder by position) ────
         _bindShowGridDrag: function (el) {
-            const colMap  = { S: 1, '2': 2, '3': 3, '4': 4, '5': 5 };
-            const numCols = _state.showColumns === 'N' ? 5 : (colMap[_state.showColumns] || 5);
-            const grid    = el.querySelector('.show-grid');
+            const grid = el.querySelector('.show-grid');
             if (!grid) return;
 
+            // Detect actual column count from the rendered DOM
+            // (accounts for responsive CSS: 2, 4 or 5 cols depending on viewport)
+            const getNumCols = () => {
+                const cells = [...grid.querySelectorAll('.show-cell')];
+                if (cells.length < 2) return 1;
+                const firstTop = cells[0].getBoundingClientRect().top;
+                return cells.filter(c => Math.abs(c.getBoundingClientRect().top - firstTop) < 4).length;
+            };
             let _dragId = null;
 
             grid.querySelectorAll('.show-cell').forEach(cell => {
@@ -630,6 +636,9 @@
                     grid.querySelectorAll('.show-cell').forEach(c => c.style.outline = '');
                     const targetId = cell.dataset.id;
                     if (!_dragId || _dragId === targetId) return;
+
+                    // Read actual column count from rendered grid at drop time
+                    const numCols = getNumCols();
 
                     // ── Step 1: Build the current visual display order ──────
                     // Mirrors exactly what _renderShowGrid computes.
@@ -3143,9 +3152,11 @@
             if (!_state.activeSetlist) return;
             const songsWithPos = _state.songs.filter(s => s._position !== null && s._position !== undefined);
             try {
+                // Use UPDATE (not upsert) to avoid RLS INSERT policy violation.
+                // Songs are already in the setlist; we only need to update their position.
                 await Promise.all(
                     songsWithPos.map(s =>
-                        window.HMSAPI.Setlists.addSong(_state.activeSetlist, s.id, s._position)
+                        window.HMSAPI.Setlists.updateSongPosition(_state.activeSetlist, s.id, s._position)
                     )
                 );
             } catch (err) {
