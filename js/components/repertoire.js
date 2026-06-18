@@ -600,9 +600,7 @@
 
         // ── Show Grid Drag & Drop (grid reorder by position) ────
         _bindShowGridDrag: function (el) {
-            const colMap  = { S: 1, '2': 2, '3': 3, '4': 4, '5': 5 };
-            const numCols = _state.showColumns === 'N' ? 5 : (colMap[_state.showColumns] || 5);
-            const grid    = el.querySelector('.show-grid');
+            const grid = el.querySelector('.show-grid');
             if (!grid) return;
 
             let _dragId = null;
@@ -631,42 +629,28 @@
                     const targetId = cell.dataset.id;
                     if (!_dragId || _dragId === targetId) return;
 
-                    // Re-order DOM immediately for visual feedback
-                    const fromCell = grid.querySelector(`.show-cell[data-id="${_dragId}"]`);
-                    if (fromCell) grid.insertBefore(fromCell, cell);
+                    // Simply swap the _position of the two songs involved.
+                    // The re-render will display them in the correct visual position
+                    // regardless of flow mode (→ or ↓), without disturbing others.
+                    const fromSong = _state.songs.find(s => s.id === _dragId);
+                    const toSong   = _state.songs.find(s => s.id === targetId);
+                    if (!fromSong || !toSong) return;
 
-                    // Read new display order from DOM
-                    const newOrder = [...grid.querySelectorAll('.show-cell[data-id]')].map(c => c.dataset.id);
-                    const n        = newOrder.length;
-                    const numRows  = Math.ceil(n / numCols);
+                    const tmp          = fromSong._position;
+                    fromSong._position = toSong._position;
+                    toSong._position   = tmp;
 
-                    // Assign reading positions based on current flow mode
-                    newOrder.forEach((id, di) => {
-                        const song = _state.songs.find(s => s.id === id);
-                        if (!song) return;
-                        if (_state.showFlow === 'row') {
-                            // Row flow: display index = reading position
-                            song._position = di + 1;
-                        } else {
-                            // Col flow: display (row, col) → reading pos = col*numRows+row+1
-                            const row = Math.floor(di / numCols);
-                            const col = di % numCols;
-                            song._position = col * numRows + row + 1;
-                        }
-                    });
-
-                    // Normalize to sequential 1,2,3...
-                    const inSet = _state.songs
+                    // Re-normalize positions to avoid collisions (1, 2, 3…)
+                    [..._state.songs]
                         .filter(s => s._position !== null && s._position !== undefined)
-                        .sort((a, b) => a._position - b._position);
-                    inSet.forEach((s, i) => { s._position = i + 1; });
+                        .sort((a, b) => a._position - b._position)
+                        .forEach((s, i) => { s._position = i + 1; });
 
-                    // Persist and refresh main list (background)
+                    // Persist and re-render
                     RepertoireComponent._savePositions();
                     RepertoireComponent._renderSongList();
                 });
             });
-        },
 
         // ── Show Grid ─────────────────────────────────────────────
         _renderShowGrid: function (sorted) {
