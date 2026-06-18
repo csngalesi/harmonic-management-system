@@ -651,6 +651,7 @@
                     RepertoireComponent._renderSongList();
                 });
             });
+        },
 
         // ── Show Grid ─────────────────────────────────────────────
         _renderShowGrid: function (sorted) {
