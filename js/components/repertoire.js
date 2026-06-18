@@ -2993,7 +2993,6 @@
             const sl = _state.setlists.find(s => s.id === _state.activeSetlist);
             if (!sl) return;
 
-            // Load all songs for search (without setlist filter)
             let allSongs;
             try {
                 window.HMSApp.showLoading();
@@ -3005,8 +3004,6 @@
                 window.HMSApp.hideLoading();
             }
 
-            // ── Aplica a mesma ordenação vigente na tela de repertório ──
-            // Enriquece allSongs com _position da setlist ativa (para sort por posição)
             const posMap = {};
             _state.songs.forEach(s => { posMap[s.id] = s._position ?? null; });
             allSongs = allSongs.map(s => ({ ...s, _position: posMap[s.id] ?? null }));
@@ -3038,10 +3035,10 @@
             // IDs already in setlist
             const inSetlistIds = new Set(_state.songs.map(s => s.id));
 
-            // ── Filters & drag mode ────────────────────────────────
+            // ── Filters & view mode ────────────────────────────────
             let smKeyFilter = null;
             let smSetFilter = null; // null | 'in' | 'out'
-            const isDragMode = _state.sortBy === 'position' && !!_state.activeSetlist;
+            let smViewMode  = 'grid'; // 'grid' | 'list'
 
             const _KEY_CHROMATIC = ['C','Db','C#','D','Eb','D#','E','F','F#','Gb','G','Ab','G#','A','Bb','A#','B',
                                     'Cm','C#m','Dbm','Dm','D#m','Ebm','Em','Fm','F#m','Gbm','Gm','G#m','Abm','Am','A#m','Bbm','Bm'];
@@ -3054,8 +3051,8 @@
             });
 
             const renderList = (query, keyFilter, setFilter) => {
-                // ── Drag mode: vertical sortable list (songs in setlist) ──
-                if (isDragMode) {
+                // ── List / drag-and-drop mode ──
+                if (smViewMode === 'list') {
                     let dragSongs = allSongs.filter(s => inSetlistIds.has(s.id))
                         .sort((a, b) => (a._position ?? 9999) - (b._position ?? 9999));
                     if (keyFilter) dragSongs = dragSongs.filter(s => s.original_key === keyFilter);
@@ -3081,7 +3078,7 @@
                             </div>`).join('') + '</div>';
                 }
 
-                // ── Normal grid mode ──
+                // ── Grid mode ──
                 let filtered = allSongs;
                 if (setFilter === 'in')  filtered = filtered.filter(s =>  inSetlistIds.has(s.id));
                 if (setFilter === 'out') filtered = filtered.filter(s => !inSetlistIds.has(s.id));
@@ -3115,31 +3112,36 @@
                     <h3><i class="fa-solid fa-list-check"></i> Músicas — ${esc(sl.name)}</h3>
                     <button class="modal-close" id="modal-close-btn"><i class="fa-solid fa-xmark"></i></button>
                 </div>
-                <div style="padding:6px 20px 0;font-size:.75rem;color:var(--text-muted);">
+                <div style="padding:6px 20px 0;font-size:.75rem;color:var(--text-muted);flex-shrink:0;">
                     <i class="fa-solid fa-arrow-up-a-z" style="margin-right:4px;"></i>
                     Ordenado por <strong style="color:var(--text-secondary);">${_sortLabel}</strong>
                     ${_state.sortDir === 'desc' ? '↓' : '↑'}
-                    &nbsp;·&nbsp; ${isDragMode ? '<i class="fa-solid fa-grip-vertical"></i> Arraste para reordenar.' : 'Músicas da setlist destacadas em roxo.'}
+                    &nbsp;·&nbsp; Músicas da setlist destacadas em roxo.
                 </div>
-                <div class="modal-body">
-                    <div id="sm-filter-bar" style="display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--glass-border);">
-                        ${!isDragMode ? `
-                        <button class="sort-btn sm-set-btn" data-set="in"
-                            style="font-size:.72rem;padding:3px 10px;">
+                <div class="modal-body" style="display:flex;flex-direction:column;overflow:hidden;flex:1;min-height:0;">
+                    <div id="sm-filter-bar" style="display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--glass-border);flex-shrink:0;">
+                        ${uniqueSmKeys.map(k => `<button class="sort-btn sm-key-btn" data-key="${esc(k)}" style="font-size:.72rem;padding:3px 10px;min-width:2.4rem;">${esc(k)}</button>`).join('')}
+                        ${uniqueSmKeys.length ? '<span style="color:var(--glass-border);font-size:1rem;margin:0 3px;line-height:1;">|</span>' : ''}
+                        <button class="sort-btn sm-set-btn" data-set="in" style="font-size:.72rem;padding:3px 10px;">
                             <i class="fa-solid fa-check" style="font-size:.65rem;"></i> Na playlist
                         </button>
-                        <button class="sort-btn sm-set-btn" data-set="out"
-                            style="font-size:.72rem;padding:3px 10px;">
+                        <button class="sort-btn sm-set-btn" data-set="out" style="font-size:.72rem;padding:3px 10px;">
                             <i class="fa-solid fa-xmark" style="font-size:.65rem;"></i> Fora
                         </button>
-                        <span style="color:var(--glass-border);font-size:1rem;margin:0 3px;line-height:1;">|</span>
-                        ` : ''}
-                        ${uniqueSmKeys.map(k => `<button class="sort-btn sm-key-btn" data-key="${esc(k)}" style="font-size:.72rem;padding:3px 10px;min-width:2.4rem;">${esc(k)}</button>`).join('')}
+                        <span style="flex:1;min-width:8px;"></span>
+                        <button class="sort-btn sm-view-btn active" data-view="grid"
+                            title="Cards" style="font-size:.75rem;padding:3px 9px;">
+                            <i class="fa-solid fa-grip"></i>
+                        </button>
+                        <button class="sort-btn sm-view-btn" data-view="list"
+                            title="Lista (arraste para reordenar)" style="font-size:.75rem;padding:3px 9px;">
+                            <i class="fa-solid fa-list"></i>
+                        </button>
                     </div>
-                    <div class="search-bar" style="margin-bottom:10px;">
+                    <div class="search-bar" style="margin-bottom:10px;flex-shrink:0;">
                         <input type="text" id="sm-search" class="form-input" placeholder="Buscar música…" />
                     </div>
-                    <div id="sm-list" style="max-height:460px;overflow-y:auto;">
+                    <div id="sm-list" style="flex:1;overflow-y:auto;min-height:0;">
                         ${renderList('', null, null)}
                     </div>
                 </div>
@@ -3148,21 +3150,24 @@
                 </div>
             `);
             document.getElementById('modal-container').classList.add('modal-lg');
+            const _mc = document.querySelector('.modal-container');
+            if (_mc) { _mc.style.cssText += ';overflow:hidden;display:flex;flex-direction:column;max-height:90vh;'; }
 
             document.getElementById('modal-close-btn').addEventListener('click', window.HMSApp.closeModal);
             document.getElementById('modal-cancel-btn').addEventListener('click', window.HMSApp.closeModal);
 
-            // ── Unified re-render helper ──────────────────────────
             const reRenderList = () => {
                 const q = document.getElementById('sm-search')?.value.trim() || '';
+                document.querySelectorAll('.sm-set-btn').forEach(b => {
+                    b.style.display = smViewMode === 'list' ? 'none' : '';
+                });
                 document.getElementById('sm-list').innerHTML = renderList(q, smKeyFilter, smSetFilter);
                 bindSmButtons();
-                if (isDragMode) bindDragMode();
+                if (smViewMode === 'list') bindDragMode();
             };
 
             document.getElementById('sm-search').addEventListener('input', reRenderList);
 
-            // ── Filter bar (set membership + key) ────────────────
             document.getElementById('sm-filter-bar')?.addEventListener('click', (e) => {
                 const keyBtn = e.target.closest('.sm-key-btn');
                 if (keyBtn) {
@@ -3180,6 +3185,16 @@
                         b.classList.toggle('active', b.dataset.set === smSetFilter)
                     );
                     reRenderList();
+                    return;
+                }
+                const viewBtn = e.target.closest('.sm-view-btn');
+                if (viewBtn) {
+                    smViewMode = viewBtn.dataset.view;
+                    document.querySelectorAll('.sm-view-btn').forEach(b =>
+                        b.classList.toggle('active', b.dataset.view === smViewMode)
+                    );
+                    if (smViewMode === 'list') smSetFilter = null;
+                    reRenderList();
                 }
             });
 
@@ -3193,7 +3208,6 @@
                         try {
                             await window.HMSAPI.Setlists.addSong(_state.activeSetlist, songId, nextPos);
                             inSetlistIds.add(songId);
-                            // update allSongs position reference
                             const as = allSongs.find(x => x.id === songId);
                             if (as) as._position = nextPos;
                             btn.className = 'btn btn-sm btn-secondary sl-remove-btn';
@@ -3226,7 +3240,6 @@
                 });
             };
 
-            // ── Drag & Drop (position mode only) ─────────────────
             const bindDragMode = () => {
                 const list = document.getElementById('sm-drag-list');
                 if (!list) return;
@@ -3239,9 +3252,7 @@
                     });
                     item.addEventListener('dragend', () => {
                         item.style.opacity = '';
-                        list.querySelectorAll('.sm-drag-item').forEach(c => {
-                            c.style.borderColor = '';
-                        });
+                        list.querySelectorAll('.sm-drag-item').forEach(c => { c.style.borderColor = ''; });
                     });
                     item.addEventListener('dragover', e => {
                         e.preventDefault();
