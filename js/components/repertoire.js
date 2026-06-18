@@ -3038,8 +3038,11 @@
             // IDs already in setlist
             const inSetlistIds = new Set(_state.songs.map(s => s.id));
 
-            // ── Key filter state ──────────────────────────────────
+            // ── Filters & drag mode ────────────────────────────────
             let smKeyFilter = null;
+            let smSetFilter = null; // null | 'in' | 'out'
+            const isDragMode = _state.sortBy === 'position' && !!_state.activeSetlist;
+
             const _KEY_CHROMATIC = ['C','Db','C#','D','Eb','D#','E','F','F#','Gb','G','Ab','G#','A','Bb','A#','B',
                                     'Cm','C#m','Dbm','Dm','D#m','Ebm','Em','Fm','F#m','Gbm','Gm','G#m','Abm','Am','A#m','Bbm','Bm'];
             const uniqueSmKeys = [...new Set(allSongs.map(s => s.original_key).filter(Boolean))].sort((a, b) => {
@@ -3050,10 +3053,40 @@
                 return a.localeCompare(b);
             });
 
-            const renderList = (query, keyFilter) => {
+            const renderList = (query, keyFilter, setFilter) => {
+                // ── Drag mode: vertical sortable list (songs in setlist) ──
+                if (isDragMode) {
+                    let dragSongs = allSongs.filter(s => inSetlistIds.has(s.id))
+                        .sort((a, b) => (a._position ?? 9999) - (b._position ?? 9999));
+                    if (keyFilter) dragSongs = dragSongs.filter(s => s.original_key === keyFilter);
+                    if (query)     dragSongs = dragSongs.filter(s =>
+                        s.title.toLowerCase().includes(query.toLowerCase()) ||
+                        (s.artist || '').toLowerCase().includes(query.toLowerCase())
+                    );
+                    if (!dragSongs.length) return '<p style="color:var(--text-muted);font-size:.85rem;padding:8px 0;">Nenhuma música na setlist.</p>';
+                    return '<div id="sm-drag-list">' +
+                        dragSongs.map((s, idx) => `
+                            <div class="sm-drag-item" data-id="${s.id}" draggable="true"
+                                style="display:flex;align-items:center;gap:10px;padding:8px 12px;
+                                border:1px solid var(--brand);border-radius:6px;
+                                background:var(--brand-dim);margin-bottom:4px;cursor:grab;user-select:none;transition:opacity .15s,border-color .15s;">
+                                <i class="fa-solid fa-grip-vertical" style="color:var(--text-muted);flex-shrink:0;"></i>
+                                <span style="color:var(--text-muted);font-size:.72rem;min-width:1.4rem;text-align:right;flex-shrink:0;">${idx + 1}</span>
+                                <span style="font-size:.85rem;font-weight:600;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${esc(s.title)}</span>
+                                <span class="song-key-badge" style="font-size:.65rem;flex-shrink:0;">${esc(s.original_key || '?')}</span>
+                                <button class="btn btn-sm btn-secondary sl-remove-btn" data-songid="${s.id}"
+                                    style="padding:2px 8px;font-size:.72rem;flex-shrink:0;">
+                                    <i class="fa-solid fa-minus"></i>
+                                </button>
+                            </div>`).join('') + '</div>';
+                }
+
+                // ── Normal grid mode ──
                 let filtered = allSongs;
+                if (setFilter === 'in')  filtered = filtered.filter(s =>  inSetlistIds.has(s.id));
+                if (setFilter === 'out') filtered = filtered.filter(s => !inSetlistIds.has(s.id));
                 if (keyFilter) filtered = filtered.filter(s => s.original_key === keyFilter);
-                if (query) filtered = filtered.filter(s =>
+                if (query)     filtered = filtered.filter(s =>
                     s.title.toLowerCase().includes(query.toLowerCase()) ||
                     (s.artist || '').toLowerCase().includes(query.toLowerCase())
                 );
@@ -3086,18 +3119,28 @@
                     <i class="fa-solid fa-arrow-up-a-z" style="margin-right:4px;"></i>
                     Ordenado por <strong style="color:var(--text-secondary);">${_sortLabel}</strong>
                     ${_state.sortDir === 'desc' ? '↓' : '↑'}
-                    &nbsp;·&nbsp; Músicas da setlist destacadas em roxo.
+                    &nbsp;·&nbsp; ${isDragMode ? '<i class="fa-solid fa-grip-vertical"></i> Arraste para reordenar.' : 'Músicas da setlist destacadas em roxo.'}
                 </div>
                 <div class="modal-body">
-                    ${uniqueSmKeys.length ? `
-                    <div id="sm-key-filter" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--glass-border);">
+                    <div id="sm-filter-bar" style="display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--glass-border);">
+                        ${!isDragMode ? `
+                        <button class="sort-btn sm-set-btn" data-set="in"
+                            style="font-size:.72rem;padding:3px 10px;">
+                            <i class="fa-solid fa-check" style="font-size:.65rem;"></i> Na playlist
+                        </button>
+                        <button class="sort-btn sm-set-btn" data-set="out"
+                            style="font-size:.72rem;padding:3px 10px;">
+                            <i class="fa-solid fa-xmark" style="font-size:.65rem;"></i> Fora
+                        </button>
+                        <span style="color:var(--glass-border);font-size:1rem;margin:0 3px;line-height:1;">|</span>
+                        ` : ''}
                         ${uniqueSmKeys.map(k => `<button class="sort-btn sm-key-btn" data-key="${esc(k)}" style="font-size:.72rem;padding:3px 10px;min-width:2.4rem;">${esc(k)}</button>`).join('')}
-                    </div>` : ''}
-                    <div class="search-bar" style="margin-bottom:12px;">
+                    </div>
+                    <div class="search-bar" style="margin-bottom:10px;">
                         <input type="text" id="sm-search" class="form-input" placeholder="Buscar música…" />
                     </div>
-                    <div id="sm-list" style="max-height:480px;overflow-y:auto;">
-                        ${renderList('', null)}
+                    <div id="sm-list" style="max-height:460px;overflow-y:auto;">
+                        ${renderList('', null, null)}
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -3109,23 +3152,35 @@
             document.getElementById('modal-close-btn').addEventListener('click', window.HMSApp.closeModal);
             document.getElementById('modal-cancel-btn').addEventListener('click', window.HMSApp.closeModal);
 
-            document.getElementById('sm-search').addEventListener('input', (e) => {
-                document.getElementById('sm-list').innerHTML = renderList(e.target.value.trim(), smKeyFilter);
-                bindSmButtons();
-            });
-
-            // ── Key filter chips ──────────────────────────────────
-            document.getElementById('sm-key-filter')?.addEventListener('click', (e) => {
-                const btn = e.target.closest('.sm-key-btn');
-                if (!btn) return;
-                const k = btn.dataset.key;
-                smKeyFilter = smKeyFilter === k ? null : k;
-                document.querySelectorAll('.sm-key-btn').forEach(b =>
-                    b.classList.toggle('active', b.dataset.key === smKeyFilter)
-                );
+            // ── Unified re-render helper ──────────────────────────
+            const reRenderList = () => {
                 const q = document.getElementById('sm-search')?.value.trim() || '';
-                document.getElementById('sm-list').innerHTML = renderList(q, smKeyFilter);
+                document.getElementById('sm-list').innerHTML = renderList(q, smKeyFilter, smSetFilter);
                 bindSmButtons();
+                if (isDragMode) bindDragMode();
+            };
+
+            document.getElementById('sm-search').addEventListener('input', reRenderList);
+
+            // ── Filter bar (set membership + key) ────────────────
+            document.getElementById('sm-filter-bar')?.addEventListener('click', (e) => {
+                const keyBtn = e.target.closest('.sm-key-btn');
+                if (keyBtn) {
+                    smKeyFilter = smKeyFilter === keyBtn.dataset.key ? null : keyBtn.dataset.key;
+                    document.querySelectorAll('.sm-key-btn').forEach(b =>
+                        b.classList.toggle('active', b.dataset.key === smKeyFilter)
+                    );
+                    reRenderList();
+                    return;
+                }
+                const setBtn = e.target.closest('.sm-set-btn');
+                if (setBtn) {
+                    smSetFilter = smSetFilter === setBtn.dataset.set ? null : setBtn.dataset.set;
+                    document.querySelectorAll('.sm-set-btn').forEach(b =>
+                        b.classList.toggle('active', b.dataset.set === smSetFilter)
+                    );
+                    reRenderList();
+                }
             });
 
             const bindSmButtons = () => {
@@ -3138,6 +3193,9 @@
                         try {
                             await window.HMSAPI.Setlists.addSong(_state.activeSetlist, songId, nextPos);
                             inSetlistIds.add(songId);
+                            // update allSongs position reference
+                            const as = allSongs.find(x => x.id === songId);
+                            if (as) as._position = nextPos;
                             btn.className = 'btn btn-sm btn-secondary sl-remove-btn';
                             btn.dataset.songid = songId;
                             btn.innerHTML = '<i class="fa-solid fa-minus"></i>';
@@ -3159,7 +3217,7 @@
                             btn.dataset.songid = songId;
                             btn.innerHTML = '<i class="fa-solid fa-plus"></i>';
                             await RepertoireComponent._loadSongs();
-                            bindSmButtons();
+                            reRenderList();
                             window.HMSApp.showToast('Música removida da setlist.', 'success');
                         } catch (err) {
                             window.HMSApp.showToast('Erro: ' + err.message, 'error');
@@ -3167,7 +3225,71 @@
                     });
                 });
             };
+
+            // ── Drag & Drop (position mode only) ─────────────────
+            const bindDragMode = () => {
+                const list = document.getElementById('sm-drag-list');
+                if (!list) return;
+                let _smDragId = null;
+                list.querySelectorAll('.sm-drag-item').forEach(item => {
+                    item.addEventListener('dragstart', e => {
+                        _smDragId = item.dataset.id;
+                        item.style.opacity = '0.4';
+                        e.dataTransfer.effectAllowed = 'move';
+                    });
+                    item.addEventListener('dragend', () => {
+                        item.style.opacity = '';
+                        list.querySelectorAll('.sm-drag-item').forEach(c => {
+                            c.style.borderColor = '';
+                        });
+                    });
+                    item.addEventListener('dragover', e => {
+                        e.preventDefault();
+                        if (item.dataset.id !== _smDragId) {
+                            list.querySelectorAll('.sm-drag-item').forEach(c => { c.style.borderColor = ''; });
+                            item.style.borderColor = 'var(--accent, #a78bfa)';
+                        }
+                    });
+                    item.addEventListener('dragleave', () => {
+                        item.style.borderColor = '';
+                    });
+                    item.addEventListener('drop', e => {
+                        e.preventDefault();
+                        const targetId = item.dataset.id;
+                        if (!_smDragId || _smDragId === targetId) return;
+
+                        const fromSong = _state.songs.find(s => s.id === _smDragId);
+                        const toSong   = _state.songs.find(s => s.id === targetId);
+                        if (!fromSong || !toSong) return;
+
+                        // Swap positions
+                        const tmp      = fromSong._position;
+                        fromSong._position = toSong._position;
+                        toSong._position   = tmp;
+
+                        // Re-assign sequentially to avoid collisions
+                        const sortedByPos = [..._state.songs]
+                            .filter(s => s._position !== null && s._position !== undefined)
+                            .sort((a, b) => a._position - b._position);
+                        sortedByPos.forEach((s, i) => { s._position = i + 1; });
+
+                        // Sync allSongs positions
+                        allSongs.forEach(s => {
+                            const match = _state.songs.find(x => x.id === s.id);
+                            if (match) s._position = match._position;
+                        });
+
+                        // Persist & refresh
+                        RepertoireComponent._savePositions();
+                        RepertoireComponent._renderSongList();
+                        reRenderList();
+                    });
+                });
+            };
+
             bindSmButtons();
+            if (isDragMode) bindDragMode();
+
         },
     };
 
