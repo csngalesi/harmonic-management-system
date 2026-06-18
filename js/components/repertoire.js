@@ -22,6 +22,7 @@
         sortDir:      'asc',      // 'asc' | 'desc'
         viewMode:        'show',     // 'list' | 'show'
         showColumns:     'N',         // 'S'=1col | 'N'=responsive | '2'-'5'
+        showFlow:        'row',        // 'row' = leitura linha a linha | 'col' = leitura por coluna
         headerCollapsed: false,
         // Client-side filters (null = sem filtro)
         filterFlag:  null,   // null | 0 | 1 | 2 | 3
@@ -148,6 +149,14 @@
                             : '';
                         return `<button class="sort-btn${isActive ? ' active' : ''}${isDisabled ? ' disabled' : ''}" data-sort="${field}"${isDisabled ? ' disabled' : ''}>${label} ${icon}</button>`;
                     }).join('')}
+                    <span id="show-flow-picker" style="display:${_state.viewMode === 'show' ? 'inline-flex' : 'none'};align-items:center;gap:3px;margin-left:6px;border-left:1px solid var(--glass-border);padding-left:6px;" title="Direção de leitura">
+                        <button class="sort-btn show-flow-btn${_state.showFlow === 'row' ? ' active' : ''}" data-flow="row" title="Sequência por linha (→)">
+                            <i class="fa-solid fa-arrow-right"></i>
+                        </button>
+                        <button class="sort-btn show-flow-btn${_state.showFlow === 'col' ? ' active' : ''}" data-flow="col" title="Sequência por coluna (↓)">
+                            <i class="fa-solid fa-arrow-down"></i>
+                        </button>
+                    </span>
                 </div>
 
                 </div><!-- /rep-controls -->
@@ -196,8 +205,10 @@
             document.getElementById('btn-toggle-show').addEventListener('click', () => {
                 _state.viewMode = _state.viewMode === 'show' ? 'list' : 'show';
                 document.getElementById('btn-toggle-show').classList.toggle('active', _state.viewMode === 'show');
-                const picker = document.getElementById('show-cols-picker');
-                if (picker) picker.style.display = _state.viewMode === 'show' ? 'inline-flex' : 'none';
+                const picker     = document.getElementById('show-cols-picker');
+                const flowPicker = document.getElementById('show-flow-picker');
+                if (picker)     picker.style.display     = _state.viewMode === 'show' ? 'inline-flex' : 'none';
+                if (flowPicker) flowPicker.style.display = _state.viewMode === 'show' ? 'inline-flex' : 'none';
                 RepertoireComponent._renderSongList();
             });
 
@@ -207,6 +218,15 @@
                 _state.showColumns = btn.dataset.cols;
                 document.querySelectorAll('.col-pick-btn').forEach(b =>
                     b.classList.toggle('active', b.dataset.cols === _state.showColumns));
+                if (_state.viewMode === 'show') RepertoireComponent._renderSongList();
+            });
+
+            document.getElementById('sort-toolbar')?.addEventListener('click', (e) => {
+                const btn = e.target.closest('.show-flow-btn');
+                if (!btn) return;
+                _state.showFlow = btn.dataset.flow;
+                document.querySelectorAll('.show-flow-btn').forEach(b =>
+                    b.classList.toggle('active', b.dataset.flow === _state.showFlow));
                 if (_state.viewMode === 'show') RepertoireComponent._renderSongList();
             });
 
@@ -565,7 +585,41 @@
         // ── Show Grid ─────────────────────────────────────────────
         _renderShowGrid: function (sorted) {
             const isDragMode = _state.sortBy === 'position' && !!_state.activeSetlist;
-            const cells = sorted.map(s => {
+
+            // ── Column-first reorder ──────────────────────────────
+            // When showFlow === 'col', we need to distribute items top-to-bottom
+            // per column, then read left-to-right. To achieve this with a normal
+            // CSS grid (row-major), we re-sort the array so that item at visual
+            // position [row][col] comes before [row][col+1].
+            let displayList = sorted;
+            if (_state.showFlow === 'col' && sorted.length > 0) {
+                // Determine number of columns from CSS class (mirrors show-grid CSS)
+                const colMap = { S: 1, '2': 2, '3': 3, '4': 4, '5': 5 };
+                let numCols;
+                if (_state.showColumns === 'N') {
+                    // 'N' = responsive, mirrors the CSS default (5 cols at full width)
+                    numCols = 5;
+                } else {
+                    numCols = colMap[_state.showColumns] || 5;
+                }
+                const n       = sorted.length;
+                const numRows = Math.ceil(n / numCols);
+                // Build column-major order: iterate column by column
+                const colMajor = [];
+                for (let col = 0; col < numCols; col++) {
+                    for (let row = 0; row < numRows; row++) {
+                        const idx = row * numCols + col;
+                        // When last row is partial, some columns have no item
+                        // We place items column-first: item at column c, row r
+                        // maps to source index: c * numRows + r
+                        const srcIdx = col * numRows + row;
+                        if (srcIdx < n) colMajor.push(sorted[srcIdx]);
+                    }
+                }
+                displayList = colMajor;
+            }
+
+            const cells = displayList.map(s => {
                 const hasHarmony = !!(s.harmony_str && s.harmony_str.trim());
                 const hasLyrics  = !!s.has_lyrics;
                 const sf         = s.status_flag || 0;
