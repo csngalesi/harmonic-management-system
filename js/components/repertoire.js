@@ -3038,13 +3038,25 @@
             // IDs already in setlist
             const inSetlistIds = new Set(_state.songs.map(s => s.id));
 
-            const renderList = (query) => {
-                const filtered = query
-                    ? allSongs.filter(s =>
-                        s.title.toLowerCase().includes(query.toLowerCase()) ||
-                        (s.artist || '').toLowerCase().includes(query.toLowerCase())
-                      )
-                    : allSongs;
+            // ── Key filter state ──────────────────────────────────
+            let smKeyFilter = null;
+            const _KEY_CHROMATIC = ['C','Db','C#','D','Eb','D#','E','F','F#','Gb','G','Ab','G#','A','Bb','A#','B',
+                                    'Cm','C#m','Dbm','Dm','D#m','Ebm','Em','Fm','F#m','Gbm','Gm','G#m','Abm','Am','A#m','Bbm','Bm'];
+            const uniqueSmKeys = [...new Set(allSongs.map(s => s.original_key).filter(Boolean))].sort((a, b) => {
+                const ai = _KEY_CHROMATIC.indexOf(a), bi = _KEY_CHROMATIC.indexOf(b);
+                if (ai !== -1 && bi !== -1) return ai - bi;
+                if (ai !== -1) return -1;
+                if (bi !== -1) return 1;
+                return a.localeCompare(b);
+            });
+
+            const renderList = (query, keyFilter) => {
+                let filtered = allSongs;
+                if (keyFilter) filtered = filtered.filter(s => s.original_key === keyFilter);
+                if (query) filtered = filtered.filter(s =>
+                    s.title.toLowerCase().includes(query.toLowerCase()) ||
+                    (s.artist || '').toLowerCase().includes(query.toLowerCase())
+                );
                 if (!filtered.length) return '<p style="color:var(--text-muted);font-size:.85rem;padding:8px 0;">Nenhuma música encontrada.</p>';
                 return `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">` +
                     filtered.map(s => {
@@ -3077,11 +3089,15 @@
                     &nbsp;·&nbsp; Músicas da setlist destacadas em roxo.
                 </div>
                 <div class="modal-body">
+                    ${uniqueSmKeys.length ? `
+                    <div id="sm-key-filter" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--glass-border);">
+                        ${uniqueSmKeys.map(k => `<button class="sort-btn sm-key-btn" data-key="${esc(k)}" style="font-size:.72rem;padding:3px 10px;min-width:2.4rem;">${esc(k)}</button>`).join('')}
+                    </div>` : ''}
                     <div class="search-bar" style="margin-bottom:12px;">
                         <input type="text" id="sm-search" class="form-input" placeholder="Buscar música…" />
                     </div>
-                    <div id="sm-list" style="max-height:520px;overflow-y:auto;">
-                        ${renderList('')}
+                    <div id="sm-list" style="max-height:480px;overflow-y:auto;">
+                        ${renderList('', null)}
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -3094,7 +3110,21 @@
             document.getElementById('modal-cancel-btn').addEventListener('click', window.HMSApp.closeModal);
 
             document.getElementById('sm-search').addEventListener('input', (e) => {
-                document.getElementById('sm-list').innerHTML = renderList(e.target.value.trim());
+                document.getElementById('sm-list').innerHTML = renderList(e.target.value.trim(), smKeyFilter);
+                bindSmButtons();
+            });
+
+            // ── Key filter chips ──────────────────────────────────
+            document.getElementById('sm-key-filter')?.addEventListener('click', (e) => {
+                const btn = e.target.closest('.sm-key-btn');
+                if (!btn) return;
+                const k = btn.dataset.key;
+                smKeyFilter = smKeyFilter === k ? null : k;
+                document.querySelectorAll('.sm-key-btn').forEach(b =>
+                    b.classList.toggle('active', b.dataset.key === smKeyFilter)
+                );
+                const q = document.getElementById('sm-search')?.value.trim() || '';
+                document.getElementById('sm-list').innerHTML = renderList(q, smKeyFilter);
                 bindSmButtons();
             });
 
