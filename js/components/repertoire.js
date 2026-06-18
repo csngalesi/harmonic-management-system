@@ -23,6 +23,7 @@
         viewMode:        'show',     // 'list' | 'show'
         showColumns:     'N',         // 'S'=1col | 'N'=responsive | '2'-'5'
         showFlow:        'row',        // 'row' = leitura linha a linha | 'col' = leitura por coluna
+        showDragMode:    false,        // true = grid arrastável para reordenar posições
         headerCollapsed: false,
         // Client-side filters (null = sem filtro)
         filterFlag:  null,   // null | 0 | 1 | 2 | 3
@@ -156,6 +157,9 @@
                         <button class="sort-btn show-flow-btn${_state.showFlow === 'col' ? ' active' : ''}" data-flow="col" title="Sequência por coluna (↓)">
                             <i class="fa-solid fa-arrow-down"></i>
                         </button>
+                        <button class="sort-btn show-drag-toggle${_state.showDragMode ? ' active' : ''}" id="btn-show-drag" title="Reordenar arrastando (apenas setlist com Posição)" style="margin-left:2px;">
+                            <i class="fa-solid fa-grip"></i>
+                        </button>
                     </span>
                 </div>
 
@@ -222,12 +226,20 @@
             });
 
             document.getElementById('sort-toolbar')?.addEventListener('click', (e) => {
-                const btn = e.target.closest('.show-flow-btn');
-                if (!btn) return;
-                _state.showFlow = btn.dataset.flow;
-                document.querySelectorAll('.show-flow-btn').forEach(b =>
-                    b.classList.toggle('active', b.dataset.flow === _state.showFlow));
-                if (_state.viewMode === 'show') RepertoireComponent._renderSongList();
+                const flowBtn = e.target.closest('.show-flow-btn');
+                if (flowBtn) {
+                    _state.showFlow = flowBtn.dataset.flow;
+                    document.querySelectorAll('.show-flow-btn').forEach(b =>
+                        b.classList.toggle('active', b.dataset.flow === _state.showFlow));
+                    if (_state.viewMode === 'show') RepertoireComponent._renderSongList();
+                    return;
+                }
+                const dragBtn = e.target.closest('#btn-show-drag');
+                if (dragBtn) {
+                    _state.showDragMode = !_state.showDragMode;
+                    dragBtn.classList.toggle('active', _state.showDragMode);
+                    if (_state.viewMode === 'show') RepertoireComponent._renderSongList();
+                }
             });
 
             document.getElementById('btn-new-song').addEventListener('click', () => {
@@ -490,22 +502,26 @@
 
             // ── Show mode: condensed 3-column grid ──
             if (_state.viewMode === 'show') {
-                const isDragModeShow = _state.sortBy === 'position' && !!_state.activeSetlist;
+                const isGridDrag = _state.showDragMode && !!_state.activeSetlist;
                 el.innerHTML = RepertoireComponent._renderShowGrid(sorted);
                 el.querySelectorAll('.show-cell').forEach(cell => {
-                    // Alert toggle button (inside cell, stop propagation)
+                    // Alert toggle button always works
                     cell.querySelector('.show-alert-btn')?.addEventListener('click', (e) => {
                         e.stopPropagation();
                         RepertoireComponent._handleToggleAlert(cell.dataset.id);
                     });
-                    // Click opens detail (not on alert btn)
-                    cell.addEventListener('click', (e) => {
-                        if (e.target.closest('.show-alert-btn')) return;
-                        const song = _state.songs.find(s => s.id === cell.dataset.id);
-                        if (song) RepertoireComponent._openShowDetail(song);
-                    });
+                    // Click opens detail only when NOT in drag mode
+                    if (!isGridDrag) {
+                        cell.addEventListener('click', (e) => {
+                            if (e.target.closest('.show-alert-btn')) return;
+                            const song = _state.songs.find(s => s.id === cell.dataset.id);
+                            if (song) RepertoireComponent._openShowDetail(song);
+                        });
+                    }
                 });
-                if (isDragModeShow) {
+                if (isGridDrag) {
+                    RepertoireComponent._bindShowGridDrag(el);
+                } else if (_state.sortBy === 'position' && !!_state.activeSetlist) {
                     RepertoireComponent._bindDragDrop(el, sorted);
                 }
                 return;
@@ -582,9 +598,79 @@
             }
         },
 
+        // ── Show Grid Drag & Drop (grid reorder by position) ────
+        _bindShowGridDrag: function (el) {
+            const colMap  = { S: 1, '2': 2, '3': 3, '4': 4, '5': 5 };
+            const numCols = _state.showColumns === 'N' ? 5 : (colMap[_state.showColumns] || 5);
+            const grid    = el.querySelector('.show-grid');
+            if (!grid) return;
+
+            let _dragId = null;
+
+            grid.querySelectorAll('.show-cell').forEach(cell => {
+                cell.addEventListener('dragstart', e => {
+                    _dragId = cell.dataset.id;
+                    cell.style.opacity = '0.4';
+                    e.dataTransfer.effectAllowed = 'move';
+                });
+                cell.addEventListener('dragend', () => {
+                    cell.style.opacity = '';
+                    grid.querySelectorAll('.show-cell').forEach(c => c.style.outline = '');
+                });
+                cell.addEventListener('dragover', e => {
+                    e.preventDefault();
+                    if (cell.dataset.id !== _dragId) {
+                        grid.querySelectorAll('.show-cell').forEach(c => c.style.outline = '');
+                        cell.style.outline = '2px solid var(--brand)';
+                    }
+                });
+                cell.addEventListener('dragleave', () => { cell.style.outline = ''; });
+                cell.addEventListener('drop', e => {
+                    e.preventDefault();
+                    grid.querySelectorAll('.show-cell').forEach(c => c.style.outline = '');
+                    const targetId = cell.dataset.id;
+                    if (!_dragId || _dragId === targetId) return;
+
+                    // Re-order DOM immediately for visual feedback
+                    const fromCell = grid.querySelector(`.show-cell[data-id="${_dragId}"]`);
+                    if (fromCell) grid.insertBefore(fromCell, cell);
+
+                    // Read new display order from DOM
+                    const newOrder = [...grid.querySelectorAll('.show-cell[data-id]')].map(c => c.dataset.id);
+                    const n        = newOrder.length;
+                    const numRows  = Math.ceil(n / numCols);
+
+                    // Assign reading positions based on current flow mode
+                    newOrder.forEach((id, di) => {
+                        const song = _state.songs.find(s => s.id === id);
+                        if (!song) return;
+                        if (_state.showFlow === 'row') {
+                            // Row flow: display index = reading position
+                            song._position = di + 1;
+                        } else {
+                            // Col flow: display (row, col) → reading pos = col*numRows+row+1
+                            const row = Math.floor(di / numCols);
+                            const col = di % numCols;
+                            song._position = col * numRows + row + 1;
+                        }
+                    });
+
+                    // Normalize to sequential 1,2,3...
+                    const inSet = _state.songs
+                        .filter(s => s._position !== null && s._position !== undefined)
+                        .sort((a, b) => a._position - b._position);
+                    inSet.forEach((s, i) => { s._position = i + 1; });
+
+                    // Persist and refresh main list (background)
+                    RepertoireComponent._savePositions();
+                    RepertoireComponent._renderSongList();
+                });
+            });
+        },
+
         // ── Show Grid ─────────────────────────────────────────────
         _renderShowGrid: function (sorted) {
-            const isDragMode = _state.sortBy === 'position' && !!_state.activeSetlist;
+            const isDragMode = (_state.sortBy === 'position' && !!_state.activeSetlist) || _state.showDragMode;
 
             // ── Column-first reorder ──────────────────────────────
             // When showFlow === 'col', we need to distribute items top-to-bottom
@@ -622,13 +708,14 @@
                 displayList = colMajor;
             }
 
+            const isShowDrag = _state.showDragMode && !!_state.activeSetlist;
             const cells = displayList.map(s => {
                 const hasHarmony = !!(s.harmony_str && s.harmony_str.trim());
                 const hasLyrics  = !!s.has_lyrics;
                 const sf         = s.status_flag || 0;
                 const rowCls     = sf ? 'status-flag-' + sf : (hasHarmony ? 'status-ok' : 'status-warn');
                 const keyCls     = (!hasHarmony && !hasLyrics) ? ' key-urgent' : '';
-                return `<div class="show-cell ${rowCls}" data-id="${s.id}"
+                return `<div class="show-cell ${rowCls}${isShowDrag ? ' draggable-cell' : ''}" data-id="${s.id}"
                     ${isDragMode ? 'draggable="true"' : ''}>
                     <span class="show-title">${esc(s.title)}</span>
                     <span class="show-key${keyCls}" data-key="${esc(s.original_key || '')}">${esc(s.original_key || '?')}</span>
