@@ -604,14 +604,17 @@
                 }
                 const n       = sorted.length;
                 const numRows = Math.ceil(n / numCols);
-                // Build column-major order: iterate column by column
+                // The CSS grid places items in row-major order.
+                // To achieve column-first READING, we iterate rows (outer) then cols (inner)
+                // but read the source in column-major: srcIdx = col * numRows + row.
+                //
+                // Example with n=10, numCols=5, numRows=2:
+                //   display[0,0]=src[0], display[0,1]=src[2], display[0,2]=src[4], display[0,3]=src[6], display[0,4]=src[8]
+                //   display[1,0]=src[1], display[1,1]=src[3], display[1,2]=src[5], display[1,3]=src[7], display[1,4]=src[9]
+                // → reading top-to-bottom in col 0: 0,1; col 1: 2,3; col 2: 4,5; etc. ✓
                 const colMajor = [];
-                for (let col = 0; col < numCols; col++) {
-                    for (let row = 0; row < numRows; row++) {
-                        const idx = row * numCols + col;
-                        // When last row is partial, some columns have no item
-                        // We place items column-first: item at column c, row r
-                        // maps to source index: c * numRows + r
+                for (let row = 0; row < numRows; row++) {
+                    for (let col = 0; col < numCols; col++) {
                         const srcIdx = col * numRows + row;
                         if (srcIdx < n) colMajor.push(sorted[srcIdx]);
                     }
