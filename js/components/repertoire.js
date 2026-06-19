@@ -845,6 +845,9 @@
                         </div>
                         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
                             <span class="song-key-badge" style="font-size:.85rem;">${esc(origKey)}</span>
+                            <button id="sd-harmony-btn" title="Editor de Harmonia"
+                                style="width:28px;height:28px;background:var(--brand);color:#fff;border-radius:8px;font-weight:800;font-size:.78rem;border:none;cursor:pointer;flex-shrink:0;transition:opacity .15s;"
+                                onmouseenter="this.style.opacity='.8'" onmouseleave="this.style.opacity='1'">H</button>
                             <button id="sd-edit-btn" class="btn-icon edit" title="Editar música" style="width:28px;height:28px;">
                                 <i class="fa-solid fa-pen-to-square"></i>
                             </button>
@@ -919,6 +922,11 @@
                     </div>
                 </div>
             `);
+
+            document.getElementById('sd-harmony-btn').addEventListener('click', () => {
+                window.HMSApp.closeModal();
+                RepertoireComponent._openHarmonyModal(song);
+            });
 
             document.getElementById('sd-edit-btn').addEventListener('click', () => {
                 window.HMSApp.closeModal();
@@ -1288,6 +1296,213 @@
                     }
                 }).catch(() => {});
             }
+        },
+
+        // ── Harmony Editor Modal ──────────────────────────────────
+        _openHarmonyModal: async function (song) {
+            // Load full song data to get harmony_str_old
+            let fullSong = song;
+            try {
+                window.HMSApp.showLoading();
+                fullSong = await window.HMSAPI.Songs.getById(song.id);
+            } catch (_) { /* use original song object */ }
+            finally { window.HMSApp.hideLoading(); }
+
+            const origKey  = fullSong.original_key || 'C';
+            const isMinor  = origKey.endsWith('m');
+            const root     = origKey.replace(/m$/, '');
+            const SD_KEYS  = window.HarmonyEngine.allKeys();
+            const esc      = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+            const keyOptionsHtml = SD_KEYS.map(k =>
+                `<option value="${k.value}"${k.value === origKey ? ' selected' : ''}>${k.label}</option>`
+            ).join('');
+
+            // ── Shared helpers (mirrors _openShowDetail) ────────────
+            function buildFuncHtml(str) {
+                const parts = (str || '').trim().split(/\s+/).filter(Boolean);
+                if (!parts.length) return `<span style="color:var(--text-muted);font-size:.85rem;">Sem harmonia cadastrada.</span>`;
+                return parts.map(p => {
+                    if (p === '-' || p === '+' || p === '{' || p === '}') return `<span class="sd-sep">${esc(p)}</span>`;
+                    if (p.startsWith('!') && p.endsWith('!') && p.length > 2) return `<span class="sd-mod">${esc(p)}</span>`;
+                    if (p.startsWith('$') && p.endsWith('$') && p.length > 2) return `<span class="sd-label">${esc(p.slice(1,-1))}</span>`;
+                    if (/^"[^"]*"$/.test(p)) return `<span class="sd-label">${esc(p.slice(1,-1))}</span>`;
+                    if (!/^[b#]?[1-7]|^[/(\[\]!$]/.test(p)) return `<span class="sd-label">${esc(p)}</span>`;
+                    return `<span class="sd-chord">${esc(p)}</span>`;
+                }).join('');
+            }
+
+            function buildChordsHtml(toks) {
+                if (!toks || !toks.length) return `<span style="color:var(--text-muted);font-size:.85rem;">Sem harmonia.</span>`;
+                const out = []; let i = 0;
+                const sep = `<span style="opacity:.35;font-size:.7em;margin:0 3px;">·</span>`;
+                while (i < toks.length) {
+                    const t = toks[i];
+                    if (t.type === 'STRUCT' && t.value === '[') {
+                        const group = []; i++;
+                        while (i < toks.length && !(toks[i].type === 'STRUCT' && toks[i].value === ']')) { group.push(toks[i]); i++; }
+                        i++;
+                        if (group.length) out.push(`<span class="sd-chord">${group.map(g => `<span>${esc(g.value||'')}</span>`).join(sep)}</span>`);
+                        continue;
+                    }
+                    if (t.type === 'LABEL')       out.push(`<span class="sd-label">${esc(t.value)}</span>`);
+                    else if (t.type === 'STRUCT')  out.push(t.value==='/' ? `<span class="sd-chord">/</span>` : `<span class="sd-sep">${esc(t.value)||'·'}</span>`);
+                    else if (t.type === 'MOD')     out.push(`<span class="sd-mod">${esc('!'+t.value+'!')}</span>`);
+                    else                           out.push(`<span class="sd-chord">${esc(t.value||'')}</span>`);
+                    i++;
+                }
+                return out.join('');
+            }
+
+            const sectionStyle = 'border:1px solid var(--glass-border);border-radius:12px;padding:14px;background:var(--glass-bg);margin-bottom:12px;';
+            const headerStyle  = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;flex-wrap:wrap;';
+            const labelStyle   = 'font-size:.8rem;font-weight:700;color:var(--text-secondary);display:flex;align-items:center;gap:6px;';
+
+            window.HMSApp.openModal(`
+                <div class="sd-modal">
+                    <div class="sd-header" style="padding:8px 14px;align-items:center;gap:8px;">
+                        <div style="min-width:0;flex:1;overflow:hidden;">
+                            <div class="sd-title" style="font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(fullSong.title)}</div>
+                            <div class="sd-sub" style="font-size:.68rem;margin-top:1px;">${esc([fullSong.artist, fullSong.genre].filter(Boolean).join(' · '))} &mdash; <span style="color:var(--brand);">Editor de Harmonia</span></div>
+                        </div>
+                        <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
+                            <button id="hm-back-btn" class="btn btn-secondary btn-sm" style="font-size:.75rem;padding:4px 10px;">
+                                <i class="fa-solid fa-arrow-left"></i> Voltar
+                            </button>
+                            <button class="modal-close" id="hm-close-btn"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="sd-body" style="overflow-y:auto;display:flex;flex-direction:column;gap:4px;">
+
+                        <!-- ── Seção 1: Harmonia Funcional (editável) ── -->
+                        <div style="${sectionStyle}">
+                            <div style="${headerStyle}">
+                                <span style="${labelStyle}"><i class="fa-solid fa-pen-to-square" style="color:var(--brand);"></i> Harmonia Funcional</span>
+                                <div style="display:flex;gap:8px;">
+                                    <button id="hm-analyze-func" class="btn btn-secondary btn-sm">
+                                        <i class="fa-solid fa-magnifying-glass-chart"></i> Analisar
+                                    </button>
+                                    <button id="hm-save-func" class="btn btn-primary btn-sm">
+                                        <i class="fa-solid fa-floppy-disk"></i> Salvar
+                                    </button>
+                                </div>
+                            </div>
+                            <textarea id="hm-func-textarea" class="form-input" rows="4"
+                                style="font-family:var(--font-mono);font-size:.88rem;resize:vertical;"
+                                placeholder="Graus funcionais (ex: 1m 4m 2h 5 1m)…">${esc(fullSong.harmony_str || '')}</textarea>
+                            <div id="hm-func-preview" class="sd-chords" style="min-height:24px;margin-top:10px;"></div>
+                        </div>
+
+                        <!-- ── Seção 2: Harmonia Funcional Antiga (read-only) ── -->
+                        <div style="${sectionStyle}opacity:${fullSong.harmony_str_old ? '1' : '.6'};">
+                            <div style="${headerStyle}">
+                                <span style="${labelStyle}"><i class="fa-solid fa-clock-rotate-left" style="color:var(--text-muted);"></i> Harmonia Funcional Antiga <span style="font-size:.7rem;font-weight:400;color:var(--text-muted);">(somente leitura)</span></span>
+                                ${fullSong.harmony_str_old ? `<button id="hm-restore-btn" class="btn btn-secondary btn-sm" title="Copiar para o campo editável">
+                                    <i class="fa-solid fa-rotate-left"></i> Restaurar
+                                </button>` : ''}
+                            </div>
+                            <div class="sd-chords" style="min-height:24px;">${buildFuncHtml(fullSong.harmony_str_old)}</div>
+                        </div>
+
+                        <!-- ── Seção 3: Draft de Acordes ── -->
+                        <div style="${sectionStyle}">
+                            <div style="${headerStyle}">
+                                <span style="${labelStyle}"><i class="fa-solid fa-wand-magic-sparkles" style="color:var(--chord-amber);"></i> Draft de Acordes</span>
+                                <div style="display:flex;gap:8px;align-items:center;">
+                                    <select id="hm-draft-key" class="form-input form-select"
+                                        style="width:130px;height:30px;padding:2px 8px;font-size:.78rem;">${keyOptionsHtml}</select>
+                                    <button id="hm-analyze-draft" class="btn btn-primary btn-sm">
+                                        <i class="fa-solid fa-magnifying-glass-chart"></i> Analisar
+                                    </button>
+                                </div>
+                            </div>
+                            <textarea id="hm-draft-textarea" class="form-input" rows="3"
+                                style="font-family:var(--font-mono);font-size:.88rem;resize:vertical;"
+                                placeholder="Cole acordes aqui (ex: Dm Gm C7 F Am E7)…"></textarea>
+                            <div id="hm-draft-result" style="margin-top:8px;"></div>
+                        </div>
+
+                    </div>
+                </div>
+            `);
+
+            // ── Back button ──
+            document.getElementById('hm-back-btn')?.addEventListener('click', () => {
+                window.HMSApp.closeModal();
+                // Re-open detail with potentially updated song
+                const updated = _state.songs.find(s => s.id === fullSong.id) || fullSong;
+                RepertoireComponent._openShowDetail(updated);
+            });
+            document.getElementById('hm-close-btn')?.addEventListener('click', () => window.HMSApp.closeModal());
+
+            // ── Seção 1: Analisar funcional → acordes ──
+            document.getElementById('hm-analyze-func').addEventListener('click', () => {
+                const str = document.getElementById('hm-func-textarea').value.trim();
+                if (!str) { window.HMSApp.showToast('Escreva a harmonia funcional primeiro.', 'warning'); return; }
+                const harmNorm = str.replace(/(?<![b#0-9mMho7/])\((\S+?)\/\)/g, '$1 /');
+                const tokens = window.HarmonyEngine.translate(harmNorm, root, isMinor);
+                document.getElementById('hm-func-preview').innerHTML = buildChordsHtml(tokens);
+            });
+
+            // ── Seção 1: Salvar ──
+            document.getElementById('hm-save-func').addEventListener('click', async () => {
+                const newHarmony = document.getElementById('hm-func-textarea').value.trim();
+                const btn = document.getElementById('hm-save-func');
+                btn.disabled = true;
+                btn.innerHTML = '<span class="btn-spinner"></span> Salvando…';
+                try {
+                    await window.HMSAPI.Songs.update(fullSong.id, { harmony_str: newHarmony });
+                    // Update in-memory state
+                    fullSong.harmony_str = newHarmony;
+                    const inState = _state.songs.find(s => s.id === fullSong.id);
+                    if (inState) inState.harmony_str = newHarmony;
+                    window.HMSApp.showToast('Harmonia funcional salva!', 'success');
+                } catch (err) {
+                    window.HMSApp.showToast('Erro ao salvar: ' + err.message, 'error');
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Salvar';
+                }
+            });
+
+            // ── Seção 2: Restaurar antigo → Seção 1 ──
+            document.getElementById('hm-restore-btn')?.addEventListener('click', () => {
+                document.getElementById('hm-func-textarea').value = fullSong.harmony_str_old || '';
+                document.getElementById('hm-func-preview').innerHTML = '';
+                window.HMSApp.showToast('Harmonia antiga copiada para o campo editável.', 'info');
+            });
+
+            // ── Seção 3: Analisar acordes → graus funcionais ──
+            document.getElementById('hm-analyze-draft').addEventListener('click', () => {
+                const chordsStr = document.getElementById('hm-draft-textarea').value.trim();
+                if (!chordsStr) { window.HMSApp.showToast('Escreva os acordes primeiro.', 'warning'); return; }
+                const keyVal  = document.getElementById('hm-draft-key').value;
+                const kObj    = SD_KEYS.find(k => k.value === keyVal) || SD_KEYS[0];
+                const kRoot   = kObj.value.replace(/m$/, '');
+                const kMinor  = kObj.isMinor;
+                const degrees = window.HarmonyEngine.analyze(chordsStr, kRoot, kMinor) || '';
+
+                document.getElementById('hm-draft-result').innerHTML = `
+                    <div style="background:var(--bg-deep);border-radius:10px;padding:10px 14px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+                            <span style="font-size:.78rem;color:var(--text-muted);">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i> Graus funcionais (tom: ${esc(keyVal)})
+                            </span>
+                            <button id="hm-use-draft" class="btn btn-secondary btn-sm">
+                                <i class="fa-solid fa-arrow-up"></i> Usar no Funcional
+                            </button>
+                        </div>
+                        <div style="font-family:var(--font-mono);font-size:1.1rem;color:var(--chord-amber);word-break:break-all;">${esc(degrees)}</div>
+                    </div>
+                `;
+                document.getElementById('hm-use-draft')?.addEventListener('click', () => {
+                    document.getElementById('hm-func-textarea').value = degrees;
+                    document.getElementById('hm-func-preview').innerHTML = '';
+                    window.HMSApp.showToast('Graus copiados para Harmonia Funcional. Salve quando estiver pronto.', 'info');
+                    document.getElementById('hm-func-textarea').focus();
+                });
+            });
         },
 
         // ── Song Modal ────────────────────────────────────────────
