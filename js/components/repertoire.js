@@ -1009,27 +1009,46 @@
                 _updateArrows();
             };
 
-            // Recalculate total pages — measures real content height in
-            // single-column mode (scrollWidth is unreliable on multicol)
+            // Recalculate total pages.
+            // Uses an offscreen clone at ONE-column width (≈ half viewport minus gap)
+            // to correctly estimate how many column-heights the full content occupies.
+            // Measuring the pre at full viewport width underestimates height because
+            // text wraps less, causing _totalPages to be too low.
             const _calcPages = () => {
                 if (!_preEl || !_viewportEl) return;
                 const vw = _viewportEl.clientWidth;
                 const vh = _viewportEl.clientHeight;
                 if (!vw || !vh) return;
 
-                // 1. Switch to single column + auto height to get true content height
-                const savedTransform = _preEl.style.transform;
-                _preEl.style.transform    = '';
-                _preEl.style.columnCount  = '1';
-                _preEl.style.height       = 'auto';
-                const contentH = _preEl.scrollHeight;
+                // Column width ≈ (total width − 24px gap) / 2
+                const colW = Math.max(100, Math.floor((vw - 24) / 2));
 
-                // 2. Restore
-                _preEl.style.columnCount  = '2';
-                _preEl.style.height       = vh + 'px';
-                _preEl.style.transform    = savedTransform;
+                // Offscreen clone at exact column width
+                const clone = document.createElement('pre');
+                const cs = getComputedStyle(_preEl);
+                clone.style.cssText = [
+                    'position:fixed',
+                    'top:-9999px',
+                    'left:-9999px',
+                    `width:${colW}px`,
+                    'height:auto',
+                    'visibility:hidden',
+                    'pointer-events:none',
+                    'column-count:1',
+                    'white-space:pre-wrap',
+                    `font-family:${cs.fontFamily}`,
+                    `font-size:${_preEl.style.fontSize || cs.fontSize}`,
+                    `line-height:${_preEl.style.lineHeight || cs.lineHeight}`,
+                    `font-weight:${_preEl.style.fontWeight || cs.fontWeight}`,
+                    'margin:0',
+                    'padding:0',
+                ].join(';');
+                clone.textContent = _preEl.textContent;
+                document.body.appendChild(clone);
+                const contentH = clone.scrollHeight;
+                document.body.removeChild(clone);
 
-                // 3. Each "page" = 2 columns of height vh
+                // Each "page" = 2 columns of height vh
                 const columnsNeeded = Math.ceil(contentH / vh);
                 _totalPages  = Math.max(1, Math.ceil(columnsNeeded / 2));
                 _currentPage = 0;
