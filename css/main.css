@@ -686,7 +686,7 @@ tbody tr:hover td { background: var(--glass-bg); }
 .sd-header-tabs .sd-tab:hover { color:var(--text-secondary); background:rgba(255,255,255,.05); }
 .sd-header-tabs .sd-tab.active { color:var(--brand); background:var(--brand-dim); border-bottom-color:transparent; }
 
-.sd-body { padding:14px 18px; max-height:60vh; overflow-y:auto; }
+.sd-body { padding:14px 18px; }
 .sd-pane { display:none; }
 .sd-pane.active { display:block; }
 #sd-pane-letra.active { display:flex; flex-direction:column; }
@@ -697,14 +697,14 @@ tbody tr:hover td { background: var(--glass-bg); }
 @media (min-width: 768px) {
     .modal-container { max-width: 860px; }
     .sd-modal { max-width: 100%; }
-    .sd-body { max-height: 85vh; }
+
 }
 
 /* ── Tablet portrait/landscape optimisation ─────────────────── */
 @media (min-width: 768px) and (max-width: 1024px) {
     .modal-overlay  { padding: 8px; }
     .modal-container { max-width: 95vw; }
-    .sd-body { max-height: 88vh; }
+
     .modal-body  { padding: 16px 18px; }
     .modal-header { padding: 16px 18px 12px; }
 }
