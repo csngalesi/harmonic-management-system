@@ -1129,40 +1129,54 @@
                 _applyReadingMode(_readingMode);
             });
 
-            // ── Painel flutuante de harmonia (arrastável) ──────────
+            // ── Painel flutuante de harmonia (arrastável + redimensionável) ──
             const _harmFloatBtn = document.getElementById('sd-harm-float-btn');
             _harmFloatBtn?.addEventListener('click', () => {
                 // Fechar se já aberto
                 const existing = document.getElementById('sd-harm-float');
-                if (existing) { existing.remove(); return; }
+                if (existing) {
+                    existing.remove();
+                    _harmFloatBtn.style.background  = 'transparent';
+                    _harmFloatBtn.style.color       = 'var(--text-muted)';
+                    _harmFloatBtn.style.borderColor = 'var(--glass-border)';
+                    return;
+                }
 
                 const sdModal = document.querySelector('.sd-modal');
                 if (!sdModal) return;
-                sdModal.style.position = 'relative'; // âncora para absolute
+
+                // Posição inicial: encostado à direita do modal na tela
+                const mr  = sdModal.getBoundingClientRect();
+                const initLeft = Math.min(mr.right + 10, window.innerWidth - 310);
+                const initTop  = Math.max(8, mr.top + 48);
 
                 // ── Criar painel ──────────────────────────────────
                 const panel = document.createElement('div');
                 panel.id = 'sd-harm-float';
                 panel.style.cssText = [
-                    'position:absolute',
-                    'z-index:300',
-                    'top:56px',
-                    'right:10px',
-                    'width:min(290px,88vw)',
+                    'position:fixed',
+                    `z-index:9999`,
+                    `top:${initTop}px`,
+                    `left:${initLeft}px`,
+                    'width:290px',
+                    'min-width:190px',
+                    'min-height:150px',
                     'background:var(--sidebar-bg, #1a1a2e)',
                     'border:1px solid var(--glass-border)',
                     'border-radius:16px',
-                    'box-shadow:0 12px 40px rgba(0,0,0,.55)',
-                    'overflow:hidden',
+                    'box-shadow:0 16px 48px rgba(0,0,0,.65)',
                     'user-select:none',
                     'touch-action:none',
+                    'display:flex',
+                    'flex-direction:column',
+                    'overflow:hidden',
                 ].join(';');
 
                 panel.innerHTML = `
                     <div id="sd-hf-handle" style="
                         display:flex;align-items:center;justify-content:space-between;
                         padding:10px 14px;background:rgba(255,255,255,.06);
-                        cursor:grab;border-bottom:1px solid var(--glass-border);
+                        cursor:grab;border-bottom:1px solid var(--glass-border);flex-shrink:0;
                     ">
                         <span style="font-weight:700;font-size:.82rem;color:var(--text-primary);display:flex;align-items:center;gap:6px;">
                             <i class="fa-solid fa-music" style="color:var(--brand);"></i> Acordes
@@ -1172,7 +1186,7 @@
                             cursor:pointer;font-size:1rem;padding:2px 4px;line-height:1;
                         ">✕</button>
                     </div>
-                    <div style="padding:12px;max-height:52vh;overflow-y:auto;">
+                    <div id="sd-hf-body" style="padding:12px;overflow-y:auto;flex:1;">
                         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
                             <span style="font-size:.78rem;color:var(--text-muted);">Tom:</span>
                             <select id="sd-hf-key" class="form-input form-select"
@@ -1184,8 +1198,26 @@
                             ${buildChordsHtml(tokens)}
                         </div>
                     </div>
+                    <!-- Handle de resize (canto inferior direito) -->
+                    <div id="sd-hf-resize" title="Redimensionar" style="
+                        position:absolute;right:0;bottom:0;
+                        width:22px;height:22px;
+                        cursor:se-resize;
+                        display:flex;align-items:flex-end;justify-content:flex-end;
+                        padding:4px;
+                        border-radius:0 0 16px 0;
+                        opacity:.45;
+                        transition:opacity .15s;
+                    " onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='.45'">
+                        <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="var(--text-muted)" stroke-width="1.6" stroke-linecap="round">
+                            <line x1="2" y1="10" x2="10" y2="2"/>
+                            <line x1="6" y1="10" x2="10" y2="6"/>
+                        </svg>
+                    </div>
                 `;
-                sdModal.appendChild(panel);
+
+                // Append ao body para poder sair do modal
+                document.body.appendChild(panel);
 
                 // Marcar botão como ativo
                 _harmFloatBtn.style.background  = 'var(--brand)';
@@ -1200,14 +1232,13 @@
                     _harmFloatBtn.style.borderColor = 'var(--glass-border)';
                 });
 
-                // Sincronizar tom com a aba Acor
+                // Sincronizar tom
                 document.getElementById('sd-hf-key')?.addEventListener('change', function () {
                     const newIsMinor = this.value.endsWith('m');
                     const newRoot    = this.value.replace(/m$/, '');
                     const newToks    = window.HarmonyEngine.translate(song.harmony_str || '', newRoot, newIsMinor);
                     document.getElementById('sd-hf-chords').innerHTML = buildChordsHtml(newToks);
-                    // Sincroniza com o seletor principal
-                    const mainSel = document.getElementById('sd-key-select');
+                    const mainSel    = document.getElementById('sd-key-select');
                     if (mainSel) { mainSel.value = this.value; }
                     const mainChords = document.getElementById('sd-chords-display');
                     if (mainChords) mainChords.innerHTML = buildChordsHtml(newToks);
@@ -1217,43 +1248,78 @@
                 const handle = document.getElementById('sd-hf-handle');
                 let dragging = false, ox = 0, oy = 0, sx = 0, sy = 0;
 
+                // ── Resize (mouse + touch) ────────────────────────
+                const resizeEl = document.getElementById('sd-hf-resize');
+                let resizing = false, rx = 0, ry = 0, rw = 0, rh = 0;
+
                 const getPoint = e => e.touches ? e.touches[0] : e;
 
-                const onStart = e => {
+                // Drag start
+                const onDragStart = e => {
                     dragging = true;
                     const pt = getPoint(e);
                     ox = pt.clientX; oy = pt.clientY;
-                    sx = panel.offsetLeft; sy = panel.offsetTop;
+                    const rect = panel.getBoundingClientRect();
+                    sx = rect.left; sy = rect.top;
                     handle.style.cursor = 'grabbing';
                     e.preventDefault();
                 };
-                const onMove = e => {
-                    if (!dragging) return;
-                    const pt = getPoint(e);
-                    panel.style.left  = (sx + pt.clientX - ox) + 'px';
-                    panel.style.top   = (sy + pt.clientY - oy) + 'px';
-                    panel.style.right = 'auto';
-                    e.preventDefault();
-                };
-                const onEnd = () => { dragging = false; handle.style.cursor = 'grab'; };
 
-                handle.addEventListener('mousedown',  onStart);
-                handle.addEventListener('touchstart', onStart, { passive: false });
+                // Resize start
+                const onResizeStart = e => {
+                    resizing = true;
+                    const pt = getPoint(e);
+                    rx = pt.clientX; ry = pt.clientY;
+                    rw = panel.offsetWidth;
+                    rh = panel.offsetHeight;
+                    e.preventDefault();
+                    e.stopPropagation();
+                };
+
+                const onMove = e => {
+                    const pt = getPoint(e);
+                    if (dragging) {
+                        panel.style.left = (sx + pt.clientX - ox) + 'px';
+                        panel.style.top  = (sy + pt.clientY - oy) + 'px';
+                        e.preventDefault();
+                    }
+                    if (resizing) {
+                        const newW = Math.max(190, rw + pt.clientX - rx);
+                        const newH = Math.max(150, rh + pt.clientY - ry);
+                        panel.style.width  = newW + 'px';
+                        panel.style.height = newH + 'px';
+                        e.preventDefault();
+                    }
+                };
+
+                const onEnd = () => {
+                    dragging = false;
+                    resizing = false;
+                    handle.style.cursor = 'grab';
+                };
+
+                handle.addEventListener('mousedown',    onDragStart);
+                handle.addEventListener('touchstart',   onDragStart,  { passive: false });
+                resizeEl.addEventListener('mousedown',  onResizeStart);
+                resizeEl.addEventListener('touchstart', onResizeStart, { passive: false });
                 document.addEventListener('mousemove',  onMove);
                 document.addEventListener('touchmove',  onMove, { passive: false });
-                document.addEventListener('mouseup',   onEnd);
-                document.addEventListener('touchend',  onEnd);
+                document.addEventListener('mouseup',    onEnd);
+                document.addEventListener('touchend',   onEnd);
 
-                // Cleanup quando o painel for removido do DOM
+                // Cleanup ao fechar modal ou remover painel
+                const cleanupListeners = () => {
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('touchmove', onMove);
+                    document.removeEventListener('mouseup',  onEnd);
+                    document.removeEventListener('touchend', onEnd);
+                };
                 new MutationObserver((_, obs) => {
                     if (!document.getElementById('sd-harm-float')) {
-                        document.removeEventListener('mousemove', onMove);
-                        document.removeEventListener('touchmove', onMove);
-                        document.removeEventListener('mouseup',  onEnd);
-                        document.removeEventListener('touchend', onEnd);
+                        cleanupListeners();
                         obs.disconnect();
                     }
-                }).observe(sdModal, { childList: true });
+                }).observe(document.body, { childList: true, subtree: true });
             });
 
             if (song.has_lyrics) {
