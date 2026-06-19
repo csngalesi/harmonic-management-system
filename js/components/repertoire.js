@@ -1010,49 +1010,45 @@
             };
 
             // Recalculate total pages.
-            // Uses an offscreen clone at ONE-column width (≈ half viewport minus gap)
-            // to correctly estimate how many column-heights the full content occupies.
-            // Measuring the pre at full viewport width underestimates height because
-            // text wraps less, causing _totalPages to be too low.
+            // Mede o próprio _preEl (já no DOM com fonte correta) em coluna única
+            // na largura real de uma coluna (≈ (vw-gap)/2).
+            // Clone externo falha porque a fonte pode ainda não estar aplicada.
             const _calcPages = () => {
                 if (!_preEl || !_viewportEl) return;
                 const vw = _viewportEl.clientWidth;
                 const vh = _viewportEl.clientHeight;
-                if (!vw || !vh) return;
+                // Se pane ainda está oculto, reagendar
+                if (!vw || !vh) { requestAnimationFrame(_calcPages); return; }
 
-                // Column width ≈ (total width − 24px gap) / 2
                 const colW = Math.max(100, Math.floor((vw - 24) / 2));
 
-                // Offscreen clone at exact column width
-                const clone = document.createElement('pre');
-                const cs = getComputedStyle(_preEl);
-                clone.style.cssText = [
-                    'position:fixed',
-                    'top:-9999px',
-                    'left:-9999px',
-                    `width:${colW}px`,
-                    'height:auto',
-                    'visibility:hidden',
-                    'pointer-events:none',
-                    'column-count:1',
-                    'white-space:pre-wrap',
-                    `font-family:${cs.fontFamily}`,
-                    `font-size:${_preEl.style.fontSize || cs.fontSize}`,
-                    `line-height:${_preEl.style.lineHeight || cs.lineHeight}`,
-                    `font-weight:${_preEl.style.fontWeight || cs.fontWeight}`,
-                    'margin:0',
-                    'padding:0',
-                ].join(';');
-                clone.textContent = _preEl.textContent;
-                document.body.appendChild(clone);
-                const contentH = clone.scrollHeight;
-                document.body.removeChild(clone);
+                // Salvar estado
+                const savedTransition  = _preEl.style.transition;
+                const savedTransform   = _preEl.style.transform;
+                const savedColumnCount = _preEl.style.columnCount;
+                const savedHeight      = _preEl.style.height;
+                const savedWidth       = _preEl.style.width;
 
-                // Each "page" = 2 columns of height vh
+                // Medir: coluna única na largura correta
+                _preEl.style.transition   = 'none';
+                _preEl.style.transform    = '';
+                _preEl.style.columnCount  = '1';
+                _preEl.style.height       = 'auto';
+                _preEl.style.width        = colW + 'px';
+
+                const contentH = _preEl.scrollHeight;
+
+                // Restaurar layout 2 colunas
+                _preEl.style.transition   = savedTransition;
+                _preEl.style.columnCount  = savedColumnCount || '2';
+                _preEl.style.height       = savedHeight      || (vh + 'px');
+                _preEl.style.width        = savedWidth       || '';
+                _preEl.style.transform    = '';   // voltar para página 0
+
+                // Cada "página" = 2 colunas de altura vh
                 const columnsNeeded = Math.ceil(contentH / vh);
                 _totalPages  = Math.max(1, Math.ceil(columnsNeeded / 2));
                 _currentPage = 0;
-                _preEl.style.transform = '';
                 _updateCounter();
                 _updateArrows();
             };
@@ -1305,10 +1301,14 @@
                         _viewportEl = viewport;
                         _preEl      = pre;
 
-                        // Wait one frame for browser to lay out columns
-                        requestAnimationFrame(() => {
-                            _calcPages();
-                            if (_readingMode) _applyReadingMode(true);
+                        // Aguardar fonte + duplo rAF para layout e fonte garantidos
+                        document.fonts.ready.then(() => {
+                            requestAnimationFrame(() => {
+                                requestAnimationFrame(() => {
+                                    _calcPages();
+                                    if (_readingMode) _applyReadingMode(true);
+                                });
+                            });
                         });
                     } else {
                         el.innerHTML = `<p style="color:var(--text-muted);font-size:.85rem;">Letra n\u00e3o encontrada.</p>`;
