@@ -1145,21 +1145,31 @@
                 const sdModal = document.querySelector('.sd-modal');
                 if (!sdModal) return;
 
-                // Posição inicial: encostado à direita do modal na tela
+                // ── Restaurar geometria salva (localStorage) ──────
+                const GEO_KEY = 'hms_harm_float_geo';
+                let savedGeo = null;
+                try { savedGeo = JSON.parse(localStorage.getItem(GEO_KEY)); } catch (_) {}
+
+                // Posição padrão: encostado à direita do modal na tela
                 const mr  = sdModal.getBoundingClientRect();
-                const initLeft = Math.min(mr.right + 10, window.innerWidth - 480);
-                const initTop  = Math.max(8, mr.top + 48);
+                const defLeft = Math.min(mr.right + 10, window.innerWidth - 480);
+                const defTop  = Math.max(8, mr.top + 48);
+
+                const geoLeft   = savedGeo?.left   ?? defLeft;
+                const geoTop    = savedGeo?.top     ?? defTop;
+                const geoWidth  = savedGeo?.width   ?? 460;
+                const geoHeight = savedGeo?.height  ?? 280;
 
                 // ── Criar painel ──────────────────────────────────
                 const panel = document.createElement('div');
                 panel.id = 'sd-harm-float';
                 panel.style.cssText = [
                     'position:fixed',
-                    `z-index:9999`,
-                    `top:${initTop}px`,
-                    `left:${initLeft}px`,
-                    'width:460px',
-                    'height:280px',
+                    'z-index:9999',
+                    `top:${geoTop}px`,
+                    `left:${geoLeft}px`,
+                    `width:${geoWidth}px`,
+                    `height:${geoHeight}px`,
                     'min-width:260px',
                     'min-height:150px',
                     'background:var(--sidebar-bg, #1a1a2e)',
@@ -1182,10 +1192,18 @@
                         <span style="font-weight:700;font-size:.82rem;color:var(--text-primary);display:flex;align-items:center;gap:6px;">
                             <i class="fa-solid fa-music" style="color:var(--brand);"></i> Acordes
                         </span>
-                        <button id="sd-hf-close" style="
-                            background:transparent;border:none;color:var(--text-muted);
-                            cursor:pointer;font-size:1rem;padding:2px 4px;line-height:1;
-                        ">✕</button>
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <button id="sd-hf-save" title="Salvar posição e tamanho" style="
+                                background:rgba(255,255,255,.08);border:1px solid var(--glass-border);
+                                color:var(--text-muted);cursor:pointer;
+                                font-size:.7rem;font-weight:800;padding:2px 7px;line-height:1.6;
+                                border-radius:6px;letter-spacing:.04em;transition:all .2s;
+                            ">S</button>
+                            <button id="sd-hf-close" style="
+                                background:transparent;border:none;color:var(--text-muted);
+                                cursor:pointer;font-size:1rem;padding:2px 4px;line-height:1;
+                            ">✕</button>
+                        </div>
                     </div>
                     <div id="sd-hf-body" style="padding:12px;overflow-y:auto;flex:1;">
                         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
@@ -1231,6 +1249,31 @@
                     _harmFloatBtn.style.background  = 'transparent';
                     _harmFloatBtn.style.color       = 'var(--text-muted)';
                     _harmFloatBtn.style.borderColor = 'var(--glass-border)';
+                });
+
+                // Salvar posição + tamanho (botão S)
+                document.getElementById('sd-hf-save')?.addEventListener('click', () => {
+                    const rect = panel.getBoundingClientRect();
+                    const geo  = {
+                        left:   rect.left,
+                        top:    rect.top,
+                        width:  panel.offsetWidth,
+                        height: panel.offsetHeight,
+                    };
+                    try { localStorage.setItem(GEO_KEY, JSON.stringify(geo)); } catch (_) {}
+
+                    // Flash de confirmação no botão
+                    const btn = document.getElementById('sd-hf-save');
+                    if (!btn) return;
+                    const prev = btn.textContent;
+                    btn.textContent = '✓';
+                    btn.style.color       = '#4ade80';
+                    btn.style.borderColor = '#4ade80';
+                    setTimeout(() => {
+                        btn.textContent   = prev;
+                        btn.style.color   = '';
+                        btn.style.borderColor = '';
+                    }, 1200);
                 });
 
                 // Sincronizar tom
