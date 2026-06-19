@@ -595,9 +595,9 @@
                         const r2 = rf[i + 2] ?? false;
                         const t  = tgt(degreeArr[i + 2]);
                         if (r0) {
-                            // ii has its own repeat; V→I as a separate SEC_DOM
-                            result.push('2'); result.push('/');
-                            result.push(mkSecDom('5', t, r1, r2, true));
+                            // ii has its own repeat beat — encode '2/' in the SEC_DOM prefix
+                            // so Gm / C7 / F / → 2/5/(3/) which round-trips correctly
+                            result.push(mkSecDom('2/5', t, r1, r2, true));
                         } else {
                             result.push(mkSecDom('25', t, r1, r2, true));
                         }
@@ -607,8 +607,7 @@
                         const tDegNum = degForNote(targetIdx);
                         const t = tDegNum ? String(tDegNum) : '?';
                         if (r0) {
-                            result.push('2'); result.push('/');
-                            result.push(mkSecDom('5', t, r1, false, false));
+                            result.push(mkSecDom('2/5', t, r1, false, false));
                         } else {
                             result.push(mkSecDom('25', t, r1, false, false));
                         }
@@ -713,8 +712,10 @@
             const actualMinor = isMinor || rootName.endsWith('m');
             const keyState = makeKeyState(actualRoot, actualMinor);
 
-            // Parse chord list (accepts space or dash separators)
-            const allChords = chordsStr
+            // Parse chord list (accepts space or dash separators).
+            // Standalone '/' is a "repeat beat" marker — skip as a chord token;
+            // instead mark the previous chord as having a repeat beat.
+            const allTokens = chordsStr
                 .replace(/\s*-\s*/g, ' ')
                 .trim()
                 .split(/\s+/)
@@ -724,11 +725,16 @@
             const chords      = [];
             const noteIdxArr  = [];
             const repeatFlags = [];
-            for (const c of allChords) {
+            for (const c of allTokens) {
+                if (c === '/') {
+                    // Beat repeat marker — flag the previous chord
+                    if (chords.length > 0) repeatFlags[repeatFlags.length - 1] = true;
+                    continue;
+                }
                 const parsed = parseChordStr(c);
                 const ni = parsed ? noteToIdx(parsed.root) : -1;
                 if (chords.length > 0 && c === chords[chords.length - 1] && ni === noteIdxArr[noteIdxArr.length - 1]) {
-                    repeatFlags[repeatFlags.length - 1] = true; // mark previous as repeated
+                    repeatFlags[repeatFlags.length - 1] = true; // adjacent duplicate chord
                 } else {
                     chords.push(c);
                     noteIdxArr.push(ni);
