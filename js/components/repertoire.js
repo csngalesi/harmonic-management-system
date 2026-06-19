@@ -1147,7 +1147,7 @@
 
                 // Posição inicial: encostado à direita do modal na tela
                 const mr  = sdModal.getBoundingClientRect();
-                const initLeft = Math.min(mr.right + 10, window.innerWidth - 310);
+                const initLeft = Math.min(mr.right + 10, window.innerWidth - 480);
                 const initTop  = Math.max(8, mr.top + 48);
 
                 // ── Criar painel ──────────────────────────────────
@@ -1158,8 +1158,9 @@
                     `z-index:9999`,
                     `top:${initTop}px`,
                     `left:${initLeft}px`,
-                    'width:290px',
-                    'min-width:190px',
+                    'width:460px',
+                    'height:280px',
+                    'min-width:260px',
                     'min-height:150px',
                     'background:var(--sidebar-bg, #1a1a2e)',
                     'border:1px solid var(--glass-border)',
