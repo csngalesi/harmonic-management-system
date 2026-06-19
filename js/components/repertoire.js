@@ -1442,7 +1442,31 @@
                 if (!str) { window.HMSApp.showToast('Escreva a harmonia funcional primeiro.', 'warning'); return; }
                 const harmNorm = str.replace(/(?<![b#0-9mMho7/])\((\S+?)\/\)/g, '$1 /');
                 const tokens = window.HarmonyEngine.translate(harmNorm, root, isMinor);
-                document.getElementById('hm-func-preview').innerHTML = buildChordsHtml(tokens);
+
+                // Build chord string for draft (only real chord tokens, skip structural /, [, ] and labels)
+                const chordWords = tokens
+                    .filter(t => t.type !== 'LABEL' && t.type !== 'MOD')
+                    .map(t => t.value || '')
+                    .filter(v => v && v !== '[' && v !== ']')
+                    .join(' ');
+
+                const previewDiv = document.getElementById('hm-func-preview');
+                previewDiv.innerHTML = buildChordsHtml(tokens) +
+                    `<div style="margin-top:8px;text-align:right;">
+                        <button id="hm-to-draft-btn" class="btn btn-secondary btn-sm">
+                            <i class="fa-solid fa-arrow-down"></i> Usar no Draft de Acordes
+                        </button>
+                    </div>`;
+
+                document.getElementById('hm-to-draft-btn').addEventListener('click', () => {
+                    document.getElementById('hm-draft-textarea').value = chordWords;
+                    // Set the draft key selector to the song's original key
+                    const draftKey = document.getElementById('hm-draft-key');
+                    if (draftKey) draftKey.value = origKey;
+                    document.getElementById('hm-draft-result').innerHTML = '';
+                    window.HMSApp.showToast('Acordes enviados para o Draft. Clique em Analisar para converter em graus.', 'info');
+                    document.getElementById('hm-draft-textarea').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                });
             });
 
             // ── Seção 1: Salvar ──
