@@ -614,6 +614,7 @@ tbody tr:hover td { background: var(--glass-bg); }
     gap: 8px;
     cursor: pointer;
     border-radius: 3px;
+    border: 1px solid transparent;
     transition: filter var(--transition);
 }
 .show-cell:hover { filter: brightness(1.2); }
@@ -874,10 +875,10 @@ tbody tr:hover td { background: var(--glass-bg); }
 .song-card.song-flag-3 { background: #2a0000; border-color: #ef4444 !important; }
 .song-card.song-flag-4 { background: #001530; border-color: #3b82f6 !important; }
 
-.show-cell.status-flag-1 { background: #002200 !important; border-color: #22c55e !important; }
-.show-cell.status-flag-2 { background: #2a2200 !important; border-color: #f59e0b !important; }
-.show-cell.status-flag-3 { background: #2a0000 !important; border-color: #ef4444 !important; }
-.show-cell.status-flag-4 { background: #001530 !important; border-color: #3b82f6 !important; }
+.show-cell.status-flag-1 { background: #002200 !important; border: 1px solid #22c55e !important; }
+.show-cell.status-flag-2 { background: #2a2200 !important; border: 1px solid #f59e0b !important; }
+.show-cell.status-flag-3 { background: #2a0000 !important; border: 1px solid #ef4444 !important; }
+.show-cell.status-flag-4 { background: #001530 !important; border: 1px solid #3b82f6 !important; }
 
 /* ── Show Detail Modal — flag border ──────────────────────────── */
 .sd-modal.song-flag-1 { border: 2px solid #22c55e; }
