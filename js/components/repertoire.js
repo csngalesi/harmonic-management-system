@@ -114,6 +114,7 @@
                     <button class="filter-pill sf-1${_state.filterFlag === 1 ? ' active' : ''}" data-filter="flag" data-val="1" title="Verde"><i class="fa-solid fa-flag"></i></button>
                     <button class="filter-pill sf-2${_state.filterFlag === 2 ? ' active' : ''}" data-filter="flag" data-val="2" title="Amarela"><i class="fa-solid fa-flag"></i></button>
                     <button class="filter-pill sf-3${_state.filterFlag === 3 ? ' active' : ''}" data-filter="flag" data-val="3" title="Vermelha"><i class="fa-solid fa-flag"></i></button>
+                    <button class="filter-pill sf-4${_state.filterFlag === 4 ? ' active' : ''}" data-filter="flag" data-val="4" title="Azul"><i class="fa-solid fa-flag"></i></button>
                     <button class="filter-pill${_state.filterFlag === 0 ? ' active' : ''}" data-filter="flag" data-val="0" title="Sem bandeira"><i class="fa-solid fa-flag" style="opacity:.25;"></i></button>
                     <span class="filter-sep">|</span>
                     <span class="filter-label">Harm:</span>
@@ -534,7 +535,7 @@
                 const hasLyrics  = !!s.has_lyrics;
                 const hasAudio   = !!s.audio_url;
                 const sf         = s.status_flag || 0;
-                const flagTitles = ['Marcar verde', 'Marcar amarelo', 'Marcar vermelho', 'Remover bandeira'];
+                const flagTitles = ['Marcar verde', 'Marcar amarelo', 'Marcar vermelho', 'Marcar azul', 'Remover bandeira'];
                 return `
                 <div class="song-card${sf ? ' song-flag-' + sf : ''}" data-id="${s.id}"
                     ${isDragMode ? 'draggable="true"' : ''}>
@@ -831,8 +832,9 @@
             const _defaultTab = (_pref === 'func') ? 'func'
                               : (_pref === 'acor') ? 'acor' : 'letra';
 
+            const _sfClass = (song.status_flag && song.status_flag > 0) ? ` song-flag-${song.status_flag}` : '';
             window.HMSApp.openModal(`
-                <div class="sd-modal">
+                <div class="sd-modal${_sfClass}">
                     <div class="sd-header" style="padding:8px 14px;align-items:center;gap:8px;">
                         <div style="min-width:0;flex:1;overflow:hidden;">
                             <div class="sd-title" style="font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(song.title)}</div>
@@ -3451,7 +3453,7 @@
         _handleToggleAlert: async function (id) {
             const song = _state.songs.find(s => s.id === id);
             if (!song) return;
-            const newVal = ((song.status_flag || 0) + 1) % 4;
+            const newVal = ((song.status_flag || 0) + 1) % 5;
             try {
                 await window.HMSAPI.Songs.update(id, { status_flag: newVal });
                 song.status_flag = newVal;
