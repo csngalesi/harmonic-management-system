@@ -2899,97 +2899,71 @@
                 return (str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
                     .toLowerCase().replace(/\s+/g, ' ').trim();
             }
-            function fileToBase(filename) {
-                return norm(filename
-                    .replace(/\.(mp3|m4a|ogg|wav|aac)$/i, '')
-                    .replace(/^[A-Ga-g][b#]?m?\s+/, '')
-                    .trim());
-            }
-            function wordOverlap(a, b) {
-                const wa = a.split(/\s+/).filter(Boolean);
-                const wb = b.split(/\s+/).filter(Boolean);
-                if (!wa.length || !wb.length) return 0;
-                const setA = new Set(wa);
-                return wb.filter(w => setA.has(w)).length / Math.max(wa.length, wb.length);
-            }
 
-            // ── build rows (one per bucket file) ─────────────────────
+            // Map publicURL → song for songs that already have audio_url in the DB
+            const urlToSong = {};
+            allSongs.forEach(s => { if (s.audio_url) urlToSong[s.audio_url] = s; });
+
+            // ── build rows: one per bucket file ──────────────────────
             const rows = files.map(file => {
-                const base = fileToBase(file.name);
                 const { data: urlData } = window.supabaseClient.storage
                     .from('songs-audio').getPublicUrl(file.name);
                 const url = urlData?.publicUrl;
-                let match = null, level = null;
-
-                match = allSongs.find(s => norm(s.title) === base);
-                if (match) { level = 'exato'; }
-
-                if (!match) {
-                    match = allSongs.find(s => {
-                        const t = norm(s.title);
-                        return t.includes(base) || base.includes(t);
-                    });
-                    if (match) level = 'parcial';
-                }
-
-                if (!match) {
-                    let best = null, bestScore = 0;
-                    for (const s of allSongs) {
-                        const sc = wordOverlap(norm(s.title), base);
-                        if (sc >= 0.4 && sc > bestScore) { bestScore = sc; best = s; }
-                    }
-                    if (best) { match = best; level = 'aproximado'; }
-                }
-
-                return { file: file.name, url, match, level };
+                // Check actual DB state
+                const linkedSong = url ? (urlToSong[url] || null) : null;
+                return { file: file.name, url, linkedSong };
             });
 
-            // Sort: exato → parcial → aproximado → unmatched
-            const lvlOrd = { exato: 0, parcial: 1, aproximado: 2 };
+            // Sort: linked first (alpha), then unlinked (alpha)
             rows.sort((a, b) => {
-                if (a.match && !b.match) return -1;
-                if (!a.match && b.match) return 1;
-                if (a.match && b.match) return (lvlOrd[a.level] || 0) - (lvlOrd[b.level] || 0);
+                if (a.linkedSong && !b.linkedSong) return -1;
+                if (!a.linkedSong && b.linkedSong) return 1;
                 return a.file.localeCompare(b.file);
             });
 
-            const matchedCount   = rows.filter(r => r.match).length;
-            const unmatchedCount = rows.length - matchedCount;
-
-            const BADGE = {
-                exato:      { color: '#22c55e', bg: '#22c55e1a', label: 'Exato' },
-                parcial:    { color: '#f59e0b', bg: '#f59e0b1a', label: 'Parcial' },
-                aproximado: { color: '#f97316', bg: '#f973161a', label: 'Aprox.' },
-            };
+            const linkedCount   = rows.filter(r => r.linkedSong).length;
+            const unlinkedCount = rows.length - linkedCount;
 
             const datalistOpts = allSongs
                 .map(s => `<option value="${esc(s.title)}"></option>`).join('');
 
             const rowsHtml = rows.map((r, i) => {
-                const b   = r.match ? BADGE[r.level] : null;
-                const chk = r.match && r.level !== 'aproximado' ? 'checked' : '';
-                const badge = b
-                    ? `<span style="font-size:.65rem;font-weight:700;color:${b.color};background:${b.bg};border-radius:4px;padding:2px 6px;flex-shrink:0;white-space:nowrap;">${b.label}</span>`
-                    : `<span style="font-size:.65rem;font-weight:700;color:var(--text-muted);background:rgba(255,255,255,.06);border-radius:4px;padding:2px 6px;flex-shrink:0;">─</span>`;
-                const right = r.match
-                    ? `<span style="font-size:.82rem;font-weight:600;color:var(--text-primary);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${esc(r.match.title)}">${esc(r.match.title)}</span>`
-                    : `<input type="text" class="link-manual" data-file-idx="${i}"
-                           list="songs-dl" autocomplete="off"
-                           placeholder="Buscar música por nome…"
-                           style="flex:1;min-width:0;padding:4px 10px;border-radius:6px;
-                           border:1px solid var(--glass-border);background:var(--bg-raised);
-                           color:var(--text-primary);font-size:.78rem;height:28px;box-sizing:border-box;">`;
-                return `
-                <div class="link-row" data-file="${esc(r.file)}" style="
-                    display:flex;align-items:center;gap:8px;
-                    background:var(--glass-bg);border:1px solid var(--glass-border);
-                    border-radius:8px;padding:7px 12px;">
-                    <input type="checkbox" class="link-chk" data-idx="${i}" ${chk} style="flex-shrink:0;cursor:pointer;">
-                    ${badge}
-                    <span style="font-size:.72rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;flex-shrink:1;" title="${esc(r.file)}">${esc(r.file)}</span>
-                    <span style="color:var(--text-muted);flex-shrink:0;font-size:.72rem;">→</span>
-                    ${right}
-                </div>`;
+                if (r.linkedSong) {
+                    // Already linked row — informational only
+                    return `
+                    <div class="link-row" data-file="${esc(r.file)}" style="
+                        display:flex;align-items:center;gap:8px;
+                        background:var(--glass-bg);border:1px solid var(--glass-border);
+                        border-radius:8px;padding:7px 12px;opacity:.8;">
+                        <i class="fa-solid fa-circle-check" style="color:#22c55e;font-size:.9rem;flex-shrink:0;"></i>
+                        <span style="font-size:.72rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;flex-shrink:1;" title="${esc(r.file)}">${esc(r.file)}</span>
+                        <span style="color:var(--text-muted);flex-shrink:0;font-size:.72rem;">→</span>
+                        <span style="font-size:.82rem;font-weight:600;color:var(--text-primary);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${esc(r.linkedSong.title)}">${esc(r.linkedSong.title)}</span>
+                    </div>`;
+                } else {
+                    // Not linked — show search input
+                    return `
+                    <div class="link-row" data-file="${esc(r.file)}" style="
+                        display:flex;align-items:center;gap:8px;
+                        background:var(--glass-bg);border:1px solid #f59e0b44;
+                        border-radius:8px;padding:7px 12px;">
+                        <i class="fa-solid fa-circle-exclamation" style="color:#f59e0b;font-size:.9rem;flex-shrink:0;"></i>
+                        <span style="font-size:.72rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;flex-shrink:1;" title="${esc(r.file)}">${esc(r.file)}</span>
+                        <span style="color:var(--text-muted);flex-shrink:0;font-size:.72rem;">→</span>
+                        <input type="text" class="link-manual" data-file-idx="${i}"
+                               list="songs-dl" autocomplete="off"
+                               placeholder="Buscar música por nome…"
+                               style="flex:1;min-width:0;padding:4px 10px;border-radius:6px;
+                               border:1px solid var(--glass-border);background:var(--bg-raised);
+                               color:var(--text-primary);font-size:.78rem;height:28px;box-sizing:border-box;">
+                        <button class="link-save-btn" data-file-idx="${i}" title="Vincular"
+                            style="flex-shrink:0;padding:4px 10px;border-radius:6px;border:none;
+                            background:var(--brand);color:#fff;font-size:.75rem;cursor:pointer;height:28px;
+                            display:flex;align-items:center;gap:4px;white-space:nowrap;">
+                            <i class="fa-solid fa-link"></i>
+                        </button>
+                    </div>`;
+                }
             }).join('');
 
             window.HMSApp.openModal(`
@@ -3000,28 +2974,20 @@
                 <div class="modal-body" style="display:flex;flex-direction:column;gap:10px;padding-bottom:0;">
                     <div style="display:flex;gap:16px;font-size:.82rem;flex-wrap:wrap;align-items:center;">
                         <span><strong>${files.length}</strong> <span style="color:var(--text-muted);">arquivos</span></span>
-                        <span style="color:#22c55e;"><i class="fa-solid fa-circle-check" style="font-size:.7rem;"></i> <strong>${matchedCount}</strong> com vínculo</span>
-                        ${unmatchedCount ? `<span style="color:#f59e0b;"><i class="fa-solid fa-circle-exclamation" style="font-size:.7rem;"></i> <strong>${unmatchedCount}</strong> sem vínculo</span>` : ''}
-                        <span style="margin-left:auto;font-size:.7rem;color:var(--text-muted);">
-                            <span style="color:#22c55e;">●</span> Exato &nbsp;
-                            <span style="color:#f59e0b;">●</span> Parcial &nbsp;
-                            <span style="color:#f97316;">●</span> Aprox.
-                        </span>
+                        <span style="color:#22c55e;"><i class="fa-solid fa-circle-check" style="font-size:.7rem;"></i> <strong>${linkedCount}</strong> vinculados</span>
+                        ${unlinkedCount ? `<span style="color:#f59e0b;"><i class="fa-solid fa-circle-exclamation" style="font-size:.7rem;"></i> <strong>${unlinkedCount}</strong> sem vínculo</span>` : ''}
                     </div>
                     <input id="link-search" type="text" placeholder="🔍 Filtrar por nome do arquivo..."
                         style="width:100%;box-sizing:border-box;padding:7px 12px;border-radius:8px;
                         border:1px solid var(--glass-border);background:var(--glass-bg);
                         color:var(--text-primary);font-size:.82rem;">
-                    <div id="link-rows" style="max-height:400px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding-right:2px;">
+                    <div id="link-rows" style="max-height:420px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding-right:2px;">
                         ${rowsHtml}
                     </div>
                     <datalist id="songs-dl">${datalistOpts}</datalist>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" id="modal-cancel-btn">Cancelar</button>
-                    <button class="btn btn-primary" id="btn-confirm-link">
-                        <i class="fa-solid fa-link"></i> Vincular selecionadas
-                    </button>
+                    <button class="btn btn-secondary" id="modal-cancel-btn">Fechar</button>
                 </div>
             `);
 
@@ -3036,52 +3002,47 @@
                 });
             });
 
-            // Auto-check manual rows when a song is typed
-            document.querySelectorAll('.link-manual').forEach(input => {
-                input.addEventListener('input', function () {
-                    const idx = this.dataset.fileIdx;
-                    const chk = document.querySelector(`.link-chk[data-idx="${idx}"]`);
-                    if (chk) chk.checked = !!this.value.trim();
-                });
-            });
-
-            // Confirm: save matched (checked) + manual selections
-            document.getElementById('btn-confirm-link').addEventListener('click', async () => {
-                const confirmBtn = document.getElementById('btn-confirm-link');
-                confirmBtn.disabled = true;
-                confirmBtn.innerHTML = '<span class="btn-spinner"></span> Salvando…';
-
-                const toSave = [];
-
-                // Matched rows that are checked
-                [...document.querySelectorAll('.link-chk:checked')].forEach(chk => {
-                    const idx = parseInt(chk.dataset.idx);
-                    const r   = rows[idx];
-                    if (r && r.match) toSave.push({ songId: r.match.id, url: r.url });
-                });
-
-                // Manual rows: checked + valid song name
-                document.querySelectorAll('.link-manual').forEach(input => {
-                    const idx  = parseInt(input.dataset.fileIdx);
-                    const chk  = document.querySelector(`.link-chk[data-idx="${idx}"]`);
-                    if (!chk?.checked) return;
-                    const title = input.value.trim();
-                    if (!title) return;
+            // Per-row save buttons
+            document.querySelectorAll('.link-save-btn').forEach(btn => {
+                btn.addEventListener('click', async function () {
+                    const idx   = parseInt(this.dataset.fileIdx);
+                    const input = document.querySelector(`.link-manual[data-file-idx="${idx}"]`);
+                    const title = (input?.value || '').trim();
+                    if (!title) {
+                        window.HMSApp.showToast('Digite o nome da música antes de vincular.', 'warning');
+                        return;
+                    }
                     const song = allSongs.find(s => norm(s.title) === norm(title));
-                    if (song) toSave.push({ songId: song.id, url: rows[idx].url });
-                });
-
-                let saved = 0;
-                for (const item of toSave) {
+                    if (!song) {
+                        window.HMSApp.showToast(`Música "${title}" não encontrada.`, 'warning');
+                        return;
+                    }
+                    const r = rows[idx];
+                    this.disabled = true;
+                    this.innerHTML = '<span class="btn-spinner" style="width:12px;height:12px;border-width:2px;"></span>';
                     try {
-                        await window.HMSAPI.Songs.update(item.songId, { audio_url: item.url });
-                        saved++;
-                    } catch (e) { console.warn('[LinkAudio] failed:', e); }
-                }
-
-                window.HMSApp.closeModal();
-                window.HMSApp.showToast(`${saved} músicas vinculadas com sucesso!`, 'success');
-                await RepertoireComponent._loadSongs();
+                        await window.HMSAPI.Songs.update(song.id, { audio_url: r.url });
+                        // Update row in-place to show linked state
+                        const row = this.closest('.link-row');
+                        if (row) {
+                            row.style.border = '1px solid var(--glass-border)';
+                            row.style.opacity = '.8';
+                            row.innerHTML = `
+                                <i class="fa-solid fa-circle-check" style="color:#22c55e;font-size:.9rem;flex-shrink:0;"></i>
+                                <span style="font-size:.72rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;flex-shrink:1;" title="${esc(r.file)}">${esc(r.file)}</span>
+                                <span style="color:var(--text-muted);flex-shrink:0;font-size:.72rem;">→</span>
+                                <span style="font-size:.82rem;font-weight:600;color:var(--text-primary);flex:1;">${esc(song.title)}</span>`;
+                        }
+                        window.HMSApp.showToast(`"${song.title}" vinculado!`, 'success');
+                        // Update allSongs cache so next save reflects new state
+                        song.audio_url = r.url;
+                        urlToSong[r.url] = song;
+                    } catch (e) {
+                        this.disabled = false;
+                        this.innerHTML = '<i class="fa-solid fa-link"></i>';
+                        window.HMSApp.showToast('Erro ao vincular: ' + e.message, 'error');
+                    }
+                });
             });
         },
 
