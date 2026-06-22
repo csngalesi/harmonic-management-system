@@ -2865,7 +2865,7 @@
         _bulkLinkAudio: async function () {
             window.HMSApp.showLoading();
 
-            // 1. List files in songs-audio bucket
+            // 1. List bucket files
             let files;
             try {
                 const { data, error } = await window.supabaseClient.storage
@@ -2878,7 +2878,7 @@
                 return;
             }
 
-            // 2. Load all songs
+            // 2. Load songs
             let allSongs;
             try {
                 allSongs = await window.HMSAPI.Songs.getAll();
@@ -2894,46 +2894,36 @@
                 return;
             }
 
-            // Normalize: lowercase, trim, remove diacritics, collapse spaces
+            // ── helpers ──────────────────────────────────────────────
             function norm(str) {
                 return (str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
                     .toLowerCase().replace(/\s+/g, ' ').trim();
             }
-
-            // Strip audio extension + leading key token (e.g. "C ", "Am ", "F#m ", "Eb ")
             function fileToBase(filename) {
                 return norm(filename
                     .replace(/\.(mp3|m4a|ogg|wav|aac)$/i, '')
                     .replace(/^[A-Ga-g][b#]?m?\s+/, '')
                     .trim());
             }
-
-            // Word-overlap score: common words / max(words1, words2)
             function wordOverlap(a, b) {
                 const wa = a.split(/\s+/).filter(Boolean);
                 const wb = b.split(/\s+/).filter(Boolean);
                 if (!wa.length || !wb.length) return 0;
                 const setA = new Set(wa);
-                const common = wb.filter(w => setA.has(w)).length;
-                return common / Math.max(wa.length, wb.length);
+                return wb.filter(w => setA.has(w)).length / Math.max(wa.length, wb.length);
             }
 
-            // Build match candidates
-            const matches   = [];   // { song, file, url, level: 'exato'|'parcial'|'aproximado' }
-            const unmatched = [];   // filenames with no match
-
-            for (const file of files) {
+            // ── build rows (one per bucket file) ─────────────────────
+            const rows = files.map(file => {
                 const base = fileToBase(file.name);
                 const { data: urlData } = window.supabaseClient.storage
                     .from('songs-audio').getPublicUrl(file.name);
                 const url = urlData?.publicUrl;
-                if (!url) continue;
+                let match = null, level = null;
 
-                // Tier 1: exact
-                let match = allSongs.find(s => norm(s.title) === base);
-                let level = 'exato';
+                match = allSongs.find(s => norm(s.title) === base);
+                if (match) { level = 'exato'; }
 
-                // Tier 2: one contains the other
                 if (!match) {
                     match = allSongs.find(s => {
                         const t = norm(s.title);
@@ -2942,113 +2932,157 @@
                     if (match) level = 'parcial';
                 }
 
-                // Tier 3: word overlap ≥ 40%
                 if (!match) {
                     let best = null, bestScore = 0;
                     for (const s of allSongs) {
-                        const score = wordOverlap(norm(s.title), base);
-                        if (score >= 0.4 && score > bestScore) {
-                            bestScore = score;
-                            best = s;
-                        }
+                        const sc = wordOverlap(norm(s.title), base);
+                        if (sc >= 0.4 && sc > bestScore) { bestScore = sc; best = s; }
                     }
                     if (best) { match = best; level = 'aproximado'; }
                 }
 
-                if (match) {
-                    matches.push({ song: match, file: file.name, url, level });
-                } else {
-                    unmatched.push(file.name);
-                }
-            }
+                return { file: file.name, url, match, level };
+            });
+
+            // Sort: exato → parcial → aproximado → unmatched
+            const lvlOrd = { exato: 0, parcial: 1, aproximado: 2 };
+            rows.sort((a, b) => {
+                if (a.match && !b.match) return -1;
+                if (!a.match && b.match) return 1;
+                if (a.match && b.match) return (lvlOrd[a.level] || 0) - (lvlOrd[b.level] || 0);
+                return a.file.localeCompare(b.file);
+            });
+
+            const matchedCount   = rows.filter(r => r.match).length;
+            const unmatchedCount = rows.length - matchedCount;
 
             const BADGE = {
-                exato:      { color: '#22c55e', label: 'Exato' },
-                parcial:    { color: '#f59e0b', label: 'Parcial' },
-                aproximado: { color: '#f97316', label: 'Aprox.' },
+                exato:      { color: '#22c55e', bg: '#22c55e1a', label: 'Exato' },
+                parcial:    { color: '#f59e0b', bg: '#f59e0b1a', label: 'Parcial' },
+                aproximado: { color: '#f97316', bg: '#f973161a', label: 'Aprox.' },
             };
 
-            // 3. Show confirmation modal
+            const datalistOpts = allSongs
+                .map(s => `<option value="${esc(s.title)}"></option>`).join('');
+
+            const rowsHtml = rows.map((r, i) => {
+                const b   = r.match ? BADGE[r.level] : null;
+                const chk = r.match && r.level !== 'aproximado' ? 'checked' : '';
+                const badge = b
+                    ? `<span style="font-size:.65rem;font-weight:700;color:${b.color};background:${b.bg};border-radius:4px;padding:2px 6px;flex-shrink:0;white-space:nowrap;">${b.label}</span>`
+                    : `<span style="font-size:.65rem;font-weight:700;color:var(--text-muted);background:rgba(255,255,255,.06);border-radius:4px;padding:2px 6px;flex-shrink:0;">─</span>`;
+                const right = r.match
+                    ? `<span style="font-size:.82rem;font-weight:600;color:var(--text-primary);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${esc(r.match.title)}">${esc(r.match.title)}</span>`
+                    : `<input type="text" class="link-manual" data-file-idx="${i}"
+                           list="songs-dl" autocomplete="off"
+                           placeholder="Buscar música por nome…"
+                           style="flex:1;min-width:0;padding:4px 10px;border-radius:6px;
+                           border:1px solid var(--glass-border);background:var(--bg-raised);
+                           color:var(--text-primary);font-size:.78rem;height:28px;box-sizing:border-box;">`;
+                return `
+                <div class="link-row" data-file="${esc(r.file)}" style="
+                    display:flex;align-items:center;gap:8px;
+                    background:var(--glass-bg);border:1px solid var(--glass-border);
+                    border-radius:8px;padding:7px 12px;">
+                    <input type="checkbox" class="link-chk" data-idx="${i}" ${chk} style="flex-shrink:0;cursor:pointer;">
+                    ${badge}
+                    <span style="font-size:.72rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;flex-shrink:1;" title="${esc(r.file)}">${esc(r.file)}</span>
+                    <span style="color:var(--text-muted);flex-shrink:0;font-size:.72rem;">→</span>
+                    ${right}
+                </div>`;
+            }).join('');
+
             window.HMSApp.openModal(`
                 <div class="modal-header">
                     <h3><i class="fa-solid fa-link"></i> Vincular Áudio</h3>
                     <button class="modal-close" id="modal-close-btn"><i class="fa-solid fa-xmark"></i></button>
                 </div>
-                <div class="modal-body">
-                    <p style="font-size:.875rem;color:var(--text-muted);margin-bottom:14px;">
-                        <strong style="color:var(--text-primary);">${matches.length}</strong> correspondências encontradas
-                        de <strong style="color:var(--text-primary);">${files.length}</strong> arquivos no bucket.
-                        ${unmatched.length ? `<br><span style="color:#f59e0b;">${unmatched.length} sem correspondência.</span>` : ''}
-                        <br><span style="font-size:.72rem;">
+                <div class="modal-body" style="display:flex;flex-direction:column;gap:10px;padding-bottom:0;">
+                    <div style="display:flex;gap:16px;font-size:.82rem;flex-wrap:wrap;align-items:center;">
+                        <span><strong>${files.length}</strong> <span style="color:var(--text-muted);">arquivos</span></span>
+                        <span style="color:#22c55e;"><i class="fa-solid fa-circle-check" style="font-size:.7rem;"></i> <strong>${matchedCount}</strong> com vínculo</span>
+                        ${unmatchedCount ? `<span style="color:#f59e0b;"><i class="fa-solid fa-circle-exclamation" style="font-size:.7rem;"></i> <strong>${unmatchedCount}</strong> sem vínculo</span>` : ''}
+                        <span style="margin-left:auto;font-size:.7rem;color:var(--text-muted);">
                             <span style="color:#22c55e;">●</span> Exato &nbsp;
                             <span style="color:#f59e0b;">●</span> Parcial &nbsp;
-                            <span style="color:#f97316;">●</span> Aproximado (desmarcado por padrão)
+                            <span style="color:#f97316;">●</span> Aprox.
                         </span>
-                    </p>
-                    ${matches.length === 0 ? `
-                        <div style="text-align:center;padding:24px 0;color:var(--text-muted);">
-                            <i class="fa-solid fa-triangle-exclamation" style="font-size:2rem;color:#f59e0b;margin-bottom:8px;display:block;"></i>
-                            Nenhuma música correspondente encontrada.
-                        </div>
-                    ` : `
-                        <div style="max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:12px;">
-                            ${matches.map((m, i) => {
-                                const b = BADGE[m.level];
-                                const checked = m.level !== 'aproximado' ? 'checked' : '';
-                                return `
-                                <div style="display:flex;align-items:center;gap:8px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:8px;padding:8px 12px;">
-                                    <input type="checkbox" class="link-chk" data-idx="${i}" ${checked} />
-                                    <span style="font-size:.7rem;font-weight:700;color:${b.color};white-space:nowrap;background:${b.color}22;border-radius:4px;padding:2px 6px;">${b.label}</span>
-                                    <div style="flex:1;min-width:0;">
-                                        <div style="font-size:.875rem;font-weight:600;">${esc(m.song.title)}</div>
-                                        <div style="font-size:.72rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(m.file)}</div>
-                                    </div>
-                                </div>`;
-                            }).join('')}
-                        </div>
-                    `}
-                    ${unmatched.length ? `
-                        <details style="font-size:.78rem;color:var(--text-muted);">
-                            <summary style="cursor:pointer;">Arquivos sem correspondência (${unmatched.length})</summary>
-                            <ul style="margin:6px 0 0 16px;">${unmatched.map(f => `<li>${esc(f)}</li>`).join('')}</ul>
-                        </details>
-                    ` : ''}
+                    </div>
+                    <input id="link-search" type="text" placeholder="🔍 Filtrar por nome do arquivo..."
+                        style="width:100%;box-sizing:border-box;padding:7px 12px;border-radius:8px;
+                        border:1px solid var(--glass-border);background:var(--glass-bg);
+                        color:var(--text-primary);font-size:.82rem;">
+                    <div id="link-rows" style="max-height:400px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding-right:2px;">
+                        ${rowsHtml}
+                    </div>
+                    <datalist id="songs-dl">${datalistOpts}</datalist>
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" id="modal-cancel-btn">Cancelar</button>
-                    ${matches.length > 0 ? `<button class="btn btn-primary" id="btn-confirm-link">
+                    <button class="btn btn-primary" id="btn-confirm-link">
                         <i class="fa-solid fa-link"></i> Vincular selecionadas
-                    </button>` : ''}
+                    </button>
                 </div>
             `);
 
             document.getElementById('modal-close-btn').addEventListener('click', window.HMSApp.closeModal);
             document.getElementById('modal-cancel-btn').addEventListener('click', window.HMSApp.closeModal);
 
-            const confirmBtn = document.getElementById('btn-confirm-link');
-            if (confirmBtn) {
-                confirmBtn.addEventListener('click', async () => {
-                    const selected = [...document.querySelectorAll('.link-chk:checked')]
-                        .map(chk => matches[parseInt(chk.dataset.idx)]);
-
-                    confirmBtn.disabled = true;
-                    confirmBtn.innerHTML = '<span class="btn-spinner"></span> Salvando…';
-
-                    let saved = 0;
-                    for (const m of selected) {
-                        try {
-                            await window.HMSAPI.Songs.update(m.song.id, { audio_url: m.url });
-                            saved++;
-                        } catch (e) {
-                            console.warn('[LinkAudio] failed:', m.song.title, e);
-                        }
-                    }
-
-                    window.HMSApp.closeModal();
-                    window.HMSApp.showToast(`${saved} músicas vinculadas com sucesso!`, 'success');
-                    await RepertoireComponent._loadSongs();
+            // Filter rows by filename
+            document.getElementById('link-search').addEventListener('input', function () {
+                const q = this.value.toLowerCase();
+                document.querySelectorAll('.link-row').forEach(row => {
+                    row.style.display = (row.dataset.file || '').toLowerCase().includes(q) ? '' : 'none';
                 });
-            }
+            });
+
+            // Auto-check manual rows when a song is typed
+            document.querySelectorAll('.link-manual').forEach(input => {
+                input.addEventListener('input', function () {
+                    const idx = this.dataset.fileIdx;
+                    const chk = document.querySelector(`.link-chk[data-idx="${idx}"]`);
+                    if (chk) chk.checked = !!this.value.trim();
+                });
+            });
+
+            // Confirm: save matched (checked) + manual selections
+            document.getElementById('btn-confirm-link').addEventListener('click', async () => {
+                const confirmBtn = document.getElementById('btn-confirm-link');
+                confirmBtn.disabled = true;
+                confirmBtn.innerHTML = '<span class="btn-spinner"></span> Salvando…';
+
+                const toSave = [];
+
+                // Matched rows that are checked
+                [...document.querySelectorAll('.link-chk:checked')].forEach(chk => {
+                    const idx = parseInt(chk.dataset.idx);
+                    const r   = rows[idx];
+                    if (r && r.match) toSave.push({ songId: r.match.id, url: r.url });
+                });
+
+                // Manual rows: checked + valid song name
+                document.querySelectorAll('.link-manual').forEach(input => {
+                    const idx  = parseInt(input.dataset.fileIdx);
+                    const chk  = document.querySelector(`.link-chk[data-idx="${idx}"]`);
+                    if (!chk?.checked) return;
+                    const title = input.value.trim();
+                    if (!title) return;
+                    const song = allSongs.find(s => norm(s.title) === norm(title));
+                    if (song) toSave.push({ songId: song.id, url: rows[idx].url });
+                });
+
+                let saved = 0;
+                for (const item of toSave) {
+                    try {
+                        await window.HMSAPI.Songs.update(item.songId, { audio_url: item.url });
+                        saved++;
+                    } catch (e) { console.warn('[LinkAudio] failed:', e); }
+                }
+
+                window.HMSApp.closeModal();
+                window.HMSApp.showToast(`${saved} músicas vinculadas com sucesso!`, 'success');
+                await RepertoireComponent._loadSongs();
+            });
         },
 
         // ── Bulk Hygienize ────────────────────────────────────────
