@@ -1733,10 +1733,20 @@
                             </div>
                             <div class="form-group form-group-full">
                                 <label class="form-label">URL do Áudio (MP3)</label>
-                                <input type="url" id="sf-audio-url" class="form-input"
-                                    placeholder="https://…/musica.mp3"
-                                    value="${esc(song?.audio_url || '')}" />
-                                <span class="form-hint">Link direto para o arquivo MP3 (Supabase Storage, CDN, etc.)</span>
+                                <div style="display:flex;gap:8px;align-items:center;">
+                                    <input type="url" id="sf-audio-url" class="form-input" style="flex:1;"
+                                        placeholder="https://…/musica.mp3"
+                                        value="${esc(song?.audio_url || '')}" />
+                                    <button type="button" id="btn-upload-audio-inline" title="Fazer upload de MP3 para o Supabase Storage"
+                                        style="flex-shrink:0;padding:0 14px;height:38px;border-radius:8px;border:1px solid var(--glass-border);
+                                        background:var(--glass-bg);color:var(--text-secondary);cursor:pointer;
+                                        display:flex;align-items:center;gap:6px;font-size:.82rem;white-space:nowrap;
+                                        transition:background .15s,color .15s;">
+                                        <i class="fa-solid fa-upload"></i> Upload
+                                    </button>
+                                    <input type="file" id="sf-audio-file-input" accept=".mp3,.m4a,.ogg,.wav,.aac,audio/*" style="display:none;">
+                                </div>
+                                <span class="form-hint">Cole um link direto ou clique em Upload para enviar o arquivo para o Supabase Storage.</span>
                             </div>
                         </div>
                     </form>
@@ -1757,6 +1767,48 @@
             });
             document.getElementById('btn-fetch-lyrics').addEventListener('click', () => {
                 RepertoireComponent._fetchLyrics();
+            });
+
+            // ── Inline audio upload ───────────────────────────────────
+            const _uploadBtn  = document.getElementById('btn-upload-audio-inline');
+            const _fileInput  = document.getElementById('sf-audio-file-input');
+            const _urlInput   = document.getElementById('sf-audio-url');
+
+            _uploadBtn.addEventListener('click', () => _fileInput.click());
+
+            _fileInput.addEventListener('change', async () => {
+                const file = _fileInput.files[0];
+                if (!file) return;
+
+                // Feedback: spinner
+                _uploadBtn.disabled = true;
+                _uploadBtn.innerHTML = '<span class="btn-spinner" style="width:13px;height:13px;border-width:2px;"></span> Enviando…';
+
+                try {
+                    const { error } = await window.supabaseClient.storage
+                        .from('songs-audio')
+                        .upload(file.name, file, { contentType: file.type || 'audio/mpeg', upsert: true });
+                    if (error) throw error;
+
+                    const { data: urlData } = window.supabaseClient.storage
+                        .from('songs-audio').getPublicUrl(file.name);
+                    const publicUrl = urlData?.publicUrl;
+
+                    if (publicUrl) {
+                        _urlInput.value = publicUrl;
+                        _uploadBtn.innerHTML = '<i class="fa-solid fa-circle-check" style="color:#22c55e;"></i> Enviado';
+                        window.HMSApp.showToast(`"${file.name}" enviado com sucesso!`, 'success');
+                    }
+                } catch (err) {
+                    _uploadBtn.innerHTML = '<i class="fa-solid fa-circle-xmark" style="color:#ef4444;"></i> Erro';
+                    window.HMSApp.showToast('Erro no upload: ' + err.message, 'error');
+                } finally {
+                    _uploadBtn.disabled = false;
+                    // Reset button after 3s
+                    setTimeout(() => {
+                        _uploadBtn.innerHTML = '<i class="fa-solid fa-upload"></i> Upload';
+                    }, 3000);
+                }
             });
 
             document.getElementById('sf-title').focus();
