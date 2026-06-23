@@ -791,6 +791,90 @@
             });
         },
 
+        /**
+         * Render a raw HMS functional harmony string as styled HTML chips.
+         * Used for "Harm Func" display — shows degrees/labels as-typed, no transposition.
+         *
+         * Centralises what was previously duplicated as `buildFuncHtml` in UI components.
+         * Correctly handles multi-word labels: $é esse o dev$ → single sd-label chip.
+         *
+         * @param {string}   str   - Raw HMS harmony string (e.g. "$mom$ 1 25(4) $Refrão$")
+         * @param {Function} [esc] - HTML-escape fn; defaults to a safe built-in implementation
+         * @returns {string} HTML — series of <span class="sd-chord|sd-label|sd-sep|sd-mod"> chips
+         */
+        renderFuncHtml(str, esc) {
+            const _esc = esc || (s => String(s || '')
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;').replace(/"/g, '&quot;'));
+
+            if (!str || !str.trim()) {
+                return '<span style="color:var(--text-muted);font-size:.85rem;">Sem harmonia cadastrada.</span>';
+            }
+
+            const tokens = tokenize(str);
+            if (!tokens.length) {
+                return '<span style="color:var(--text-muted);font-size:.85rem;">Sem harmonia cadastrada.</span>';
+            }
+
+            // Recursively renders a flat token array → HTML chip array
+            function renderToks(toks) {
+                const out = [];
+                for (const t of toks) {
+                    switch (t.type) {
+
+                        case 'LABEL':
+                        case 'RAW':
+                            out.push(`<span class="sd-label">${_esc(t.value)}</span>`);
+                            break;
+
+                        case 'MOD':
+                            out.push(`<span class="sd-mod">${_esc('!' + t.value + '!')}</span>`);
+                            break;
+
+                        case 'STRUCT':
+                            if (t.value === '/') {
+                                out.push(`<span class="sd-chord">/</span>`);
+                            } else {
+                                out.push(`<span class="sd-sep">${_esc(t.value) || '·'}</span>`);
+                            }
+                            break;
+
+                        case 'CHORD':
+                            out.push(`<span class="sd-chord">${_esc(t.value)}</span>`);
+                            break;
+
+                        case 'DOT_DEGREE':
+                            out.push(`<span class="sd-chord">${_esc(t.outer + '.' + t.inner)}</span>`);
+                            break;
+
+                        case 'SEC_DOM': {
+                            // Reconstruct the original notation (e.g. "25(4)", "5/(3/)")
+                            const prefix = t.prefix.join('');
+                            const open   = t.showTarget ? '(' : '"';
+                            const close  = t.showTarget ? ')' : '"';
+                            const slashB = t.slashBeforeTarget ? '/' : '';
+                            const slashA = t.slashAfterTarget  ? '/' : '';
+                            out.push(`<span class="sd-chord">${_esc(prefix + slashB + open + t.target + slashA + close)}</span>`);
+                            break;
+                        }
+
+                        case 'SECTION': {
+                            // Render inner content, then append ×N marker if N > 1
+                            const innerToks = tokenize(t.content);
+                            out.push(...renderToks(innerToks));
+                            if (t.times > 1) {
+                                out.push(`<span class="sd-sep">${_esc('×' + t.times)}</span>`);
+                            }
+                            break;
+                        }
+                    }
+                }
+                return out;
+            }
+
+            return renderToks(tokens).join('');
+        },
+
         allKeys,
 
         /** Returns raw functional tokens (no transposition). */
