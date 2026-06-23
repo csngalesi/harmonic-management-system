@@ -79,7 +79,8 @@
 
         const accidental = m[1];
         const degNum = parseInt(m[2]);
-        let suffix = m[3];
+        // Strip the ':' quality separator if present before processing suffix
+        let suffix = m[3].startsWith(':') ? m[3].slice(1) : m[3];
 
         const noteIdx = degreeNoteIdx(keyState, degNum, accidental);
         const note = idxToNote(noteIdx, keyState.useFlats);
@@ -231,7 +232,7 @@
             // SEC_DOM with trailing chord(s): 5///(4///)4m/// → SEC_DOM + CHORD(s)
             // Also handles 5/(3/)251 → SEC_DOM + three CHORDs.
             // Slash chars are allowed in the prefix (e.g. 5///).
-            const sdTrailM = raw.match(/^([b#1-7mMho7/]+)\((.+?)\)(.+)$/);
+            const sdTrailM = raw.match(/^([b#1-7mMho7/:]+)\((.+?)\)(.+)$/);
             if (sdTrailM && sdTrailM[3]) {
                 tokens.push({
                     type: 'SEC_DOM',
@@ -251,8 +252,8 @@
             // Secondary dominant: prefix + (target) or "target"
             // E.g.: 25(4), 57(6m), 5///"6", 5/"2"
             // Slash chars allowed in prefix (e.g. 5///).
-            const sdM = raw.match(/^([b#1-7mMho7/]+)\((.+?)\)$/) ||
-                raw.match(/^([b#1-7mMho7/]+)"(.+?)"$/);
+            const sdM = raw.match(/^([b#1-7mMho7/:]+)\((.+?)\)$/) ||
+                raw.match(/^([b#1-7mMho7/:]+)"(.+?)"$/);
             if (sdM) {
                 const showTarget = raw.includes('(');
                 const prefixTokens = parsePrefixStr(sdM[1]);
@@ -279,14 +280,14 @@
 
             // Parenthesized bare degree: (2), (4m), (b3) → treat as chord
             // Handles standalone tokens like "(2)" that appear in section notation
-            const parenDegM = raw.match(/^\(([b#]?[1-7][mMho7]*(?:\/[b#]?[1-7][mMho7]*)?)\)$/);
+            const parenDegM = raw.match(/^\(([b#]?[1-7](?::[^\s/)]*|[mMho7]*)(?:\/[b#]?[1-7](?::[^\s/)]*|[mMho7]*)?)?)\)$/);
             if (parenDegM) {
                 tokens.push({ type: 'CHORD', value: parenDegM[1] });
                 continue;
             }
 
             // Parenthesized degree followed immediately by another degree: (4)4m → two chords
-            const parenPlusDegM = raw.match(/^\(([b#]?[1-7][mMho7]*)\)([b#]?[1-7][mMho7]*)$/);
+            const parenPlusDegM = raw.match(/^\(([b#]?[1-7](?::[^\s/)]*|[mMho7]*))\)([b#]?[1-7](?::[^\s/)]*|[mMho7]*)?)$/);
             if (parenPlusDegM) {
                 tokens.push({ type: 'CHORD', value: parenPlusDegM[1] });
                 tokens.push({ type: 'CHORD', value: parenPlusDegM[2] });
@@ -330,9 +331,12 @@
     }
 
     // Parse a run of degree tokens from a string like "25" or "b725"
+    // Supports ':quality' suffix (e.g. "1:6", "2:m7") — the colon and following
+    // non-space characters are captured as part of the degree token.
     function parsePrefixStr(str) {
         // Include trailing slashes so "5///" stays "5///" and round-trips correctly.
-        return str.match(/[b#]?[1-7][mMho7]*\/*/g) || [];
+        // ':...' suffix captures the colon-prefixed quality extension.
+        return str.match(/[b#]?[1-7](?::[^\s/]*|[mMho7]*)\/*(?:\/{0})*/g) || [];
     }
 
     // ── State Machine Processor ──────────────────────────────────
@@ -505,18 +509,23 @@
             .replace('half-dim', 'm7(b5)');
     }
 
-    // Convert a chord quality back to HMS suffix notation
+    // Convert a chord quality back to HMS suffix notation.
+    // Qualities that start with a digit (7, M7, m7, 6, 9, etc.) get a ':' prefix
+    // to avoid ambiguity with bare degree numbers (e.g. "17" = two chords, "1:7" = C7).
+    // Single-letter non-digit suffixes (m, M, h, o, +) stay without ':'.
     function qualityToHmsSuffix(quality) {
         const q = normalizeQ(quality);
-        if (q === '' || q === 'M' || q === 'maj') return 'M'; // force major
-        if (q === 'm') return 'm';
-        if (q === '7') return '7';
-        if (q === 'm7') return 'm7';
-        if (q === 'M7') return 'M7';
-        if (q === 'm7(b5)') return 'h';
-        if (q === '°' || q === 'dim') return 'o';
-        // Pass through unknown extensions
-        return quality;
+        if (q === '' || q === 'M' || q === 'maj') return 'M'; // force major, no colon needed
+        if (q === 'm')         return 'm';          // minor — single letter, no colon
+        if (q === 'm7(b5)')    return 'h';          // half-dim — letter, no colon (user rule)
+        if (q === '°' || q === 'dim') return 'o';  // diminished — letter, no colon
+        // Qualities containing digits: need ':' to avoid merging with next degree token
+        if (q === '7')    return ':7';
+        if (q === 'm7')   return ':m7';
+        if (q === 'M7')   return ':M7';
+        if (q === '°7')   return ':o7';
+        // Pass through unknown extensions with ':'
+        return ':' + quality;
     }
 
     // Analyze a single chord string against a key, return degree token
@@ -547,7 +556,7 @@
             // Non-diatonic quality override
             const hmsSuffix = qualityToHmsSuffix(parsed.quality);
             // If we're forcing a major chord on a naturally minor degree, use 'M'
-            if (hmsSuffix === 'M' && ['2', '3', '6'].includes(degStr)) return degStr + 'M';
+            if ((hmsSuffix === 'M') && ['2', '3', '6'].includes(degStr)) return degStr + 'M';
             return degStr + hmsSuffix;
         }
 
@@ -741,7 +750,7 @@
     }
 
     function extractQuality(degStr) {
-        const m = degStr.match(/^[b#]?[1-7](.*)/);
+        const m = degStr.match(/^[b#]?[1-7]:?(.*)$/);
         return m ? m[1] : '';
     }
 
