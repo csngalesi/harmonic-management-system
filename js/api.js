@@ -117,11 +117,15 @@
 
         async update(id, payload) {
             requireOnline('editar música');
-            const { error } = await db()
+            const { data, error } = await db()
                 .from('songs')
                 .update(payload)
-                .eq('id', id);
+                .eq('id', id)
+                .select('id');
             if (error) throw error;
+            if (!data || data.length === 0) {
+                throw new Error('Sem permissão para editar esta música. Contate o administrador.');
+            }
         },
 
         async delete(id) {
