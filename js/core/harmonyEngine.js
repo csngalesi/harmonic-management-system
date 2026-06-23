@@ -611,10 +611,21 @@
                 }
 
                 // ii-V detection (V must have dominant 7 quality)
-                // EXCEPTION: if BOTH the ii and V chords have repeat flags, they are
-                // sustained independently (e.g. Bm/ E7/ → 3/ 5/"2"), not a ii-V pair.
-                const isIIchord = (q1 === 'm' || q1 === 'm7' || q1 === 'h' || q1 === 'm7(b5)');
+                // Semantic gate: a chord can act as "ii" ONLY if it is:
+                //   1. The natural ii of this key (degree 2, no explicit suffix, e.g. Am in G),
+                //   2. Half-diminished (e.g. F#m7b5 — always ii in minor-key ii-V), OR
+                //   3. A non-diatonic chord (has explicit quality suffix, e.g. Dm='5m').
+                // Diatonic minor chords at other degrees (Bm=iii, Em=vi) are scale degrees,
+                // NEVER the ii of any secondary ii-V pattern.
+                const bareNum1   = parseInt(extractBareNumber(d1));
+                const explicitQ1 = extractQuality(d1);           // '' = diatonic/natural
+                const canBeII    = (explicitQ1 === '' && bareNum1 === 2)  // natural ii
+                                || q1 === 'h' || q1 === 'm7(b5)'          // half-dim
+                                || explicitQ1 !== '';                      // non-diatonic
+                const isIIchord = canBeII && (q1 === 'm' || q1 === 'm7' || q1 === 'h' || q1 === 'm7(b5)');
                 const isP4up    = ((ni1 + 5) % 12 === ni2);
+                // Also skip grouping when BOTH ii and V are individually sustained (repeated),
+                // so that e.g. Am/ D7/ is kept as two separate chords rather than merged as ii-V.
                 if (isIIchord && q2 === '7' && isP4up && !(r0 > 0 && r1 > 0)) {
                     const targetIdx = (ni2 + 5) % 12; // V resolves P4 above its root
 
