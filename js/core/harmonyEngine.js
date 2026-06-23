@@ -128,6 +128,17 @@
             return ` §${i}§ `;
         });
 
+        // 2c. Extract $...$ label spans (may contain spaces) BEFORE the whitespace split.
+        //     Without this, "$é esse o dev$" would be split into ["$é","esse","o","dev$"]
+        //     and none of the fragments would match the $...$ LABEL rule.
+        //     Uses ¤N¤ as placeholder (¤ never appears in valid harmony strings).
+        const dollarLabels = [];
+        str = str.replace(/\$([^$]+)\$/g, (_, inner) => {
+            const i = dollarLabels.length;
+            dollarLabels.push(inner.trim());
+            return ` ¤${i}¤ `;
+        });
+
         // Pre-process SEC_DOM patterns that contain slashes (e.g. 5/(3/)) BEFORE
         // the global slash injection, which would otherwise break them.
         const secDomSlash = [];
@@ -183,6 +194,13 @@
             if (secM) {
                 const s = sections[parseInt(secM[1], 10)];
                 tokens.push({ type: 'SECTION', content: s.content, times: s.times, style: s.style || '{' });
+                continue;
+            }
+
+            // Dollar-label placeholder (¤N¤): restores $...$ spans that may have had spaces
+            const dlM = raw.match(/^¤(\d+)¤$/);
+            if (dlM) {
+                tokens.push({ type: 'LABEL', value: dollarLabels[parseInt(dlM[1], 10)] });
                 continue;
             }
 
