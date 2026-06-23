@@ -598,10 +598,11 @@
                 const ni1 = noteIdxArr[i], ni2 = noteIdxArr[i + 1];
                 const d1  = degreeArr[i],  d2  = degreeArr[i + 1];
                 const q1  = getQ(d1),      q2  = getQ(d2);
-                const r0  = rf[i]     ?? false;
-                const r1  = rf[i + 1] ?? false;
+                const r0  = rf[i]     ?? 0;
+                const r1  = rf[i + 1] ?? 0;
 
-                const isIIchord = (q1 === 'm' || q1 === 'm7' || q1 === 'h');
+                // isIIchord: includes m7(b5) half-diminished so F#m7(b5) is recognized as ii
+                const isIIchord = (q1 === 'm' || q1 === 'm7' || q1 === 'h' || q1 === 'm7(b5)');
                 const isP4up    = ((ni1 + 5) % 12 === ni2);
 
                 // ii-V detection (V must have dominant 7 quality)
@@ -610,14 +611,18 @@
 
                     if (i + 2 < degreeArr.length && noteIdxArr[i + 2] === targetIdx) {
                         // ii-V-I: consume 3 chords
-                        const r2 = rf[i + 2] ?? false;
+                        // Never encode I-chord repeat inside SEC_DOM; emit excess repeats separately
+                        const r2 = rf[i + 2] ?? 0;
                         const t  = tgt(degreeArr[i + 2]);
                         if (r0) {
-                            // ii has its own repeat beat — encode '2/' in the SEC_DOM prefix
-                            // so Gm / C7 / F / → 2/5/(3/) which round-trips correctly
-                            result.push(mkSecDom('2/5', t, r1, r2, true));
+                            result.push(mkSecDom('2/5', t, r1 > 0, false, true));
                         } else {
-                            result.push(mkSecDom('25', t, r1, r2, true));
+                            result.push(mkSecDom('25', t, r1 > 0, false, true));
+                        }
+                        // Emit excess I-chord beats separately (r2 extra appearances beyond 1st)
+                        if (r2 > 0) {
+                            result.push(t);
+                            for (let s = 0; s < r2 - 1; s++) result.push('/');
                         }
                         i += 3; continue;
                     } else {
@@ -625,9 +630,9 @@
                         const tDegNum = degForNote(targetIdx);
                         const t = tDegNum ? String(tDegNum) : '?';
                         if (r0) {
-                            result.push(mkSecDom('2/5', t, r1, false, false));
+                            result.push(mkSecDom('2/5', t, r1 > 0, false, false));
                         } else {
-                            result.push(mkSecDom('25', t, r1, false, false));
+                            result.push(mkSecDom('25', t, r1 > 0, false, false));
                         }
                         i += 2; continue;
                     }
@@ -635,14 +640,21 @@
 
                 // Secondary dominant: non-natural-V chord with dominant quality resolving P4 up
                 if (q1 === '7' && ((ni1 + 5) % 12 === ni2) && ni1 !== naturalVIdx) {
-                    result.push(mkSecDom('5', tgt(d2), r0, r1, true));
+                    const r1cnt = r1; // rename for clarity
+                    result.push(mkSecDom('5', tgt(d2), r0 > 0, false, true));
+                    // Emit excess target beats separately
+                    if (r1cnt > 0) {
+                        result.push(tgt(d2));
+                        for (let s = 0; s < r1cnt - 1; s++) result.push('/');
+                    }
                     i += 2; continue;
                 }
             }
 
-            // Regular chord: output as-is; add "/" if it had a repeat in the input
+            // Regular chord: emit degree + correct number of repeat slashes
             result.push(degreeArr[i]);
-            if (rf[i] ?? false) result.push('/');
+            const repCnt = rf[i] ?? 0;
+            for (let s = 0; s < repCnt; s++) result.push('/');
             i++;
         }
         return result;
@@ -730,44 +742,84 @@
             const actualMinor = isMinor || rootName.endsWith('m');
             const keyState = makeKeyState(actualRoot, actualMinor);
 
-            // Parse chord list (accepts space or dash separators).
-            // Standalone '/' is a "repeat beat" marker — skip as a chord token;
-            // instead mark the previous chord as having a repeat beat.
-            const allTokens = chordsStr
+            // Pre-process $...$ labels (may contain spaces) before split,
+            // using the same placeholder trick as tokenize().
+            const dollarLabelsA = [];
+            let preStr = chordsStr
                 .replace(/\s*-\s*/g, ' ')
                 .trim()
-                .split(/\s+/)
-                .filter(Boolean);
+                .replace(/\$([^$]+)\$/g, (_, inner) => {
+                    const i = dollarLabelsA.length;
+                    dollarLabelsA.push(inner.trim());
+                    return ` ¤${i}¤ `;
+                });
 
-            // Deduplicate adjacent identical chords; track which positions had a repeat
-            const chords      = [];
-            const noteIdxArr  = [];
-            const repeatFlags = [];
+            const allTokens = preStr.trim().split(/\s+/).filter(Boolean);
+
+            // We need to handle $texto$ tokens as opaque pass-through labels.
+            // Build a mixed array of { kind: 'chord'|'label'|'slash', value, ni? } entries.
+            const entries = []; // { kind: 'chord'|'slash'|'label', value, ni? }
             for (const c of allTokens) {
+                // Dollar-label placeholder restored from pre-processing
+                const dlM = c.match(/^¤(\d+)¤$/);
+                if (dlM) {
+                    entries.push({ kind: 'label', value: dollarLabelsA[parseInt(dlM[1], 10)] });
+                    continue;
+                }
                 if (c === '/') {
-                    // Beat repeat marker — flag the previous chord
-                    if (chords.length > 0) repeatFlags[repeatFlags.length - 1] = true;
+                    entries.push({ kind: 'slash' });
                     continue;
                 }
                 const parsed = parseChordStr(c);
                 const ni = parsed ? noteToIdx(parsed.root) : -1;
-                if (chords.length > 0 && c === chords[chords.length - 1] && ni === noteIdxArr[noteIdxArr.length - 1]) {
-                    repeatFlags[repeatFlags.length - 1] = true; // adjacent duplicate chord
-                } else {
-                    chords.push(c);
-                    noteIdxArr.push(ni);
-                    repeatFlags.push(false);
-                }
+                entries.push({ kind: 'chord', value: c, ni });
             }
 
-            // Map chords to degree tokens
-            const degreeArr = chords.map(c => analyzeChord(c, keyState));
 
-            // Apply cadence pattern recognition
-            const refined = detectCadencePatterns(degreeArr, noteIdxArr, keyState, repeatFlags);
+            // Re-assemble: extract chord-only sub-arrays, analyze them,
+            // then weave labels and slashes back in.
+            // Strategy: run the analysis on each contiguous run of chords,
+            // keeping label/slash positions intact.
+            const resultParts = []; // array of strings ready to join with ' '
+            let chordBuf = [];   // current chord values
+            let niBuf    = [];   // note indices for chordBuf
+            let rfBuf    = [];   // repeat flags for chordBuf
 
-            return refined.join(' ');
+            function flushChords() {
+                if (!chordBuf.length) return;
+                const degreeArr = chordBuf.map(c => analyzeChord(c, keyState));
+                const refined   = detectCadencePatterns(degreeArr, niBuf, keyState, rfBuf);
+                for (const r of refined) resultParts.push(r);
+                chordBuf = []; niBuf = []; rfBuf = [];
+            }
+
+            for (let i = 0; i < entries.length; i++) {
+                const e = entries[i];
+                if (e.kind === 'label') {
+                    flushChords();
+                    resultParts.push(`$${e.value}$`);
+                } else if (e.kind === 'slash') {
+                    // repeat beat — increment count for the previous chord
+                    if (chordBuf.length > 0) rfBuf[rfBuf.length - 1]++;
+                } else {
+                    // chord
+                    // Adjacent duplicate → increment repeat count instead of new chord
+                    if (chordBuf.length > 0 &&
+                        e.value === chordBuf[chordBuf.length - 1] &&
+                        e.ni    === niBuf[niBuf.length - 1]) {
+                        rfBuf[rfBuf.length - 1]++;
+                    } else {
+                        chordBuf.push(e.value);
+                        niBuf.push(e.ni);
+                        rfBuf.push(0); // integer count, not boolean
+                    }
+                }
+            }
+            flushChords();
+
+            return resultParts.join(' ');
         },
+
 
         /**
          * Sanitize a harmony string: wraps unrecognized (RAW) tokens in $...$

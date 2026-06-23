@@ -1555,11 +1555,22 @@
                 const harmNorm = str.replace(/(?<![b#0-9mMho7/])\((\S+?)\/\)/g, '$1 /');
                 const tokens = window.HarmonyEngine.translate(harmNorm, root, isMinor);
 
-                // Build chord string for draft (only real chord tokens, skip structural /, [, ] and labels)
+                // Build chord string for draft.
+                // • CHORD tokens → acorde real (ex: "Am", "G7")
+                // • STRUCT '/'  → mantém barra de repetição
+                // • LABEL tokens → restaura como $texto$ (preserva anotações de seção)
+                // • MOD, '[', ']', '×N' → ignorados
                 const chordWords = tokens
-                    .filter(t => t.type !== 'LABEL' && t.type !== 'MOD')
-                    .map(t => t.value || '')
-                    .filter(v => v && v !== '[' && v !== ']')
+                    .filter(t => t.type !== 'MOD')
+                    .map(t => {
+                        if (t.type === 'LABEL') return `$${t.value}$`;
+                        const v = t.value || '';
+                        if (v === '[' || v === ']') return null;
+                        // Filter out ×N repeat markers (STRUCT value like "×2")
+                        if (t.type === 'STRUCT' && /^×\d+$/.test(v)) return null;
+                        return v || null;
+                    })
+                    .filter(v => v !== null && v !== '')
                     .join(' ');
 
                 const previewDiv = document.getElementById('hm-func-preview');
