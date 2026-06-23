@@ -83,7 +83,12 @@
         let suffix = m[3].startsWith(':') ? m[3].slice(1) : m[3];
 
         const noteIdx = degreeNoteIdx(keyState, degNum, accidental);
-        const note = idxToNote(noteIdx, keyState.useFlats);
+        // If degree has an explicit accidental, force matching note spelling:
+        // b → flat names (b7 in C = Bb, not A#), # → sharp names (#4 in C = F#, not Gb)
+        const useFlats = accidental === 'b' ? true
+                       : accidental === '#' ? false
+                       : keyState.useFlats;
+        const note = idxToNote(noteIdx, useFlats);
 
         if (suffix === '') {
             // Apply diatonic rules
