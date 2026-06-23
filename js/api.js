@@ -117,14 +117,11 @@
 
         async update(id, payload) {
             requireOnline('editar música');
-            const { data, error } = await db()
+            const { error } = await db()
                 .from('songs')
                 .update(payload)
-                .eq('id', id)
-                .select()
-                .single();
+                .eq('id', id);
             if (error) throw error;
-            return data;
         },
 
         async delete(id) {
