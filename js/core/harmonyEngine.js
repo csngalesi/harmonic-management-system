@@ -641,11 +641,20 @@
                         // ii-V without immediate tonic resolution → hidden target
                         // (includes: no chord at i+2, wrong root, or resolution is dominant chord)
                         const tDegNum = degForNote(targetIdx);
-                        const t = tDegNum ? String(tDegNum) : '?';
-                        if (r0) {
-                            result.push(mkSecDom('2/5', t, r1 > 0, false, false));
+                        if (tDegNum === 1) {
+                            // ii-V heading to the key's own tonic → emit bare degrees (no hidden target)
+                            // e.g. Am D7 in G major → just "2 5", not "25\"1\""
+                            result.push('2');
+                            for (let s = 0; s < r0; s++) result.push('/');
+                            result.push('5');
+                            for (let s = 0; s < r1; s++) result.push('/');
                         } else {
-                            result.push(mkSecDom('25', t, r1 > 0, false, false));
+                            const t = tDegNum ? String(tDegNum) : '?';
+                            if (r0) {
+                                result.push(mkSecDom('2/5', t, r1 > 0, false, false));
+                            } else {
+                                result.push(mkSecDom('25', t, r1 > 0, false, false));
+                            }
                         }
                         i += 2; continue;
                     }
@@ -757,15 +766,17 @@
 
             // Pre-process $...$ labels (may contain spaces) before split,
             // using the same placeholder trick as tokenize().
+            // IMPORTANT: labels are extracted FIRST so their contents (e.g. "-")
+            // are protected from the dash-removal step that follows.
             const dollarLabelsA = [];
             let preStr = chordsStr
-                .replace(/\s*-\s*/g, ' ')
-                .trim()
                 .replace(/\$([^$]+)\$/g, (_, inner) => {
                     const i = dollarLabelsA.length;
                     dollarLabelsA.push(inner.trim());
                     return ` ¤${i}¤ `;
-                });
+                })
+                .replace(/\s*-\s*/g, ' ')  // remove bare dashes (chord separators) but NOT inside labels
+                .trim();
 
             const allTokens = preStr.trim().split(/\s+/).filter(Boolean);
 
