@@ -775,14 +775,22 @@
 
             // Harm Func: render raw DB string as chips, no engine interpretation
             function buildFuncHtml(str) {
-                const parts = (str || '').trim().split(/\s+/).filter(Boolean);
+                // Pre-process: extract $...$ groups (may contain spaces) before whitespace split
+                const dollarLabels = [];
+                const processed = (str || '').trim().replace(/\$([^$]+)\$/g, (_, inner) => {
+                    const idx = dollarLabels.length;
+                    dollarLabels.push(inner);
+                    return `\x00${idx}\x00`;
+                });
+                const parts = processed.split(/\s+/).filter(Boolean);
                 if (!parts.length) return `<span style="color:var(--text-muted);font-size:.85rem;">Sem harmonia cadastrada.</span>`;
                 return parts.map(p => {
+                    // Restore $...$ placeholder
+                    const dlM = p.match(/^\x00(\d+)\x00$/);
+                    if (dlM) return `<span class="sd-label">${esc(dollarLabels[parseInt(dlM[1])])}</span>`;
                     if (p === '-' || p === '+' || p === '{' || p === '}') return `<span class="sd-sep">${esc(p)}</span>`;
                     if (p.startsWith('!') && p.endsWith('!') && p.length > 2)
                         return `<span class="sd-mod">${esc(p)}</span>`;
-                    if (p.startsWith('$') && p.endsWith('$') && p.length > 2)
-                        return `<span class="sd-label">${esc(p.slice(1, -1))}</span>`;
                     if (/^"[^"]*"$/.test(p))
                         return `<span class="sd-label">${esc(p.slice(1, -1))}</span>`;
                     // Free text: doesn't start with a harmonic degree or special symbol
@@ -1451,12 +1459,21 @@
 
             // ── Shared helpers (mirrors _openShowDetail) ────────────
             function buildFuncHtml(str) {
-                const parts = (str || '').trim().split(/\s+/).filter(Boolean);
+                // Pre-process: extract $...$ groups (may contain spaces) before whitespace split
+                const dollarLabels = [];
+                const processed = (str || '').trim().replace(/\$([^$]+)\$/g, (_, inner) => {
+                    const idx = dollarLabels.length;
+                    dollarLabels.push(inner);
+                    return `\x00${idx}\x00`;
+                });
+                const parts = processed.split(/\s+/).filter(Boolean);
                 if (!parts.length) return `<span style="color:var(--text-muted);font-size:.85rem;">Sem harmonia cadastrada.</span>`;
                 return parts.map(p => {
+                    // Restore $...$ placeholder
+                    const dlM = p.match(/^\x00(\d+)\x00$/);
+                    if (dlM) return `<span class="sd-label">${esc(dollarLabels[parseInt(dlM[1])])}</span>`;
                     if (p === '-' || p === '+' || p === '{' || p === '}') return `<span class="sd-sep">${esc(p)}</span>`;
                     if (p.startsWith('!') && p.endsWith('!') && p.length > 2) return `<span class="sd-mod">${esc(p)}</span>`;
-                    if (p.startsWith('$') && p.endsWith('$') && p.length > 2) return `<span class="sd-label">${esc(p.slice(1,-1))}</span>`;
                     if (/^"[^"]*"$/.test(p)) return `<span class="sd-label">${esc(p.slice(1,-1))}</span>`;
                     if (!/^[b#]?[1-7]|^[/(\[\]!$]/.test(p)) return `<span class="sd-label">${esc(p)}</span>`;
                     return `<span class="sd-chord">${esc(p)}</span>`;
