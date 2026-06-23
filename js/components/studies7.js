@@ -12,6 +12,13 @@
     // ── Cadências ────────────────────────────────────────────────────
     const SECTIONS = [
         {
+            id: 'livre',
+            title: 'Livre',
+            cadences: [
+                { id: 'c_free', label: 'Livre',        harmony: '' },
+            ],
+        },
+        {
             id: 'dom_tonica',
             title: 'Dominante → Tônica',
             cadences: [
@@ -34,7 +41,6 @@
                 { id: 'c_25_3', label: '25 do 3',     harmony: '25(3)' },
                 { id: 'c_5525', label: '5.5 / 251',   harmony: '5.5/ 25 1' },
                 { id: 'c_comp', label: 'Completa',     harmony: '1 5(2) 5 25(4) 4m 3 5"2" 5.5/ 251' },
-                { id: 'c_free', label: 'Livre',        harmony: '' },
             ],
         },
     ];
@@ -73,6 +79,15 @@
         }).join('');
     }
 
+    function getChordSequenceText(cadId) {
+        const tokens = window.HarmonyEngine.translate(_state.harmonies[cadId], _state.key, _state.isMinor);
+        return tokens
+            .filter(t => t.type !== 'LABEL' && t.type !== 'STRUCT')
+            .map(t => t.value || '')
+            .filter(v => v.trim() !== '')
+            .join(' - ');
+    }
+
     function cadenceCardHtml(cad) {
         const isPlaying = _state.playing === cad.id;
         const harmony   = _state.harmonies[cad.id];
@@ -83,6 +98,11 @@
                 <input type="text" class="form-input s7-harmony-input" data-cadid="${esc(cad.id)}"
                     value="${esc(harmony)}"
                     style="flex:1;font-family:var(--font-mono);font-size:0.82rem;padding:5px 10px;">
+                <button class="btn btn-ghost s7-copy-btn" data-cadid="${esc(cad.id)}"
+                    title="Copiar sequência de acordes"
+                    style="padding:5px 10px;font-size:0.85rem;flex-shrink:0;color:var(--text-secondary);border:1px solid var(--line-color);background:transparent;border-radius:6px;cursor:pointer;transition:all .2s;">
+                    <i class="fa-regular fa-copy"></i>
+                </button>
                 <button class="btn ${isPlaying ? 'btn-secondary' : 'btn-primary'} s7-play-btn"
                     data-cadid="${esc(cad.id)}"
                     style="padding:5px 16px;font-size:0.85rem;flex-shrink:0;">
@@ -187,6 +207,35 @@
                     _state.harmonies[cadId] = e.target.value;
                     const bar = document.getElementById('chords-' + cadId);
                     if (bar) bar.innerHTML = renderChordBar(_state.harmonies[cadId]);
+                });
+            });
+
+            document.querySelectorAll('.s7-copy-btn').forEach(btn => {
+                btn.addEventListener('click', e => {
+                    const cadId = e.currentTarget.dataset.cadid;
+                    const text  = getChordSequenceText(cadId);
+                    if (!text) return;
+                    navigator.clipboard.writeText(text).then(() => {
+                        const icon = btn.querySelector('i');
+                        icon.className = 'fa-solid fa-check';
+                        btn.style.color = '#4caf50';
+                        btn.style.borderColor = '#4caf50';
+                        setTimeout(() => {
+                            icon.className = 'fa-regular fa-copy';
+                            btn.style.color = '';
+                            btn.style.borderColor = '';
+                        }, 1500);
+                    }).catch(() => {
+                        // fallback for older browsers
+                        const ta = document.createElement('textarea');
+                        ta.value = text;
+                        ta.style.position = 'fixed';
+                        ta.style.opacity = '0';
+                        document.body.appendChild(ta);
+                        ta.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(ta);
+                    });
                 });
             });
 
