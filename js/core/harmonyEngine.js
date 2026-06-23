@@ -459,8 +459,20 @@
 
     // Apply a modulation instruction to the keyState in-place
     function applyModulation(modStr, keyState) {
-        if (modStr === 'm') { keyState.isMinor = true; return; }
-        if (modStr === 'M') { keyState.isMinor = false; return; }
+        if (modStr === 'm') {
+            keyState.isMinor = true;
+            // Recalculate useFlats: e.g. C→Cm needs Bb/Eb/Ab notation
+            const newKey = idxToNote(keyState.rootIdx, false) + 'm';
+            keyState.useFlats = FLAT_PREF.has(newKey) || FLAT_PREF.has(idxToNote(keyState.rootIdx, false));
+            return;
+        }
+        if (modStr === 'M') {
+            keyState.isMinor = false;
+            // Recalculate useFlats for the major root
+            const rootName = idxToNote(keyState.rootIdx, false);
+            keyState.useFlats = FLAT_PREF.has(rootName);
+            return;
+        }
 
         // Full modulation: [b#]?[1-7][mM]
         const m = modStr.match(/^([b#]?)([1-7])([mM])$/);
@@ -468,6 +480,10 @@
             const newRootIdx = degreeNoteIdx(keyState, parseInt(m[2]), m[1]);
             keyState.rootIdx = newRootIdx;
             keyState.isMinor = (m[3] === 'm');
+            // Recalculate useFlats for the new key
+            const newRootName = idxToNote(newRootIdx, false);
+            const newKey = newRootName + (keyState.isMinor ? 'm' : '');
+            keyState.useFlats = FLAT_PREF.has(newKey) || FLAT_PREF.has(newRootName);
         }
     }
 
