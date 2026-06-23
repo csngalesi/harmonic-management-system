@@ -611,9 +611,11 @@
                 }
 
                 // ii-V detection (V must have dominant 7 quality)
+                // EXCEPTION: if BOTH the ii and V chords have repeat flags, they are
+                // sustained independently (e.g. Bm/ E7/ → 3/ 5/"2"), not a ii-V pair.
                 const isIIchord = (q1 === 'm' || q1 === 'm7' || q1 === 'h' || q1 === 'm7(b5)');
                 const isP4up    = ((ni1 + 5) % 12 === ni2);
-                if (isIIchord && q2 === '7' && isP4up) {
+                if (isIIchord && q2 === '7' && isP4up && !(r0 > 0 && r1 > 0)) {
                     const targetIdx = (ni2 + 5) % 12; // V resolves P4 above its root
 
                     // hasI: the chord at i+2 has the right root note for the resolution
@@ -673,9 +675,38 @@
                 }
             }
 
-            // Regular chord: emit degree + correct number of repeat slashes
-            result.push(degreeArr[i]);
+            // ── Regular chord output ──────────────────────────────────────────────
             const repCnt = rf[i] ?? 0;
+            const q_r    = getQ(degreeArr[i]);
+            const ni_r   = noteIdxArr[i];
+
+            // Natural V with dominant 7th (e.g. D7 in G major): emit bare degree.
+            // The dominant-7th quality is implied for the V function; don't show '7' suffix.
+            if (ni_r === naturalVIdx && q_r === '7') {
+                result.push(extractBareNumber(degreeArr[i]));
+                for (let s = 0; s < repCnt; s++) result.push('/');
+                i++; continue;
+            }
+
+            // Standalone secondary dominant: non-diatonic dominant chord (not the natural V,
+            // not the V/V) that was NOT consumed by the two-chord secondary dominant check above
+            // (i.e., its resolution chord doesn't follow immediately).
+            // Emit as 5"target" with the inferred hidden target.
+            const isVofV         = ((ni_r + 5) % 12) === naturalVIdx;
+            const isNaturalV     = ni_r === naturalVIdx;
+            const isStandaloneSec = q_r === '7' && !isNaturalV && !isVofV;
+            if (isStandaloneSec) {
+                const tgtIdx   = (ni_r + 5) % 12;
+                const tDegNum  = degForNote(tgtIdx);
+                const t        = tDegNum ? String(tDegNum) : '?';
+                // slashBefore encodes the first repeat; extra repeats follow as bare '/'
+                const slashBefore = repCnt > 0;
+                result.push(mkSecDom('5', t, slashBefore, false, false));
+                for (let s = 0; s < repCnt - 1; s++) result.push('/');
+                i++; continue;
+            }
+
+            result.push(degreeArr[i]);
             for (let s = 0; s < repCnt; s++) result.push('/');
             i++;
         }
