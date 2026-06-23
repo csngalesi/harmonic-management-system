@@ -601,15 +601,27 @@
                 const r0  = rf[i]     ?? 0;
                 const r1  = rf[i + 1] ?? 0;
 
-                // isIIchord: includes m7(b5) half-diminished so F#m7(b5) is recognized as ii
-                const isIIchord = (q1 === 'm' || q1 === 'm7' || q1 === 'h' || q1 === 'm7(b5)');
-                const isP4up    = ((ni1 + 5) % 12 === ni2);
+                // ── V/V detection ("cinco do cinco"): dominant chord P4 below naturalV ──
+                // Must come BEFORE the secondary dominant check.
+                // Example: A7 in G major → (9+5)%12=2=D=naturalVIdx → emits "5.5"
+                if (q1 === '7' && ((ni1 + 5) % 12) === naturalVIdx && ni1 !== naturalVIdx) {
+                    result.push('5.5');
+                    for (let s = 0; s < r0; s++) result.push('/');
+                    i++; continue;
+                }
 
                 // ii-V detection (V must have dominant 7 quality)
+                const isIIchord = (q1 === 'm' || q1 === 'm7' || q1 === 'h' || q1 === 'm7(b5)');
+                const isP4up    = ((ni1 + 5) % 12 === ni2);
                 if (isIIchord && q2 === '7' && isP4up) {
                     const targetIdx = (ni2 + 5) % 12; // V resolves P4 above its root
 
-                    if (i + 2 < degreeArr.length && noteIdxArr[i + 2] === targetIdx) {
+                    // hasI: the chord at i+2 has the right root note for the resolution
+                    // hasITonic: that chord is NOT a dominant 7th (real tonic resolution)
+                    const hasI      = (i + 2 < degreeArr.length && noteIdxArr[i + 2] === targetIdx);
+                    const hasITonic = hasI && (getQ(degreeArr[i + 2]) !== '7');
+
+                    if (hasITonic) {
                         // ii-V-I: consume 3 chords
                         // Never encode I-chord repeat inside SEC_DOM; emit excess repeats separately
                         const r2 = rf[i + 2] ?? 0;
@@ -626,7 +638,8 @@
                         }
                         i += 3; continue;
                     } else {
-                        // ii-V without immediate resolution → hidden target
+                        // ii-V without immediate tonic resolution → hidden target
+                        // (includes: no chord at i+2, wrong root, or resolution is dominant chord)
                         const tDegNum = degForNote(targetIdx);
                         const t = tDegNum ? String(tDegNum) : '?';
                         if (r0) {
