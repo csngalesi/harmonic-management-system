@@ -27,13 +27,13 @@
 
     // ── Arpejos — intervalos em semitons a partir da tônica ──────────────────
     const ARPEGGIOS = {
-        'M':  { label: 'Maior (M)',          intervals: [0, 4, 7],      toneLabels: ['1','2','3'] },
-        'm':  { label: 'Menor (m)',          intervals: [0, 3, 7],      toneLabels: ['1','2','3'] },
-        '7':  { label: 'Dominante 7ª (7)',   intervals: [0, 4, 7, 10],  toneLabels: ['1','2','3','4'] },
-        'o':  { label: 'Diminuto (o)',       intervals: [0, 3, 6],      toneLabels: ['1','2','3'] },
-        'h':  { label: 'Meio-dim. (h)',      intervals: [0, 3, 6, 10],  toneLabels: ['1','2','3','4'] },
-        '7M': { label: 'Maior 7ª (7M)',      intervals: [0, 4, 7, 11],  toneLabels: ['1','2','3','4'] },
-        'm7': { label: 'Menor 7ª (m7)',      intervals: [0, 3, 7, 10],  toneLabels: ['1','2','3','4'] },
+        'M':  { label: 'Maior (M)',          intervals: [0, 4, 7],      toneLabels: ['1','2','3'],     intervalLabels: ['','3ª M','5ª J'] },
+        'm':  { label: 'Menor (m)',          intervals: [0, 3, 7],      toneLabels: ['1','2','3'],     intervalLabels: ['','3ª m','5ª J'] },
+        '7':  { label: 'Dominante 7ª (7)',   intervals: [0, 4, 7, 10],  toneLabels: ['1','2','3','4'], intervalLabels: ['','3ª M','5ª J','7ª m'] },
+        'o':  { label: 'Diminuto (o)',       intervals: [0, 3, 6],      toneLabels: ['1','2','3'],     intervalLabels: ['','3ª m','5ª d'] },
+        'h':  { label: 'Meio-dim. (h)',      intervals: [0, 3, 6, 10],  toneLabels: ['1','2','3','4'], intervalLabels: ['','3ª m','5ª d','7ª m'] },
+        '7M': { label: 'Maior 7ª (7M)',      intervals: [0, 4, 7, 11],  toneLabels: ['1','2','3','4'], intervalLabels: ['','3ª M','5ª J','7ª M'] },
+        'm7': { label: 'Menor 7ª (m7)',      intervals: [0, 3, 7, 10],  toneLabels: ['1','2','3','4'], intervalLabels: ['','3ª m','5ª J','7ª m'] },
     };
 
     // Cores pedagógicas por grau: 1=vermelho 2=amarelo 3=verde 4=marrom 5=azul 6=rosa 7=preto
@@ -494,16 +494,22 @@
 
             notesEl.innerHTML = `<div style="margin-top:16px;padding-top:4px;">${rows}</div>`;
 
-            // Update legend with note names inline
+            // Update legend with note names + interval quality inline
             const legendEl = document.getElementById('fb7-arp-legend');
             if (legendEl) {
                 legendEl.innerHTML = arp.toneLabels.map((l, i) => {
-                    const pc       = (rootIdx + arp.intervals[i]) % 12;
-                    const noteName = _noteName(pc, root);
-                    const color    = DEGREE_COLORS[i + 1];
-                    return `<div style="display:flex;align-items:center;gap:10px;">
+                    const pc          = (rootIdx + arp.intervals[i]) % 12;
+                    const noteName    = _noteName(pc, root);
+                    const color       = DEGREE_COLORS[i + 1];
+                    const intLabel    = (arp.intervalLabels || [])[i] || '';
+                    const badge       = intLabel
+                        ? `<span style="font-size:.68rem;color:var(--text-muted);background:var(--bg-raised);border:1px solid var(--line-color);border-radius:4px;padding:1px 5px;white-space:nowrap;">${intLabel}</span>`
+                        : '';
+                    return `<div style="display:flex;align-items:center;gap:8px;">
                         <svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="${color}"/><text x="11" y="15" text-anchor="middle" font-size="10" font-weight="700" fill="white">${l}</text></svg>
-                        <span style="flex:1;font-size:.82rem;color:var(--text-secondary);">${arpLabels[i]}</span>
+                        <span style="font-size:.82rem;color:var(--text-secondary);">${arpLabels[i]}</span>
+                        ${badge}
+                        <span style="flex:1;"></span>
                         <span style="font-family:var(--font-mono);font-size:.95rem;font-weight:700;color:${color};">${noteName}</span>
                     </div>`;
                 }).join('');

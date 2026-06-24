@@ -4,7 +4,7 @@
  * Strategy: Cache-first for static assets, network-first for API calls.
  */
 
-const CACHE_NAME = 'hms-v17';
+const CACHE_NAME = 'hms-v18';
 
 // App shell — all static assets needed to run offline
 const APP_SHELL = [
