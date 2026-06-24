@@ -1,13 +1,15 @@
 /**
  * HMS — Braço 7 Cordas Component
  * Visualiza graus funcionais no braço de violão de 7 cordas (5 casas).
+ * Modos: Escalas (graus da escala) e Arpejo (notas da tríade/tétrade).
  * Exposed via window.Fretboard7Component
  */
 (function () {
     'use strict';
 
     const esc        = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+    const NOTE_NAMES  = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+    const FLAT_NAMES  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
     const NOTE_LABELS = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 
     // Afinação: string 0 = mais grave (C) em cima, string 6 = mais aguda (E4) embaixo
@@ -23,11 +25,31 @@
         mel_minor: { label: 'Menor Melódica',   intervals: [0, 2, 3, 5, 7, 9, 11] },
     };
 
+    // ── Arpejos — intervalos em semitons a partir da tônica ──────────────────
+    // label: nome exibido | tones: [semitoms] | chordTone: número do tom (1,2,3,4)
+    const ARPEGGIOS = {
+        'M':  { label: 'Maior (M)',             intervals: [0, 4, 7],      toneLabels: ['1','2','3'] },
+        'm':  { label: 'Menor (m)',             intervals: [0, 3, 7],      toneLabels: ['1','2','3'] },
+        'o':  { label: 'Diminuto (o)',          intervals: [0, 3, 6],      toneLabels: ['1','2','3'] },
+        'h':  { label: 'Meio-dim. (h)',         intervals: [0, 3, 6, 10],  toneLabels: ['1','2','3','4'] },
+        '7M': { label: 'Maior 7ª (7M)',         intervals: [0, 4, 7, 11],  toneLabels: ['1','2','3','4'] },
+    };
+
+    // Usar bemóis para chaves que os preferem
+    const FLAT_PREF = new Set(['F','Bb','Eb','Ab','Db','Gb','Dm','Gm','Cm','Fm','Bbm','Ebm']);
+
+    function _noteName(pc, root) {
+        const useFlats = FLAT_PREF.has(root);
+        return useFlats ? FLAT_NAMES[((pc % 12) + 12) % 12] : NOTE_NAMES[((pc % 12) + 12) % 12];
+    }
+
     const _state = {
-        root:        'C',
-        scaleKey:    'major',
+        mode:         'scale',   // 'scale' | 'arpeggio'
+        root:         'C',
+        scaleKey:     'major',
         degreesInput: '1 2 3 4 5 6 7',
-        highlights:  [],
+        arpQuality:   'M',
+        highlights:   [],
     };
 
     // ── Fretboard SVG ─────────────────────────────────────────────────────────
@@ -50,6 +72,8 @@
         },
     };
 
+    // ── Highlight resolvers ───────────────────────────────────────────────────
+
     function _resolveHighlights(root, scaleKey, degreesStr) {
         const rootIdx   = NOTE_NAMES.indexOf(root);
         if (rootIdx === -1) return [];
@@ -62,7 +86,6 @@
         const degToPc = {};
         for (const d of degrees) degToPc[d] = (rootIdx + intervals[d - 1]) % 12;
 
-        // Coleta todos os candidatos com nota MIDI exata
         const candidates = [];
         for (let s = 0; s < 7; s++) {
             for (let f = 0; f <= FB.FRETS; f++) {
@@ -70,27 +93,67 @@
                 const midi = OPEN_MIDI[s] + f;
                 for (const d of degrees) {
                     if (pc === degToPc[d]) {
-                        candidates.push({ string: s, fret: f, degree: d, isRoot: d === 1, midi, noteName: NOTE_NAMES[pc] });
-                        break; // um grau por posição
+                        candidates.push({ string: s, fret: f, degree: d, isRoot: d === 1, midi,
+                                          noteName: _noteName(pc, root) });
+                        break;
                     }
                 }
             }
         }
 
-        // Prioridade: menor fret, depois menor string; deduplica por MIDI exato
         candidates.sort((a, b) => a.fret - b.fret || a.string - b.string);
         const seen = new Set();
         const hits = [];
         for (const c of candidates) {
-            if (!seen.has(c.midi)) {
-                seen.add(c.midi);
-                hits.push(c);
-            }
+            if (!seen.has(c.midi)) { seen.add(c.midi); hits.push(c); }
         }
         return hits;
     }
 
-    function _buildSVG(highlights) {
+    function _resolveArpHighlights(root, quality) {
+        const rootIdx  = NOTE_NAMES.indexOf(root);
+        if (rootIdx === -1) return [];
+        const arp = ARPEGGIOS[quality];
+        if (!arp) return [];
+
+        // Build pitch-class → chord tone index (1-based)
+        const pcToTone = {};
+        arp.intervals.forEach((semis, i) => {
+            pcToTone[(rootIdx + semis) % 12] = i; // 0-based index
+        });
+
+        const candidates = [];
+        for (let s = 0; s < 7; s++) {
+            for (let f = 0; f <= FB.FRETS; f++) {
+                const pc   = (OPEN_NOTES[s] + f) % 12;
+                const midi = OPEN_MIDI[s] + f;
+                if (pc in pcToTone) {
+                    const toneIdx = pcToTone[pc];
+                    candidates.push({
+                        string:   s,
+                        fret:     f,
+                        degree:   arp.toneLabels[toneIdx],  // '1','2','3','4'
+                        isRoot:   toneIdx === 0,
+                        toneIdx,
+                        midi,
+                        noteName: _noteName(pc, root),
+                    });
+                }
+            }
+        }
+
+        candidates.sort((a, b) => a.fret - b.fret || a.string - b.string);
+        const seen = new Set();
+        const hits = [];
+        for (const c of candidates) {
+            if (!seen.has(c.midi)) { seen.add(c.midi); hits.push(c); }
+        }
+        return hits;
+    }
+
+    // ── SVG Builder ───────────────────────────────────────────────────────────
+
+    function _buildSVG(highlights, isArp) {
         const { W, H, marginLeft, marginTop, marginBottom, FRETS, STRINGS,
                 neckW, fretSpacing, stringSpacing } = FB;
         const nutX    = marginLeft;
@@ -129,11 +192,21 @@
             parts.push(`<text x="${x - fretSpacing / 2}" y="${H - 6}" text-anchor="middle" font-size="10" fill="var(--text-muted)">${f}</text>`);
         }
 
+        // Arpejo: color palette by tone index
+        const arpColors = [
+            'var(--brand,#7c3aed)',    // 1 = root → purple
+            '#10b981',                 // 2 = third → emerald
+            '#f59e0b',                 // 3 = fifth → amber
+            '#ef4444',                 // 4 = seventh → red
+        ];
+
         // Highlight dots
         for (const h of highlights) {
             const cx   = FB.dotX(h.fret);
             const cy   = FB.stringY(h.string);
-            const fill = h.isRoot ? 'var(--brand,#7c3aed)' : 'var(--chord-blue,#60a5fa)';
+            const fill = isArp
+                ? arpColors[h.toneIdx ?? 0]
+                : (h.isRoot ? 'var(--brand,#7c3aed)' : 'var(--chord-blue,#60a5fa)');
 
             if (h.fret === 0) {
                 parts.push(`<circle cx="${cx}" cy="${cy}" r="10" fill="none" stroke="${fill}" stroke-width="2"/>`);
@@ -149,13 +222,117 @@
         return parts.join('');
     }
 
+    // ── HTML Builders ─────────────────────────────────────────────────────────
+
+    function _tabBar() {
+        const active = 'background:var(--brand,#7c3aed);color:#fff;border-color:var(--brand,#7c3aed);';
+        const inactive = 'background:var(--bg-raised);color:var(--text-secondary);border-color:var(--line-color);';
+        return `
+        <div style="display:flex;gap:8px;margin-bottom:20px;">
+            <button id="fb7-tab-scale" style="
+                flex:1;padding:9px 16px;border-radius:10px;border:1.5px solid;
+                font-size:.85rem;font-weight:600;cursor:pointer;transition:all .18s;
+                ${_state.mode === 'scale' ? active : inactive}">
+                <i class="fa-solid fa-music"></i> Escalas
+            </button>
+            <button id="fb7-tab-arp" style="
+                flex:1;padding:9px 16px;border-radius:10px;border:1.5px solid;
+                font-size:.85rem;font-weight:600;cursor:pointer;transition:all .18s;
+                ${_state.mode === 'arpeggio' ? active : inactive}">
+                <i class="fa-solid fa-layer-group"></i> Arpejo
+            </button>
+        </div>`;
+    }
+
+    function _controlsScale(rootOptions, scaleOptions) {
+        return `
+        <div id="fb7-panel-scale">
+            <div class="form-group">
+                <label class="form-label">Tom</label>
+                <select id="fb7-root" class="form-input form-select">${rootOptions}</select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Escala</label>
+                <select id="fb7-scale" class="form-input form-select">${scaleOptions}</select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Graus</label>
+                <input type="text" id="fb7-degrees" class="form-input"
+                    value="${esc(_state.degreesInput)}"
+                    placeholder="Ex: 1 3 5  ou  1 2 3 4 5 6 7" />
+                <span class="form-hint">Números 1–7 separados por espaço</span>
+            </div>
+            <button class="btn btn-primary btn-full" id="btn-fb7-apply">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Visualizar
+            </button>
+
+            <!-- Legend -->
+            <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line-color);">
+                <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:10px;">Legenda</div>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="var(--brand,#7c3aed)"/><text x="11" y="15" text-anchor="middle" font-size="10" font-weight="700" fill="white">1</text></svg>
+                        <span style="font-size:.82rem;color:var(--text-secondary);">Tônica</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="var(--chord-blue,#60a5fa)"/><text x="11" y="15" text-anchor="middle" font-size="10" font-weight="700" fill="white">3</text></svg>
+                        <span style="font-size:.82rem;color:var(--text-secondary);">Outros graus</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="none" stroke="var(--chord-blue,#60a5fa)" stroke-width="2"/><text x="11" y="15" text-anchor="middle" font-size="9" font-weight="700" fill="var(--chord-blue,#60a5fa)">5</text></svg>
+                        <span style="font-size:.82rem;color:var(--text-secondary);">Corda solta</span>
+                    </div>
+                </div>
+            </div>
+            <div id="fb7-notes-list"></div>
+        </div>`;
+    }
+
+    function _controlsArp(rootOptions) {
+        const arpOptions = Object.entries(ARPEGGIOS).map(([k, v]) =>
+            `<option value="${k}" ${k === _state.arpQuality ? 'selected' : ''}>${esc(v.label)}</option>`
+        ).join('');
+
+        const arpColors = ['var(--brand,#7c3aed)', '#10b981', '#f59e0b', '#ef4444'];
+        const arpLabels = ['1 – Tônica', '2 – Terça', '3 – Quinta', '4 – Sétima'];
+
+        const legendItems = Object.entries(ARPEGGIOS).find(([k]) => k === _state.arpQuality)?.[1]
+            ?.toneLabels.map((l, i) =>
+                `<div style="display:flex;align-items:center;gap:10px;">
+                    <svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="${arpColors[i]}"/><text x="11" y="15" text-anchor="middle" font-size="10" font-weight="700" fill="white">${l}</text></svg>
+                    <span style="font-size:.82rem;color:var(--text-secondary);">${arpLabels[i]}</span>
+                </div>`
+            ).join('') || '';
+
+        return `
+        <div id="fb7-panel-arp">
+            <div class="form-group">
+                <label class="form-label">Tom</label>
+                <select id="fb7-arp-root" class="form-input form-select">${rootOptions}</select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Qualidade</label>
+                <select id="fb7-arp-quality" class="form-input form-select">${arpOptions}</select>
+            </div>
+
+            <!-- Legend -->
+            <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line-color);">
+                <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:10px;">Legenda</div>
+                <div id="fb7-arp-legend" style="display:flex;flex-direction:column;gap:8px;">
+                    ${legendItems}
+                </div>
+            </div>
+            <div id="fb7-arp-notes"></div>
+        </div>`;
+    }
+
     // ── Component ─────────────────────────────────────────────────────────────
     const Fretboard7Component = {
 
         render: function () {
             const content = document.getElementById('main-content');
 
-            const rootOptions = NOTE_LABELS.map((n) =>
+            const rootOptions = NOTE_LABELS.map(n =>
                 `<option value="${n}" ${n === _state.root ? 'selected' : ''}>${n}</option>`
             ).join('');
 
@@ -192,46 +369,9 @@
                             <span class="panel-title"><i class="fa-solid fa-sliders"></i> Configuração</span>
                         </div>
                         <div class="panel-body">
-                            <div class="form-group">
-                                <label class="form-label">Tom</label>
-                                <select id="fb7-root" class="form-input form-select">${rootOptions}</select>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Escala</label>
-                                <select id="fb7-scale" class="form-input form-select">${scaleOptions}</select>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Graus</label>
-                                <input type="text" id="fb7-degrees" class="form-input"
-                                    value="${esc(_state.degreesInput)}"
-                                    placeholder="Ex: 1 3 5  ou  1 2 3 4 5 6 7" />
-                                <span class="form-hint">Números 1–7 separados por espaço</span>
-                            </div>
-                            <button class="btn btn-primary btn-full" id="btn-fb7-apply">
-                                <i class="fa-solid fa-wand-magic-sparkles"></i> Visualizar
-                            </button>
-
-                            <!-- Legend -->
-                            <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line-color);">
-                                <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:10px;">Legenda</div>
-                                <div style="display:flex;flex-direction:column;gap:8px;">
-                                    <div style="display:flex;align-items:center;gap:10px;">
-                                        <svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="var(--brand,#7c3aed)"/><text x="11" y="15" text-anchor="middle" font-size="10" font-weight="700" fill="white">1</text></svg>
-                                        <span style="font-size:.82rem;color:var(--text-secondary);">Tônica</span>
-                                    </div>
-                                    <div style="display:flex;align-items:center;gap:10px;">
-                                        <svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="var(--chord-blue,#60a5fa)"/><text x="11" y="15" text-anchor="middle" font-size="10" font-weight="700" fill="white">3</text></svg>
-                                        <span style="font-size:.82rem;color:var(--text-secondary);">Outros graus</span>
-                                    </div>
-                                    <div style="display:flex;align-items:center;gap:10px;">
-                                        <svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="none" stroke="var(--chord-blue,#60a5fa)" stroke-width="2"/><text x="11" y="15" text-anchor="middle" font-size="9" font-weight="700" fill="var(--chord-blue,#60a5fa)">5</text></svg>
-                                        <span style="font-size:.82rem;color:var(--text-secondary);">Corda solta</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Notes list -->
-                            <div id="fb7-notes-list"></div>
+                            ${_tabBar()}
+                            ${_controlsScale(rootOptions, scaleOptions)}
+                            ${_controlsArp(rootOptions)}
                         </div>
                     </div>
 
@@ -242,29 +382,56 @@
                 document.getElementById('fb7-grid').style.gridTemplateColumns = '1fr';
             }
 
-            document.getElementById('btn-fb7-apply').addEventListener('click', () => Fretboard7Component._apply());
-            document.getElementById('fb7-root').addEventListener('change',  () => Fretboard7Component._apply());
-            document.getElementById('fb7-scale').addEventListener('change', () => Fretboard7Component._apply());
-            document.getElementById('fb7-degrees').addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') Fretboard7Component._apply();
+            // Show correct panel
+            Fretboard7Component._showMode(_state.mode);
+
+            // Tab buttons
+            document.getElementById('fb7-tab-scale').addEventListener('click', () => {
+                _state.mode = 'scale';
+                Fretboard7Component.render();
+            });
+            document.getElementById('fb7-tab-arp').addEventListener('click', () => {
+                _state.mode = 'arpeggio';
+                Fretboard7Component.render();
             });
 
-            Fretboard7Component._apply();
+            // Scale controls
+            document.getElementById('btn-fb7-apply')?.addEventListener('click', () => Fretboard7Component._applyScale());
+            document.getElementById('fb7-root')?.addEventListener('change', () => Fretboard7Component._applyScale());
+            document.getElementById('fb7-scale')?.addEventListener('change', () => Fretboard7Component._applyScale());
+            document.getElementById('fb7-degrees')?.addEventListener('keydown', e => {
+                if (e.key === 'Enter') Fretboard7Component._applyScale();
+            });
+
+            // Arpeggio controls
+            document.getElementById('fb7-arp-root')?.addEventListener('change', () => Fretboard7Component._applyArp());
+            document.getElementById('fb7-arp-quality')?.addEventListener('change', () => Fretboard7Component._applyArp());
+
+            // Initial draw
+            if (_state.mode === 'scale') Fretboard7Component._applyScale();
+            else Fretboard7Component._applyArp();
         },
 
-        _apply: function () {
+        _showMode: function (mode) {
+            const scaleEl = document.getElementById('fb7-panel-scale');
+            const arpEl   = document.getElementById('fb7-panel-arp');
+            if (scaleEl) scaleEl.style.display = mode === 'scale'    ? 'block' : 'none';
+            if (arpEl)   arpEl.style.display   = mode === 'arpeggio' ? 'block' : 'none';
+        },
+
+        _applyScale: function () {
             const root     = document.getElementById('fb7-root').value;
             const scaleKey = document.getElementById('fb7-scale').value;
             const degStr   = (document.getElementById('fb7-degrees').value || '1 2 3 4 5 6 7').trim();
 
-            _state.root        = root;
-            _state.scaleKey    = scaleKey;
+            _state.root         = root;
+            _state.scaleKey     = scaleKey;
             _state.degreesInput = degStr;
 
             _state.highlights = _resolveHighlights(root, scaleKey, degStr);
 
             const svgEl = document.getElementById('fretboard-svg');
-            if (svgEl) svgEl.innerHTML = _buildSVG(_state.highlights);
+            if (svgEl) svgEl.innerHTML = _buildSVG(_state.highlights, false);
 
             // Notes table
             const listEl = document.getElementById('fb7-notes-list');
@@ -281,11 +448,57 @@
                 const color = d === 1 ? 'var(--brand,#7c3aed)' : 'var(--chord-blue,#60a5fa)';
                 return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--line-color);">
                     <span style="font-size:.8rem;color:var(--text-muted);">Grau ${d}</span>
-                    <span style="font-family:var(--font-mono);font-size:.9rem;font-weight:600;color:${color};">${NOTE_NAMES[pc]}</span>
+                    <span style="font-family:var(--font-mono);font-size:.9rem;font-weight:600;color:${color};">${_noteName(pc, root)}</span>
                 </div>`;
             }).join('');
 
             listEl.innerHTML = `<div style="margin-top:16px;padding-top:4px;">${rows}</div>`;
+        },
+
+        _applyArp: function () {
+            const root    = document.getElementById('fb7-arp-root').value;
+            const quality = document.getElementById('fb7-arp-quality').value;
+
+            _state.root       = root;
+            _state.arpQuality = quality;
+
+            _state.highlights = _resolveArpHighlights(root, quality);
+
+            const svgEl = document.getElementById('fretboard-svg');
+            if (svgEl) svgEl.innerHTML = _buildSVG(_state.highlights, true);
+
+            // Notes table
+            const notesEl = document.getElementById('fb7-arp-notes');
+            if (!notesEl) return;
+
+            const arp     = ARPEGGIOS[quality];
+            const rootIdx = NOTE_NAMES.indexOf(root);
+            if (!arp || rootIdx === -1) { notesEl.innerHTML = ''; return; }
+
+            const arpColors = ['var(--brand,#7c3aed)', '#10b981', '#f59e0b', '#ef4444'];
+            const arpLabels = ['Tônica', 'Terça', 'Quinta', 'Sétima'];
+
+            const rows = arp.intervals.map((semis, i) => {
+                const pc    = (rootIdx + semis) % 12;
+                const color = arpColors[i];
+                return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--line-color);">
+                    <span style="font-size:.8rem;color:var(--text-muted);">${arp.toneLabels[i]} – ${arpLabels[i]}</span>
+                    <span style="font-family:var(--font-mono);font-size:.9rem;font-weight:600;color:${color};">${_noteName(pc, root)}</span>
+                </div>`;
+            }).join('');
+
+            notesEl.innerHTML = `<div style="margin-top:16px;padding-top:4px;">${rows}</div>`;
+
+            // Update legend dynamically
+            const legendEl = document.getElementById('fb7-arp-legend');
+            if (legendEl) {
+                legendEl.innerHTML = arp.toneLabels.map((l, i) =>
+                    `<div style="display:flex;align-items:center;gap:10px;">
+                        <svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="${arpColors[i]}"/><text x="11" y="15" text-anchor="middle" font-size="10" font-weight="700" fill="white">${l}</text></svg>
+                        <span style="font-size:.82rem;color:var(--text-secondary);">${arpLabels[i]}</span>
+                    </div>`
+                ).join('');
+            }
         },
     };
 
