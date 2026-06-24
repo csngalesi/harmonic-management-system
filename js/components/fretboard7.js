@@ -43,7 +43,7 @@
         '#16a34a',   // 3 – verde
         '#78350f',   // 4 – marrom
         '#2563eb',   // 5 – azul
-        '#db2777',   // 6 – rosa
+        '#ff00cc',   // 6 – rosa (hot pink "cheguei")
         '#1f2937',   // 7 – preto (cinza-escuro p/ visibilidade)
     ];
 
