@@ -493,16 +493,23 @@
 
             notesEl.innerHTML = `<div style="margin-top:16px;padding-top:4px;">${rows}</div>`;
 
-            // Update legend dynamically
+            // Update legend with note names inline
             const legendEl = document.getElementById('fb7-arp-legend');
             if (legendEl) {
-                legendEl.innerHTML = arp.toneLabels.map((l, i) =>
-                    `<div style="display:flex;align-items:center;gap:10px;">
-                        <svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="${DEGREE_COLORS[i+1]}"/><text x="11" y="15" text-anchor="middle" font-size="10" font-weight="700" fill="${i+1===7?'#e5e7eb':'white'}">${l}</text></svg>
-                        <span style="font-size:.82rem;color:var(--text-secondary);">${arpLabels[i]}</span>
-                    </div>`
-                ).join('');
+                legendEl.innerHTML = arp.toneLabels.map((l, i) => {
+                    const pc       = (rootIdx + arp.intervals[i]) % 12;
+                    const noteName = _noteName(pc, root);
+                    const color    = DEGREE_COLORS[i + 1];
+                    return `<div style="display:flex;align-items:center;gap:10px;">
+                        <svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="${color}"/><text x="11" y="15" text-anchor="middle" font-size="10" font-weight="700" fill="white">${l}</text></svg>
+                        <span style="flex:1;font-size:.82rem;color:var(--text-secondary);">${arpLabels[i]}</span>
+                        <span style="font-family:var(--font-mono);font-size:.95rem;font-weight:700;color:${color};">${noteName}</span>
+                    </div>`;
+                }).join('');
             }
+
+            // Clear old separate notes table (now integrated into legend)
+            notesEl.innerHTML = '';
         },
     };
 
