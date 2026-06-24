@@ -26,13 +26,14 @@
     };
 
     // ── Arpejos — intervalos em semitons a partir da tônica ──────────────────
-    // label: nome exibido | tones: [semitoms] | chordTone: número do tom (1,2,3,4)
     const ARPEGGIOS = {
-        'M':  { label: 'Maior (M)',             intervals: [0, 4, 7],      toneLabels: ['1','2','3'] },
-        'm':  { label: 'Menor (m)',             intervals: [0, 3, 7],      toneLabels: ['1','2','3'] },
-        'o':  { label: 'Diminuto (o)',          intervals: [0, 3, 6],      toneLabels: ['1','2','3'] },
-        'h':  { label: 'Meio-dim. (h)',         intervals: [0, 3, 6, 10],  toneLabels: ['1','2','3','4'] },
-        '7M': { label: 'Maior 7ª (7M)',         intervals: [0, 4, 7, 11],  toneLabels: ['1','2','3','4'] },
+        'M':  { label: 'Maior (M)',          intervals: [0, 4, 7],      toneLabels: ['1','2','3'] },
+        'm':  { label: 'Menor (m)',          intervals: [0, 3, 7],      toneLabels: ['1','2','3'] },
+        '7':  { label: 'Dominante 7ª (7)',   intervals: [0, 4, 7, 10],  toneLabels: ['1','2','3','4'] },
+        'o':  { label: 'Diminuto (o)',       intervals: [0, 3, 6],      toneLabels: ['1','2','3'] },
+        'h':  { label: 'Meio-dim. (h)',      intervals: [0, 3, 6, 10],  toneLabels: ['1','2','3','4'] },
+        '7M': { label: 'Maior 7ª (7M)',      intervals: [0, 4, 7, 11],  toneLabels: ['1','2','3','4'] },
+        'm7': { label: 'Menor 7ª (m7)',      intervals: [0, 3, 7, 10],  toneLabels: ['1','2','3','4'] },
     };
 
     // Cores pedagógicas por grau: 1=vermelho 2=amarelo 3=verde 4=marrom 5=azul 6=rosa 7=preto
