@@ -35,6 +35,22 @@
         '7M': { label: 'Maior 7ª (7M)',         intervals: [0, 4, 7, 11],  toneLabels: ['1','2','3','4'] },
     };
 
+    // Cores pedagógicas por grau: 1=vermelho 2=amarelo 3=verde 4=marrom 5=azul 6=rosa 7=preto
+    const DEGREE_COLORS = [
+        null,        // índice 0 não usado
+        '#dc2626',   // 1 – vermelho
+        '#ca8a04',   // 2 – amarelo-dourado
+        '#16a34a',   // 3 – verde
+        '#78350f',   // 4 – marrom
+        '#2563eb',   // 5 – azul
+        '#db2777',   // 6 – rosa
+        '#1f2937',   // 7 – preto (cinza-escuro p/ visibilidade)
+    ];
+
+    // Cor para tom de arpejo (índice 0-3 → graus 1,2,3,4 → cores 1,2,3,4)
+    function arpColor(toneIdx) { return DEGREE_COLORS[toneIdx + 1] || DEGREE_COLORS[1]; }
+
+
     // Usar bemóis para chaves que os preferem
     const FLAT_PREF = new Set(['F','Bb','Eb','Ab','Db','Gb','Dm','Gm','Cm','Fm','Bbm','Ebm']);
 
@@ -192,28 +208,24 @@
             parts.push(`<text x="${x - fretSpacing / 2}" y="${H - 6}" text-anchor="middle" font-size="10" fill="var(--text-muted)">${f}</text>`);
         }
 
-        // Arpejo: color palette by tone index
-        const arpColors = [
-            'var(--brand,#7c3aed)',    // 1 = root → purple
-            '#10b981',                 // 2 = third → emerald
-            '#f59e0b',                 // 3 = fifth → amber
-            '#ef4444',                 // 4 = seventh → red
-        ];
-
         // Highlight dots
         for (const h of highlights) {
             const cx   = FB.dotX(h.fret);
             const cy   = FB.stringY(h.string);
-            const fill = isArp
-                ? arpColors[h.toneIdx ?? 0]
-                : (h.isRoot ? 'var(--brand,#7c3aed)' : 'var(--chord-blue,#60a5fa)');
+
+            // Cor: sempre pela paleta de graus (1-7 para escalas, tom 1-4 para arpejos)
+            const degIdx = isArp ? (h.toneIdx + 1) : h.degree;
+            const fill   = DEGREE_COLORS[degIdx] || DEGREE_COLORS[1];
+            // Preto (grau 7) em fundo aberto precisa de stroke
+            const isBlack = fill === DEGREE_COLORS[7];
 
             if (h.fret === 0) {
                 parts.push(`<circle cx="${cx}" cy="${cy}" r="10" fill="none" stroke="${fill}" stroke-width="2"/>`);
                 parts.push(`<text x="${cx}" y="${cy + 4}" text-anchor="middle" font-size="9" font-weight="700" fill="${fill}">${h.degree}</text>`);
             } else {
-                parts.push(`<circle cx="${cx}" cy="${cy}" r="10" fill="${fill}" opacity="0.92"/>`);
-                parts.push(`<text x="${cx}" y="${cy + 4}" text-anchor="middle" font-size="10" font-weight="700" fill="white">${h.degree}</text>`);
+                parts.push(`<circle cx="${cx}" cy="${cy}" r="10" fill="${fill}" opacity="0.95"/>`);
+                const txtColor = isBlack ? '#e5e7eb' : 'white';
+                parts.push(`<text x="${cx}" y="${cy + 4}" text-anchor="middle" font-size="10" font-weight="700" fill="${txtColor}">${h.degree}</text>`);
             }
             parts.push(`<text x="${cx}" y="${cy + 18}" text-anchor="middle" font-size="7.5" font-weight="600" fill="${fill}" opacity="0.9">${h.noteName}</text>`);
         }
@@ -270,18 +282,11 @@
             <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line-color);">
                 <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:10px;">Legenda</div>
                 <div style="display:flex;flex-direction:column;gap:8px;">
+                    ${[1,2,3,4,5,6,7].map(d => `
                     <div style="display:flex;align-items:center;gap:10px;">
-                        <svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="var(--brand,#7c3aed)"/><text x="11" y="15" text-anchor="middle" font-size="10" font-weight="700" fill="white">1</text></svg>
-                        <span style="font-size:.82rem;color:var(--text-secondary);">Tônica</span>
-                    </div>
-                    <div style="display:flex;align-items:center;gap:10px;">
-                        <svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="var(--chord-blue,#60a5fa)"/><text x="11" y="15" text-anchor="middle" font-size="10" font-weight="700" fill="white">3</text></svg>
-                        <span style="font-size:.82rem;color:var(--text-secondary);">Outros graus</span>
-                    </div>
-                    <div style="display:flex;align-items:center;gap:10px;">
-                        <svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="none" stroke="var(--chord-blue,#60a5fa)" stroke-width="2"/><text x="11" y="15" text-anchor="middle" font-size="9" font-weight="700" fill="var(--chord-blue,#60a5fa)">5</text></svg>
-                        <span style="font-size:.82rem;color:var(--text-secondary);">Corda solta</span>
-                    </div>
+                        <svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="${DEGREE_COLORS[d]}"/><text x="11" y="15" text-anchor="middle" font-size="10" font-weight="700" fill="${d===7?'#e5e7eb':'white'}">${d}</text></svg>
+                        <span style="font-size:.82rem;color:var(--text-secondary);">Grau ${d}</span>
+                    </div>`).join('')}
                 </div>
             </div>
             <div id="fb7-notes-list"></div>
@@ -293,13 +298,13 @@
             `<option value="${k}" ${k === _state.arpQuality ? 'selected' : ''}>${esc(v.label)}</option>`
         ).join('');
 
-        const arpColors = ['var(--brand,#7c3aed)', '#10b981', '#f59e0b', '#ef4444'];
-        const arpLabels = ['1 – Tônica', '2 – Terça', '3 – Quinta', '4 – Sétima'];
+        const arpColors = DEGREE_COLORS;
+        const arpLabels = ['Tônica', 'Terça', 'Quinta', 'Sétima'];
 
         const legendItems = Object.entries(ARPEGGIOS).find(([k]) => k === _state.arpQuality)?.[1]
             ?.toneLabels.map((l, i) =>
                 `<div style="display:flex;align-items:center;gap:10px;">
-                    <svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="${arpColors[i]}"/><text x="11" y="15" text-anchor="middle" font-size="10" font-weight="700" fill="white">${l}</text></svg>
+                    <svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="${arpColors[i+1]}"/><text x="11" y="15" text-anchor="middle" font-size="10" font-weight="700" fill="${i+1===7?'#e5e7eb':'white'}">${l}</text></svg>
                     <span style="font-size:.82rem;color:var(--text-secondary);">${arpLabels[i]}</span>
                 </div>`
             ).join('') || '';
@@ -475,12 +480,11 @@
             const rootIdx = NOTE_NAMES.indexOf(root);
             if (!arp || rootIdx === -1) { notesEl.innerHTML = ''; return; }
 
-            const arpColors = ['var(--brand,#7c3aed)', '#10b981', '#f59e0b', '#ef4444'];
             const arpLabels = ['Tônica', 'Terça', 'Quinta', 'Sétima'];
 
             const rows = arp.intervals.map((semis, i) => {
                 const pc    = (rootIdx + semis) % 12;
-                const color = arpColors[i];
+                const color = DEGREE_COLORS[i + 1];
                 return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--line-color);">
                     <span style="font-size:.8rem;color:var(--text-muted);">${arp.toneLabels[i]} – ${arpLabels[i]}</span>
                     <span style="font-family:var(--font-mono);font-size:.9rem;font-weight:600;color:${color};">${_noteName(pc, root)}</span>
@@ -494,7 +498,7 @@
             if (legendEl) {
                 legendEl.innerHTML = arp.toneLabels.map((l, i) =>
                     `<div style="display:flex;align-items:center;gap:10px;">
-                        <svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="${arpColors[i]}"/><text x="11" y="15" text-anchor="middle" font-size="10" font-weight="700" fill="white">${l}</text></svg>
+                        <svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="${DEGREE_COLORS[i+1]}"/><text x="11" y="15" text-anchor="middle" font-size="10" font-weight="700" fill="${i+1===7?'#e5e7eb':'white'}">${l}</text></svg>
                         <span style="font-size:.82rem;color:var(--text-secondary);">${arpLabels[i]}</span>
                     </div>`
                 ).join('');
