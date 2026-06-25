@@ -27,13 +27,13 @@
 
     // ── Arpejos — intervalos em semitons a partir da tônica ──────────────────
     const ARPEGGIOS = {
-        'M':  { label: 'Maior (M)',          intervals: [0, 4, 7],      toneLabels: ['1','2','3'],     intervalLabels: ['','3ª M','5ª J'] },
-        'm':  { label: 'Menor (m)',          intervals: [0, 3, 7],      toneLabels: ['1','2','3'],     intervalLabels: ['','3ª m','5ª J'] },
-        '7':  { label: 'Dominante 7ª (7)',   intervals: [0, 4, 7, 10],  toneLabels: ['1','2','3','4'], intervalLabels: ['','3ª M','5ª J','7ª m'] },
-        'o':  { label: 'Diminuto (o)',       intervals: [0, 3, 6, 9],   toneLabels: ['1','2','3','4'], intervalLabels: ['','3ª m','5ª d','7ª d'] },
-        'h':  { label: 'Meio-dim. (h)',      intervals: [0, 3, 6, 10],  toneLabels: ['1','2','3','4'], intervalLabels: ['','3ª m','5ª d','7ª m'] },
-        '7M': { label: 'Maior 7ª (7M)',      intervals: [0, 4, 7, 11],  toneLabels: ['1','2','3','4'], intervalLabels: ['','3ª M','5ª J','7ª M'] },
-        'm7': { label: 'Menor 7ª (m7)',      intervals: [0, 3, 7, 10],  toneLabels: ['1','2','3','4'], intervalLabels: ['','3ª m','5ª J','7ª m'] },
+        'M':  { label: 'Maior (M)',          intervals: [0, 4, 7],      toneLabels: ['1','3','5'],     intervalLabels: ['','3ª M','5ª J'] },
+        'm':  { label: 'Menor (m)',          intervals: [0, 3, 7],      toneLabels: ['1','3','5'],     intervalLabels: ['','3ª m','5ª J'] },
+        '7':  { label: 'Dominante 7ª (7)',   intervals: [0, 4, 7, 10],  toneLabels: ['1','3','5','7'], intervalLabels: ['','3ª M','5ª J','7ª m'] },
+        'o':  { label: 'Diminuto (o)',       intervals: [0, 3, 6, 9],   toneLabels: ['1','3','5','7'], intervalLabels: ['','3ª m','5ª d','7ª d'] },
+        'h':  { label: 'Meio-dim. (h)',      intervals: [0, 3, 6, 10],  toneLabels: ['1','3','5','7'], intervalLabels: ['','3ª m','5ª d','7ª m'] },
+        '7M': { label: 'Maior 7ª (7M)',      intervals: [0, 4, 7, 11],  toneLabels: ['1','3','5','7'], intervalLabels: ['','3ª M','5ª J','7ª M'] },
+        'm7': { label: 'Menor 7ª (m7)',      intervals: [0, 3, 7, 10],  toneLabels: ['1','3','5','7'], intervalLabels: ['','3ª m','5ª J','7ª m'] },
     };
 
     // Cores pedagógicas por grau: 1=vermelho 2=amarelo 3=verde 4=marrom 5=azul 6=rosa 7=preto
@@ -214,8 +214,8 @@
             const cx   = FB.dotX(h.fret);
             const cy   = FB.stringY(h.string);
 
-            // Cor: sempre pela paleta de graus (1-7 para escalas, tom 1-4 para arpejos)
-            const degIdx = isArp ? (h.toneIdx + 1) : h.degree;
+            // Cor: grau real do arpejo (1,3,5,7) ou grau da escala (1-7)
+            const degIdx = isArp ? parseInt(h.degree) : h.degree;
             const fill   = DEGREE_COLORS[degIdx] || DEGREE_COLORS[1];
             // Preto (grau 7) em fundo aberto precisa de stroke
             const isBlack = fill === DEGREE_COLORS[7];
@@ -500,13 +500,14 @@
                 legendEl.innerHTML = arp.toneLabels.map((l, i) => {
                     const pc          = (rootIdx + arp.intervals[i]) % 12;
                     const noteName    = _noteName(pc, root);
-                    const color       = DEGREE_COLORS[i + 1];
+                    const degNum      = parseInt(l);  // grau real: 1, 3, 5 ou 7
+                    const color       = DEGREE_COLORS[degNum] || DEGREE_COLORS[1];
                     const intLabel    = (arp.intervalLabels || [])[i] || '';
                     const badge       = intLabel
                         ? `<span style="font-size:.68rem;color:var(--text-muted);background:var(--bg-raised);border:1px solid var(--line-color);border-radius:4px;padding:1px 5px;white-space:nowrap;">${intLabel}</span>`
                         : '';
                     return `<div style="display:flex;align-items:center;gap:8px;">
-                        <svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="${color}"/><text x="11" y="15" text-anchor="middle" font-size="10" font-weight="700" fill="white">${l}</text></svg>
+                        <svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="${color}"/><text x="11" y="15" text-anchor="middle" font-size="10" font-weight="700" fill="${degNum===7?'#e5e7eb':'white'}">${l}</text></svg>
                         <span style="font-size:.82rem;color:var(--text-secondary);">${arpLabels[i]}</span>
                         ${badge}
                         <span style="flex:1;"></span>
