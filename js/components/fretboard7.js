@@ -30,7 +30,7 @@
         'M':  { label: 'Maior (M)',          intervals: [0, 4, 7],      toneLabels: ['1','2','3'],     intervalLabels: ['','3ª M','5ª J'] },
         'm':  { label: 'Menor (m)',          intervals: [0, 3, 7],      toneLabels: ['1','2','3'],     intervalLabels: ['','3ª m','5ª J'] },
         '7':  { label: 'Dominante 7ª (7)',   intervals: [0, 4, 7, 10],  toneLabels: ['1','2','3','4'], intervalLabels: ['','3ª M','5ª J','7ª m'] },
-        'o':  { label: 'Diminuto (o)',       intervals: [0, 3, 6],      toneLabels: ['1','2','3'],     intervalLabels: ['','3ª m','5ª d'] },
+        'o':  { label: 'Diminuto (o)',       intervals: [0, 3, 6, 9],   toneLabels: ['1','2','3','4'], intervalLabels: ['','3ª m','5ª d','7ª d'] },
         'h':  { label: 'Meio-dim. (h)',      intervals: [0, 3, 6, 10],  toneLabels: ['1','2','3','4'], intervalLabels: ['','3ª m','5ª d','7ª m'] },
         '7M': { label: 'Maior 7ª (7M)',      intervals: [0, 4, 7, 11],  toneLabels: ['1','2','3','4'], intervalLabels: ['','3ª M','5ª J','7ª M'] },
         'm7': { label: 'Menor 7ª (m7)',      intervals: [0, 3, 7, 10],  toneLabels: ['1','2','3','4'], intervalLabels: ['','3ª m','5ª J','7ª m'] },
