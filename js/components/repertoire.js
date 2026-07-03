@@ -848,7 +848,8 @@
                     <div class="sd-body">
                         ${song.audio_url ? `
                         <div id="sd-audio-wrap" style="padding:0 0 8px;${_defaultTab === 'letra' ? 'display:none;' : ''}">
-                            <audio id="sd-audio" controls preload="none" src="${esc(song.audio_url)}"
+                            <audio id="sd-audio" controls preload="metadata" crossorigin="anonymous"
+                                   src="${esc(song.audio_url)}"
                                    style="width:100%;height:34px;display:block;"></audio>
                         </div>` : ''}
                         <div class="sd-pane${_defaultTab === 'func' ? ' active' : ''}" id="sd-pane-func">
@@ -953,6 +954,20 @@
                         }
                     } catch (_) { /* keep remote URL */ }
                 }).catch(() => { /* IndexedDB unavailable — remote URL stays */ });
+            }
+
+            // ── Audio error diagnostics (temporary) ──────────────────
+            if (song.audio_url) {
+                const audioEl = document.getElementById('sd-audio');
+                if (audioEl) {
+                    const MEDIA_ERRORS = { 1: 'ABORTED', 2: 'NETWORK', 3: 'DECODE', 4: 'NOT_SUPPORTED' };
+                    audioEl.addEventListener('error', () => {
+                        const code = audioEl.error ? audioEl.error.code : 'unknown';
+                        const msg  = MEDIA_ERRORS[code] || code;
+                        window.HMSApp.showToast(`Áudio erro: ${msg} (${code})`, 'error');
+                        console.error('[HMS] Audio error:', code, audioEl.error?.message, audioEl.src);
+                    }, { once: true });
+                }
             }
 
             document.querySelectorAll('.sd-tab').forEach(tab => {
