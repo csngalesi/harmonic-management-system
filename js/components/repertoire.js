@@ -932,7 +932,7 @@
             // The audio element already has the remote src set (works online).
             // Async check: if a local blob exists in IndexedDB, swap to it so it
             // plays offline too. If no blob, do nothing — remote URL keeps loading.
-            if (song.audio_url && window.HMSOfflineDB) {
+            if (song.audio_url && window.HMSOfflineDB && window.HMSOfflineDB.audioBlobs) {
                 window.HMSOfflineDB.audioBlobs.get(song.id).then(cached => {
                     if (!cached || !cached.blob) return;  // no blob — remote URL is fine
                     const audioEl = document.getElementById('sd-audio');

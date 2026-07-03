@@ -176,7 +176,7 @@
             // ── Cached audio blob (offline playback) ─────────────────
             // Audio el already has the remote src (works online).
             // If a blob is cached in IndexedDB, swap to it for offline use.
-            if (s.audio_url && window.HMSOfflineDB) {
+            if (s.audio_url && window.HMSOfflineDB && window.HMSOfflineDB.audioBlobs) {
                 window.HMSOfflineDB.audioBlobs.get(s.id).then(cached => {
                     if (!cached || !cached.blob) return; // no blob — remote URL is fine
                     const audioEl = document.getElementById('song-audio-el');
