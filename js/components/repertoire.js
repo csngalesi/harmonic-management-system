@@ -928,6 +928,34 @@
                 window.HMSApp.closeModal();
             });
 
+            // ── Cached audio blob (offline playback) ─────────────────
+            // Swap #sd-audio src to a local Object URL if a blob is cached,
+            // so the audio plays in airplane mode without hitting the network.
+            if (song.audio_url && window.HMSOfflineDB) {
+                window.HMSOfflineDB.audioBlobs.get(song.id).then(cached => {
+                    const audioEl = document.getElementById('sd-audio');
+                    if (!audioEl || !cached || !cached.blob) return;
+                    let objUrl = null;
+                    try {
+                        objUrl = URL.createObjectURL(cached.blob);
+                        audioEl.src = objUrl;
+                        // Revoke when modal closes or audio element goes away
+                        const revoke = () => { if (objUrl) { URL.revokeObjectURL(objUrl); objUrl = null; } };
+                        audioEl.addEventListener('emptied', revoke, { once: true });
+                        // Also revoke when the modal overlay is hidden
+                        const observer = new MutationObserver(() => {
+                            const overlay = document.getElementById('modal-overlay');
+                            if (overlay && overlay.classList.contains('hidden')) {
+                                revoke();
+                                observer.disconnect();
+                            }
+                        });
+                        const overlay = document.getElementById('modal-overlay');
+                        if (overlay) observer.observe(overlay, { attributes: true, attributeFilter: ['class'] });
+                    } catch (_) { /* keep remote URL */ }
+                }).catch(() => { /* IndexedDB unavailable */ });
+            }
+
             document.querySelectorAll('.sd-tab').forEach(tab => {
                 tab.addEventListener('click', () => {
                     document.querySelectorAll('.sd-tab').forEach(t => t.classList.remove('active'));
