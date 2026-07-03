@@ -849,7 +849,6 @@
                         ${song.audio_url ? `
                         <div id="sd-audio-wrap" style="padding:0 0 8px;${_defaultTab === 'letra' ? 'display:none;' : ''}">
                             <audio id="sd-audio" controls preload="metadata"
-                                   src="${esc(song.audio_url)}"
                                    style="width:100%;height:34px;display:block;"></audio>
                         </div>` : ''}
                         <div class="sd-pane${_defaultTab === 'func' ? ' active' : ''}" id="sd-pane-func">
@@ -928,6 +927,26 @@
             document.getElementById('sd-close-btn')?.addEventListener('click', () => {
                 window.HMSApp.closeModal();
             });
+
+            // ── Audio source setup ──────────────────────────────────
+            // Set src via JS (avoids HTML encoding issues with &amp; in URLs)
+            if (song.audio_url) {
+                const audioEl = document.getElementById('sd-audio');
+                if (audioEl) {
+                    audioEl.src = song.audio_url; // raw JS property — no HTML encoding
+                    audioEl.load();
+
+                    // Error diagnostics
+                    const MEDIA_ERRORS = { 1: 'ABORTED', 2: 'NETWORK', 3: 'DECODE', 4: 'NOT_SUPPORTED' };
+                    audioEl.addEventListener('error', () => {
+                        const code = audioEl.error ? audioEl.error.code : '?';
+                        const label = MEDIA_ERRORS[code] || code;
+                        const src80 = (audioEl.src || '').slice(0, 60);
+                        window.HMSApp.showToast(`Áudio erro ${code}: ${label}`, 'error');
+                        console.error('[HMS] Audio error:', code, label, '\nSRC:', audioEl.src, '\nMSG:', audioEl.error?.message);
+                    }, { once: true });
+                }
+            }
 
             // ── Cached audio blob (offline playback) ─────────────────
             // The audio element already has the remote src set (works online).
