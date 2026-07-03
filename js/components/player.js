@@ -125,8 +125,7 @@
                         <span id="audio-cache-badge" style="font-size:.68rem;color:var(--text-muted);"></span>
                     </div>
                     <div class="panel-body" style="padding:12px;">
-                        <audio controls preload="none" id="song-audio-el" src=""
-                               data-remote-src="${esc(s.audio_url)}" style="width:100%;">
+                        <audio controls preload="none" id="song-audio-el" src="${esc(s.audio_url)}" style="width:100%;">
                             Seu navegador não suporta o elemento audio.
                         </audio>
                     </div>
@@ -175,38 +174,26 @@
             PlayerComponent._renderChords();
 
             // ── Cached audio blob (offline playback) ─────────────────
+            // Audio el already has the remote src (works online).
+            // If a blob is cached in IndexedDB, swap to it for offline use.
             if (s.audio_url && window.HMSOfflineDB) {
                 window.HMSOfflineDB.audioBlobs.get(s.id).then(cached => {
+                    if (!cached || !cached.blob) return; // no blob — remote URL is fine
                     const audioEl = document.getElementById('song-audio-el');
                     if (!audioEl) return;
-
-                    if (cached && cached.blob) {
-                        let objUrl = null;
-                        try {
-                            objUrl = URL.createObjectURL(cached.blob);
-                            audioEl.src = objUrl;
-                            audioEl.load();
-                            const revoke = () => { if (objUrl) { URL.revokeObjectURL(objUrl); objUrl = null; } };
-                            audioEl.addEventListener('emptied', revoke, { once: true });
-                            window.addEventListener('beforeunload', revoke, { once: true });
-                            const badge = document.getElementById('audio-cache-badge');
-                            if (badge) {
-                                badge.innerHTML = '<i class="fa-solid fa-hard-drive" style="color:#10b981;margin-right:4px;"></i><span style="color:#10b981;">offline</span>';
-                                badge.title = `Em cache: ${window.HMSSyncManager ? window.HMSSyncManager.formatBytes(cached.size_bytes) : ''}`;
-                            }
-                        } catch (_) {
-                            audioEl.src = audioEl.dataset.remoteSrc || s.audio_url;
-                            audioEl.load();
-                        }
-                    } else {
-                        // No blob — use remote URL
-                        audioEl.src = audioEl.dataset.remoteSrc || s.audio_url;
+                    try {
+                        const objUrl = URL.createObjectURL(cached.blob);
+                        audioEl.src = objUrl;
                         audioEl.load();
-                    }
-                }).catch(() => {
-                    const audioEl = document.getElementById('song-audio-el');
-                    if (audioEl) { audioEl.src = s.audio_url; audioEl.load(); }
-                });
+                        const revoke = () => URL.revokeObjectURL(objUrl);
+                        audioEl.addEventListener('emptied', revoke, { once: true });
+                        window.addEventListener('beforeunload', revoke, { once: true });
+                        const badge = document.getElementById('audio-cache-badge');
+                        if (badge) {
+                            badge.innerHTML = '<i class="fa-solid fa-hard-drive" style="color:#10b981;margin-right:4px;"></i><span style="color:#10b981;">offline</span>';
+                        }
+                    } catch (_) { /* keep remote URL */ }
+                }).catch(() => { /* IndexedDB unavailable */ });
             }
 
 
