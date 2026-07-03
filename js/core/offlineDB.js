@@ -1,13 +1,15 @@
 /**
  * HMS — Offline IndexedDB Wrapper
- * Persists songs, setlists, and setlist-song relations locally.
+ * Persists songs, setlists, setlist-song relations, and audio blobs locally.
  * Exposed via window.HMSOfflineDB
+ *
+ * v2: added audio_blobs store
  */
 (function () {
     'use strict';
 
     const DB_NAME    = 'hms-offline';
-    const DB_VERSION = 1;
+    const DB_VERSION = 2;          // bumped from 1 → 2 to trigger migration
     let _db = null;
 
     function openDB() {
@@ -29,6 +31,10 @@
                 }
                 if (!db.objectStoreNames.contains('meta')) {
                     db.createObjectStore('meta', { keyPath: 'key' });
+                }
+                // v2: audio blobs (delta-sync friendly)
+                if (!db.objectStoreNames.contains('audio_blobs')) {
+                    db.createObjectStore('audio_blobs', { keyPath: 'song_id' });
                 }
             };
 
@@ -153,6 +159,61 @@
         },
     };
 
-    window.HMSOfflineDB = { songs, setlists, setlistSongs, meta };
-    console.info('[HMS] OfflineDB module loaded.');
+    // ── Audio Blobs (v2) ────────────────────────────────────────────
+    // Each record: { song_id, blob, audio_url, size_bytes, cached_at }
+    // audio_url stored as fingerprint for delta-sync: if it changes → re-download.
+    const audioBlobs = {
+        get(songId) {
+            return tx('audio_blobs', 'readonly', (store, resolve, reject) => {
+                const req = store.get(songId);
+                req.onsuccess = (e) => resolve(e.target.result || null);
+                req.onerror   = (e) => reject(e.target.error);
+            });
+        },
+
+        put(record) {
+            // record: { song_id, blob, audio_url, size_bytes, cached_at }
+            return tx('audio_blobs', 'readwrite', (store, resolve, reject) => {
+                const req = store.put(record);
+                req.onsuccess = () => resolve();
+                req.onerror   = (e) => reject(e.target.error);
+            });
+        },
+
+        delete(songId) {
+            return tx('audio_blobs', 'readwrite', (store, resolve, reject) => {
+                const req = store.delete(songId);
+                req.onsuccess = () => resolve();
+                req.onerror   = (e) => reject(e.target.error);
+            });
+        },
+
+        getAll() {
+            return tx('audio_blobs', 'readonly', (store, resolve, reject) => {
+                const req = store.getAll();
+                req.onsuccess = (e) => resolve(e.target.result || []);
+                req.onerror   = (e) => reject(e.target.error);
+            });
+        },
+
+        clearAll() {
+            return tx('audio_blobs', 'readwrite', (store, resolve, reject) => {
+                const req = store.clear();
+                req.onsuccess = () => resolve();
+                req.onerror   = (e) => reject(e.target.error);
+            });
+        },
+
+        /** Returns { count, totalBytes } */
+        async getStats() {
+            const all = await this.getAll();
+            return {
+                count:      all.length,
+                totalBytes: all.reduce((s, r) => s + (r.size_bytes || 0), 0),
+            };
+        },
+    };
+
+    window.HMSOfflineDB = { songs, setlists, setlistSongs, meta, audioBlobs };
+    console.info('[HMS] OfflineDB module loaded (v2 — audio_blobs store).');
 })();

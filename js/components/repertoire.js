@@ -2075,6 +2075,12 @@
                 ? `${stats.songCount} m\u00fasica${stats.songCount !== 1 ? 's' : ''} \u00b7 ${stats.setlistCount} setlist${stats.setlistCount !== 1 ? 's' : ''}`
                 : 'Nenhuma sync realizada';
 
+            const lastAudioSyncLabel = await window.HMSSyncManager.getLastAudioSyncLabel();
+            const audioStats         = await window.HMSSyncManager.getAudioStats();
+            const audioStatsLabel    = audioStats.count
+                ? `${audioStats.count} arquivo${audioStats.count !== 1 ? 's' : ''} \u00b7 ${window.HMSSyncManager.formatBytes(audioStats.totalBytes)}`
+                : 'Nenhum MP3 em cache';
+
             window.HMSApp.openModal(`
                 <div class="modal-header">
                     <h3><i class="fa-solid fa-ellipsis-vertical"></i> Fun\u00e7\u00f5es</h3>
@@ -2104,6 +2110,34 @@
                                 <div id="sync-progress-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#7c6fff,#a78bfa);border-radius:99px;transition:width .3s ease;"></div>
                             </div>
                             <div id="sync-progress-msg" style="font-size:.75rem;color:var(--text-muted);text-align:center;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Sync de MP3 -->
+                    <div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.22);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                            <div>
+                                <div style="font-weight:600;font-size:.95rem;color:var(--text-primary);display:flex;align-items:center;gap:8px;">
+                                    <i class="fa-solid fa-file-audio" style="color:#10b981;"></i> Sync de MP3
+                                </div>
+                                <div style="font-size:.75rem;color:var(--text-muted);margin-top:3px;">
+                                    \u00daltima: ${lastAudioSyncLabel}
+                                </div>
+                                <div style="font-size:.75rem;color:var(--text-muted);" id="fm-audio-stats-label">${audioStatsLabel}</div>
+                            </div>
+                            <button class="btn btn-sm" id="fm-sync-audio" style="white-space:nowrap;flex-shrink:0;background:rgba(16,185,129,.15);border-color:rgba(16,185,129,.4);color:#34d399;">
+                                <i class="fa-solid fa-arrow-rotate-right"></i> Sincronizar
+                            </button>
+                        </div>
+                        <!-- Progress bar MP3 (hidden by default) -->
+                        <div id="audio-sync-progress-wrap" style="display:none;flex-direction:column;gap:6px;">
+                            <div style="background:rgba(255,255,255,.08);border-radius:99px;height:6px;overflow:hidden;">
+                                <div id="audio-sync-progress-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#10b981,#34d399);border-radius:99px;transition:width .3s ease;"></div>
+                            </div>
+                            <div id="audio-sync-progress-msg" style="font-size:.75rem;color:var(--text-muted);text-align:center;"></div>
+                        </div>
+                        <div style="font-size:.68rem;color:var(--text-muted);text-align:right;">
+                            <span id="fm-clear-audio-cache" style="cursor:pointer;text-decoration:underline;opacity:.6;" title="Limpar todos os MP3s em cache">Limpar cache</span>
                         </div>
                     </div>
 
@@ -2202,6 +2236,71 @@
                     syncBtn.disabled = false;
                     syncBtn.innerHTML = '<i class="fa-solid fa-arrow-rotate-right"></i> Tentar novamente';
                     window.HMSApp.showToast('Erro na sincroniza\u00e7\u00e3o: ' + err.message, 'error');
+                }
+            });
+
+            // ── Audio Sync button ────────────────────────────────────
+            document.getElementById('fm-sync-audio').addEventListener('click', async () => {
+                const syncBtn = document.getElementById('fm-sync-audio');
+                const wrapEl  = document.getElementById('audio-sync-progress-wrap');
+                const barEl   = document.getElementById('audio-sync-progress-bar');
+                const msgEl   = document.getElementById('audio-sync-progress-msg');
+
+                syncBtn.disabled = true;
+                syncBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Baixando\u2026';
+                wrapEl.style.display = 'flex';
+
+                // Use songs already loaded in state; fallback to IndexedDB if offline
+                let songs = _state.songs.length ? _state.songs : await window.HMSOfflineDB.songs.getAll();
+
+                try {
+                    const result = await window.HMSSyncManager.syncAudio(songs, (idx, total, title, stats) => {
+                        if (total === 0) { msgEl.textContent = 'Nenhuma música com áudio.'; return; }
+                        const pct = Math.round((idx / total) * 100);
+                        barEl.style.width = pct + '%';
+                        const s = stats || {};
+                        msgEl.textContent = total > 0
+                            ? `(${idx}/${total}) ${title || ''}  \u2193${s.downloaded||0} \u21BA${s.skipped||0} \u2717${s.errors||0}`
+                            : title;
+                    });
+
+                    barEl.style.width = '100%';
+                    const msg = result.total === 0
+                        ? 'Nenhuma música com áudio'
+                        : `\u2713 ${result.downloaded} baixado${result.downloaded!==1?'s':''}  \u21BA ${result.skipped} j\u00e1 em cache  \u2717 ${result.errors} erro${result.errors!==1?'s':''}`;
+                    msgEl.textContent = msg;
+                    syncBtn.innerHTML = '<i class="fa-solid fa-circle-check"></i> Conclu\u00eddo';
+
+                    // Update the stats label below the card
+                    const newAudioStats = await window.HMSSyncManager.getAudioStats();
+                    const statsEl = document.getElementById('fm-audio-stats-label');
+                    if (statsEl) {
+                        statsEl.textContent = newAudioStats.count
+                            ? `${newAudioStats.count} arquivo${newAudioStats.count!==1?'s':''} \u00b7 ${window.HMSSyncManager.formatBytes(newAudioStats.totalBytes)}`
+                            : 'Nenhum MP3 em cache';
+                    }
+
+                    if (result.total > 0) {
+                        window.HMSApp.showToast(`MP3 sync: ${result.downloaded} baixado${result.downloaded!==1?'s':''}, ${result.skipped} em cache`, 'success');
+                    }
+                } catch (err) {
+                    msgEl.textContent = 'Erro: ' + (err.message || 'falha na sync');
+                    syncBtn.disabled = false;
+                    syncBtn.innerHTML = '<i class="fa-solid fa-arrow-rotate-right"></i> Tentar novamente';
+                    window.HMSApp.showToast('Erro no sync de MP3: ' + err.message, 'error');
+                }
+            });
+
+            // ── Clear audio cache link ───────────────────────────────
+            document.getElementById('fm-clear-audio-cache').addEventListener('click', async () => {
+                if (!confirm('Apagar todos os MP3s em cache? Você precisará fazer o sync novamente para usar offline.')) return;
+                try {
+                    await window.HMSSyncManager.clearAudioCache();
+                    const statsEl = document.getElementById('fm-audio-stats-label');
+                    if (statsEl) statsEl.textContent = 'Nenhum MP3 em cache';
+                    window.HMSApp.showToast('Cache de MP3 limpo.', 'info');
+                } catch (err) {
+                    window.HMSApp.showToast('Erro ao limpar cache: ' + err.message, 'error');
                 }
             });
 

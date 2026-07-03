@@ -122,9 +122,10 @@
                 <div class="panel mb-3">
                     <div class="panel-header">
                         <span class="panel-title"><i class="fa-solid fa-file-audio"></i> Gravação</span>
+                        <span id="audio-cache-badge" style="font-size:.68rem;color:var(--text-muted);"></span>
                     </div>
                     <div class="panel-body" style="padding:12px;">
-                        <audio controls preload="none" src="${esc(s.audio_url)}" style="width:100%;">
+                        <audio controls preload="none" id="song-audio-el" src="${esc(s.audio_url)}" style="width:100%;">
                             Seu navegador não suporta o elemento audio.
                         </audio>
                     </div>
@@ -172,7 +173,35 @@
             // Render chords for default display key
             PlayerComponent._renderChords();
 
-            // Event listeners
+            // ── Cached audio blob (offline playback) ─────────────────
+            // After rendering, check IndexedDB for a stored blob.
+            // If found, swap the audio element src to an Object URL so it
+            // plays even without network. Falls back silently to audio_url.
+            if (s.audio_url && window.HMSOfflineDB) {
+                window.HMSOfflineDB.audioBlobs.get(s.id).then(cached => {
+                    const audioEl = document.getElementById('song-audio-el');
+                    if (!audioEl) return;
+                    if (cached && cached.blob) {
+                        let objUrl = null;
+                        try {
+                            objUrl = URL.createObjectURL(cached.blob);
+                            audioEl.src = objUrl;
+                            // Revoke when the element is no longer needed
+                            const revoke = () => { if (objUrl) { URL.revokeObjectURL(objUrl); objUrl = null; } };
+                            audioEl.addEventListener('emptied', revoke, { once: true });
+                            window.addEventListener('beforeunload', revoke, { once: true });
+                            // Show badge
+                            const badge = document.getElementById('audio-cache-badge');
+                            if (badge) {
+                                badge.innerHTML = '<i class="fa-solid fa-hard-drive" style="color:#10b981;margin-right:4px;"></i><span style="color:#10b981;">offline</span>';
+                                badge.title = `Em cache: ${window.HMSSyncManager ? window.HMSSyncManager.formatBytes(cached.size_bytes) : ''} — ${cached.cached_at ? new Date(cached.cached_at).toLocaleDateString('pt-BR') : ''}`;
+                            }
+                        } catch (_) { /* createObjectURL failed — keep remote URL */ }
+                    }
+                }).catch(() => { /* IndexedDB unavailable — keep remote URL */ });
+            }
+
+
             const playBtn = document.getElementById('btn-play-audio');
             playBtn.addEventListener('click', async () => {
                 if (window.HMSAudio.isPlaying) {
