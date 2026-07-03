@@ -4,7 +4,7 @@
  * Strategy: Cache-first for static assets, network-first for API calls.
  */
 
-const CACHE_NAME = 'hms-v22';
+const CACHE_NAME = 'hms-v23';
 
 // App shell — all static assets needed to run offline
 // IMPORTANT: URLs must include the same ?v= suffix used in index.html so that
@@ -13,25 +13,25 @@ const APP_SHELL = [
     '/',
     '/index.html',
     '/css/main.css',
-    '/js/core/harmonyEngine.js?v=4',
-    '/js/core/chordShapes.js?v=4',
-    '/js/core/audioEngine.js?v=4',
-    '/js/core/melodyEngine.js?v=4',
-    '/js/core/offlineDB.js?v=4',
-    '/js/core/syncManager.js?v=4',
-    '/js/supabase-client.js?v=4',
-    '/js/auth.js?v=4',
-    '/js/api.js?v=4',
-    '/js/components/repertoire.js?v=4',
-    '/js/components/player.js?v=4',
-    '/js/components/analyzer.js?v=4',
-    '/js/components/extractor.js?v=4',
-    '/js/components/studies7.js?v=4',
-    '/js/components/fretboard7.js?v=4',
-    '/js/components/melodicStudies.js?v=4',
-    '/js/components/harmonicMelodic.js?v=4',
-    '/js/components/harmonicBass.js?v=4',
-    '/js/app.js?v=4',
+    '/js/core/harmonyEngine.js?v=5',
+    '/js/core/chordShapes.js?v=5',
+    '/js/core/audioEngine.js?v=5',
+    '/js/core/melodyEngine.js?v=5',
+    '/js/core/offlineDB.js?v=5',
+    '/js/core/syncManager.js?v=5',
+    '/js/supabase-client.js?v=5',
+    '/js/auth.js?v=5',
+    '/js/api.js?v=5',
+    '/js/components/repertoire.js?v=5',
+    '/js/components/player.js?v=5',
+    '/js/components/analyzer.js?v=5',
+    '/js/components/extractor.js?v=5',
+    '/js/components/studies7.js?v=5',
+    '/js/components/fretboard7.js?v=5',
+    '/js/components/melodicStudies.js?v=5',
+    '/js/components/harmonicMelodic.js?v=5',
+    '/js/components/harmonicBass.js?v=5',
+    '/js/app.js?v=5',
     // CDN libs
     'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',
     'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css',
@@ -73,7 +73,12 @@ self.addEventListener('fetch', (event) => {
     const url = event.request.url;
 
     // Let Supabase calls pass through (offline fallback handled by api.js)
+    // Storage URLs (audio, images) bypass SW entirely to avoid opaque response
+    // issues with <audio> elements on mobile Chrome.
     if (url.includes('supabase.co')) {
+        if (url.includes('/storage/v1/object/')) {
+            return; // Let browser handle storage requests directly (no SW)
+        }
         event.respondWith(fetch(event.request).catch(() => new Response(
             JSON.stringify({ error: 'offline' }),
             { status: 503, headers: { 'Content-Type': 'application/json' } }
