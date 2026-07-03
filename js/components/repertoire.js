@@ -848,7 +848,7 @@
                     <div class="sd-body">
                         ${song.audio_url ? `
                         <div id="sd-audio-wrap" style="padding:0 0 8px;${_defaultTab === 'letra' ? 'display:none;' : ''}">
-                            <audio id="sd-audio" controls preload="metadata" crossorigin="anonymous"
+                            <audio id="sd-audio" controls preload="metadata"
                                    src="${esc(song.audio_url)}"
                                    style="width:100%;height:34px;display:block;"></audio>
                         </div>` : ''}
