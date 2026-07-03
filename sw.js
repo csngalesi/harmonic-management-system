@@ -4,32 +4,34 @@
  * Strategy: Cache-first for static assets, network-first for API calls.
  */
 
-const CACHE_NAME = 'hms-v21';
+const CACHE_NAME = 'hms-v22';
 
 // App shell — all static assets needed to run offline
+// IMPORTANT: URLs must include the same ?v= suffix used in index.html so that
+// caches.match() finds these entries when the browser requests them.
 const APP_SHELL = [
     '/',
     '/index.html',
     '/css/main.css',
-    '/js/core/harmonyEngine.js',
-    '/js/core/chordShapes.js',
-    '/js/core/audioEngine.js',
-    '/js/core/melodyEngine.js',
-    '/js/core/offlineDB.js',
-    '/js/core/syncManager.js',
-    '/js/supabase-client.js',
-    '/js/auth.js',
-    '/js/api.js',
-    '/js/components/repertoire.js',
-    '/js/components/player.js',
-    '/js/components/analyzer.js',
-    '/js/components/extractor.js',
-    '/js/components/studies7.js',
-    '/js/components/fretboard7.js',
-    '/js/components/melodicStudies.js',
-    '/js/components/harmonicMelodic.js',
-    '/js/components/harmonicBass.js',
-    '/js/app.js',
+    '/js/core/harmonyEngine.js?v=4',
+    '/js/core/chordShapes.js?v=4',
+    '/js/core/audioEngine.js?v=4',
+    '/js/core/melodyEngine.js?v=4',
+    '/js/core/offlineDB.js?v=4',
+    '/js/core/syncManager.js?v=4',
+    '/js/supabase-client.js?v=4',
+    '/js/auth.js?v=4',
+    '/js/api.js?v=4',
+    '/js/components/repertoire.js?v=4',
+    '/js/components/player.js?v=4',
+    '/js/components/analyzer.js?v=4',
+    '/js/components/extractor.js?v=4',
+    '/js/components/studies7.js?v=4',
+    '/js/components/fretboard7.js?v=4',
+    '/js/components/melodicStudies.js?v=4',
+    '/js/components/harmonicMelodic.js?v=4',
+    '/js/components/harmonicBass.js?v=4',
+    '/js/app.js?v=4',
     // CDN libs
     'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',
     'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css',
