@@ -848,7 +848,8 @@
                     <div class="sd-body">
                         ${song.audio_url ? `
                         <div id="sd-audio-wrap" style="padding:0 0 8px;${_defaultTab === 'letra' ? 'display:none;' : ''}">
-                            <audio id="sd-audio" controls preload="none" src="${esc(song.audio_url)}"
+                            <audio id="sd-audio" controls preload="none" src=""
+                                   data-remote-src="${esc(song.audio_url)}"
                                    style="width:100%;height:34px;display:block;"></audio>
                         </div>` : ''}
                         <div class="sd-pane${_defaultTab === 'func' ? ' active' : ''}" id="sd-pane-func">
@@ -934,26 +935,44 @@
             if (song.audio_url && window.HMSOfflineDB) {
                 window.HMSOfflineDB.audioBlobs.get(song.id).then(cached => {
                     const audioEl = document.getElementById('sd-audio');
-                    if (!audioEl || !cached || !cached.blob) return;
+                    if (!audioEl) return;
+
                     let objUrl = null;
-                    try {
-                        objUrl = URL.createObjectURL(cached.blob);
-                        audioEl.src = objUrl;
-                        // Revoke when modal closes or audio element goes away
-                        const revoke = () => { if (objUrl) { URL.revokeObjectURL(objUrl); objUrl = null; } };
-                        audioEl.addEventListener('emptied', revoke, { once: true });
-                        // Also revoke when the modal overlay is hidden
-                        const observer = new MutationObserver(() => {
+                    if (cached && cached.blob) {
+                        try {
+                            objUrl = URL.createObjectURL(cached.blob);
+                            audioEl.src = objUrl;
+                            audioEl.load(); // reset element so it picks up new src
+                            // Revoke when modal closes or audio element goes away
+                            const revoke = () => { if (objUrl) { URL.revokeObjectURL(objUrl); objUrl = null; } };
+                            audioEl.addEventListener('emptied', revoke, { once: true });
+                            const observer = new MutationObserver(() => {
+                                const overlay = document.getElementById('modal-overlay');
+                                if (overlay && overlay.classList.contains('hidden')) {
+                                    revoke();
+                                    observer.disconnect();
+                                }
+                            });
                             const overlay = document.getElementById('modal-overlay');
-                            if (overlay && overlay.classList.contains('hidden')) {
-                                revoke();
-                                observer.disconnect();
-                            }
-                        });
-                        const overlay = document.getElementById('modal-overlay');
-                        if (overlay) observer.observe(overlay, { attributes: true, attributeFilter: ['class'] });
-                    } catch (_) { /* keep remote URL */ }
-                }).catch(() => { /* IndexedDB unavailable */ });
+                            if (overlay) observer.observe(overlay, { attributes: true, attributeFilter: ['class'] });
+                        } catch (_) {
+                            // createObjectURL failed — fall back to remote URL
+                            audioEl.src = audioEl.dataset.remoteSrc || song.audio_url;
+                            audioEl.load();
+                        }
+                    } else {
+                        // No blob cached — use the remote URL
+                        audioEl.src = audioEl.dataset.remoteSrc || song.audio_url;
+                        audioEl.load();
+                    }
+                }).catch(() => {
+                    // IndexedDB unavailable — fall back to remote URL
+                    const audioEl = document.getElementById('sd-audio');
+                    if (audioEl) {
+                        audioEl.src = audioEl.dataset.remoteSrc || song.audio_url;
+                        audioEl.load();
+                    }
+                });
             }
 
             document.querySelectorAll('.sd-tab').forEach(tab => {
