@@ -638,61 +638,26 @@
                     const targetId = cell.dataset.id;
                     if (!_dragId || _dragId === targetId) return;
 
-                    // Read actual column count from rendered grid at drop time
-                    const numCols = getNumCols();
-
-                    // ── Step 1: Build the current visual display order ──────
-                    // Mirrors exactly what _renderShowGrid computes.
+                    // Always operate in READING ORDER (sorted by _position).
+                    // _renderShowGrid handles the col-major visual reordering separately,
+                    // so the drop handler never needs to know about numCols or display order.
                     const setlistSongs = [..._state.songs]
                         .filter(s => s._position !== null && s._position !== undefined)
                         .sort((a, b) => a._position - b._position);
 
-                    let displayList = [...setlistSongs];
-                    if (_state.showFlow === 'col' && displayList.length > 0) {
-                        const n       = displayList.length;
-                        const numRows = Math.ceil(n / numCols);
-                        const colMajor = [];
-                        for (let row = 0; row < numRows; row++) {
-                            for (let col = 0; col < numCols; col++) {
-                                const srcIdx = col * numRows + row;
-                                if (srcIdx < n) colMajor.push(displayList[srcIdx]);
-                            }
-                        }
-                        displayList = colMajor;
-                    }
-
-                    // ── Step 2: Insert-before in display order ──────────────
-                    // Remove dragged song, insert it before the drop target.
-                    const fromIdx = displayList.findIndex(s => s.id === _dragId);
-                    const toIdx   = displayList.findIndex(s => s.id === targetId);
+                    const fromIdx = setlistSongs.findIndex(s => s.id === _dragId);
+                    const toIdx   = setlistSongs.findIndex(s => s.id === targetId);
                     if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
 
-                    const [movedSong] = displayList.splice(fromIdx, 1);
-                    // After splice, if toIdx was after fromIdx it shifted left by 1
+                    // Remove dragged song and insert before the drop target
+                    const [movedSong] = setlistSongs.splice(fromIdx, 1);
                     const insertAt = fromIdx < toIdx ? toIdx - 1 : toIdx;
-                    displayList.splice(insertAt, 0, movedSong);
+                    setlistSongs.splice(insertAt, 0, movedSong);
 
-                    // ── Step 3: Convert display indices → reading positions ─
-                    // Row mode  → display index is directly the reading order.
-                    // Col mode  → display(row,col) → readPos = col*numRows + row + 1
-                    const total   = displayList.length;
-                    const numRows = Math.ceil(total / numCols);
-                    displayList.forEach((s, di) => {
-                        if (_state.showFlow === 'row') {
-                            s._position = di + 1;
-                        } else {
-                            const row = Math.floor(di / numCols);
-                            const col = di % numCols;
-                            s._position = col * numRows + row + 1;
-                        }
-                    });
+                    // Assign sequential positions 1, 2, 3…
+                    setlistSongs.forEach((s, i) => { s._position = i + 1; });
 
-                    // ── Step 4: Normalize to sequential 1,2,3… ─────────────
-                    [...displayList]
-                        .sort((a, b) => a._position - b._position)
-                        .forEach((s, i) => { s._position = i + 1; });
-
-                    // ── Step 5: Persist & re-render ─────────────────────────
+                    // Persist & re-render
                     RepertoireComponent._savePositions();
                     RepertoireComponent._renderSongList();
                 });
