@@ -931,20 +931,45 @@
             // ── Audio source + offline blob ────────────────────────────
             // 1. Set src via JS (avoids HTML-encoding of & in signed URLs).
             //    preload="none" means browser won't fetch until user presses play.
-            // 2. If a local blob exists (offline sync), swap src to blob URL.
+            // 2. On error 4 (NOT_SUPPORTED): Supabase returns application/octet-stream
+            //    which mobile Chrome rejects. Auto-fetch via JS and force audio/mpeg.
+            // 3. If a local blob exists (offline sync), swap src to blob URL.
             if (song.audio_url) {
                 const audioEl = document.getElementById('sd-audio');
                 if (audioEl) {
                     audioEl.src = song.audio_url;  // raw assignment — no HTML encoding
 
-                    // Single error handler: fires when user presses play (or on any load error)
-                    const MEDIA_ERRORS = { 1: 'ABORTED', 2: 'NETWORK', 3: 'DECODE', 4: 'NOT_SUPPORTED' };
-                    audioEl.addEventListener('error', () => {
-                        const code  = audioEl.error ? audioEl.error.code : '?';
-                        const label = MEDIA_ERRORS[code] || String(code);
-                        window.HMSApp.showToast(`Áudio erro ${code}: ${label}`, 'error');
-                        console.error('[HMS] Audio error:', code, label, audioEl.error?.message, '\nSRC:', audioEl.src);
-                    }, { once: true });
+                    // Error handler with auto blob-fallback for mobile Chrome
+                    const remoteUrl = song.audio_url;
+                    audioEl.addEventListener('error', async () => {
+                        const code = audioEl.error ? audioEl.error.code : 0;
+                        if (code === 4 && remoteUrl && !audioEl._blobFallbackTried) {
+                            audioEl._blobFallbackTried = true;
+                            try {
+                                const resp = await fetch(remoteUrl, { mode: 'cors', credentials: 'omit' });
+                                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                                const buf     = await resp.arrayBuffer();
+                                const blob    = new Blob([buf], { type: 'audio/mpeg' });
+                                const blobUrl = URL.createObjectURL(blob);
+                                audioEl.src = blobUrl;
+                                audioEl.load();
+                                audioEl.play().catch(() => {});
+                                const ov2 = document.getElementById('modal-overlay');
+                                if (ov2) {
+                                    const obs2 = new MutationObserver(() => {
+                                        if (ov2.classList.contains('hidden')) { URL.revokeObjectURL(blobUrl); obs2.disconnect(); }
+                                    });
+                                    obs2.observe(ov2, { attributes: true, attributeFilter: ['class'] });
+                                }
+                            } catch (e) {
+                                window.HMSApp.showToast('Erro ao carregar \u00e1udio', 'error');
+                                console.error('[HMS] Audio blob fallback failed:', e);
+                            }
+                        } else if (code !== 4) {
+                            const L = { 1: 'ABORTED', 2: 'NETWORK', 3: 'DECODE' };
+                            window.HMSApp.showToast(`\u00c1udio erro ${code}: ${L[code] || code}`, 'error');
+                        }
+                    });
 
                     // Offline blob swap (async — won't block the above)
                     if (window.HMSOfflineDB && window.HMSOfflineDB.audioBlobs) {
