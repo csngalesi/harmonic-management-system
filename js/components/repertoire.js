@@ -547,7 +547,13 @@
             // ── Show mode: condensed 3-column grid ──
             if (_state.viewMode === 'show') {
                 const isGridDrag = _state.showDragMode && !!_state.activeSetlist;
-                el.innerHTML = RepertoireComponent._renderShowGrid(sorted);
+                // byPosition: always sorted by _position so the drag badge shows
+                // the correct sequential rank (1..N) even when display sort is alphabetical.
+                const byPosition = [...filtered]
+                    .filter(s => s._position !== null && s._position !== undefined)
+                    .sort((a, b) => a._position - b._position);
+                el.innerHTML = RepertoireComponent._renderShowGrid(sorted, byPosition);
+
                 el.querySelectorAll('.show-cell').forEach(cell => {
                     // Alert toggle button always works
                     cell.querySelector('.show-alert-btn')?.addEventListener('click', (e) => {
@@ -719,7 +725,9 @@
         },
 
         // ── Show Grid ─────────────────────────────────────────────
-        _renderShowGrid: function (sorted) {
+        // sorted:     songs in current display order (may be alphabetical, key, etc.)
+        // byPosition: songs sorted strictly by _position (used only for badge index)
+        _renderShowGrid: function (sorted, byPosition) {
             const isDragMode = (_state.sortBy === 'position' && !!_state.activeSetlist) || _state.showDragMode;
 
             // ── Column-first reorder ──────────────────────────────
@@ -771,9 +779,9 @@
                     <span class="show-key${keyCls}" data-key="${esc(s.original_key || '')}">${esc(s.original_key || '?')}</span>
                     <span class="show-title">${esc(s.title)}</span>
                     ${isShowDrag && s._position !== null && s._position !== undefined
-                        // Use reading-order rank (1..N) instead of raw stored position
-                        // to avoid confusing gaps (e.g. 23 → 49) caused by non-sequential DB values.
-                        ? `<span class="show-pos">(${sorted.findIndex(x => x.id === s.id) + 1})</span>`
+                        // Badge uses position-rank, not display-rank, so the number is always
+                        // the sequential reading position (1..N) regardless of sort mode.
+                        ? `<span class="show-pos">(${(byPosition || sorted).findIndex(x => x.id === s.id) + 1})</span>`
                         : ''}
                     <button class="show-alert-btn sf-${sf}" title="Ciclar bandeira">
                         <i class="fa-solid fa-flag"></i>
