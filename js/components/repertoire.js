@@ -748,8 +748,8 @@
                 const keyCls     = (!hasHarmony && !hasLyrics) ? ' key-urgent' : '';
                 return `<div class="show-cell ${rowCls}${isShowDrag ? ' draggable-cell' : ''}" data-id="${s.id}"
                     ${isDragMode ? 'draggable="true"' : ''}>
-                    <span class="show-title">${esc(s.title)}</span>
                     <span class="show-key${keyCls}" data-key="${esc(s.original_key || '')}">${esc(s.original_key || '?')}</span>
+                    <span class="show-title">${esc(s.title)}</span>
                     <button class="show-alert-btn sf-${sf}" title="Ciclar bandeira">
                         <i class="fa-solid fa-flag"></i>
                     </button>
