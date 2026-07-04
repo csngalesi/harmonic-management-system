@@ -67,8 +67,9 @@ self.addEventListener('activate', (event) => {
 });
 
 // Fetch strategy:
-// - Supabase API calls → network-only (let api.js handle offline fallback)
-// - Everything else → cache-first with network fallback
+// - Supabase API calls  → network-only  (let api.js handle offline fallback)
+// - HMS JS files (?v=)  → network-first (always get latest code; cache as fallback offline)
+// - Everything else     → cache-first   (CSS, HTML, CDN libs — stable assets)
 self.addEventListener('fetch', (event) => {
     const url = event.request.url;
 
@@ -94,7 +95,27 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Everything else: cache-first
+    // HMS JS files (have ?v= query param from this domain) — network-first.
+    // This guarantees code changes are applied immediately after deploy,
+    // without needing to bump the cache version or clear the SW cache manually.
+    const isHmsJs = url.includes('/js/') && url.includes('?v=');
+    if (isHmsJs) {
+        event.respondWith(
+            fetch(event.request)
+                .then((response) => {
+                    // Update cache with fresh copy
+                    if (response && response.status === 200) {
+                        const clone = response.clone();
+                        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+                    }
+                    return response;
+                })
+                .catch(() => caches.match(event.request)) // Offline fallback
+        );
+        return;
+    }
+
+    // Everything else: cache-first (CSS, HTML, CDN libs)
     event.respondWith(
         caches.match(event.request).then((cached) => {
             if (cached) return cached;
