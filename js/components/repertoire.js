@@ -788,7 +788,24 @@
                 </div>`;
             }).join('');
             const colClass = _state.showColumns !== 'N' ? ` cols-${_state.showColumns}` : '';
-            return `<div class="show-grid${colClass}">${cells}</div>`;
+
+            // ── DEBUG PANEL (drag mode only) — remove after fix confirmed ──
+            let debugHtml = '';
+            if (isShowDrag) {
+                const withRank  = sorted.filter(s => s._rank !== undefined);
+                const sample    = [..._state.songs]
+                    .filter(s => s._position !== null && s._position !== undefined)
+                    .sort((a, b) => a._position - b._position)
+                    .slice(-4)
+                    .map(s => `pos=${s._position} rank=${s._rank ?? 'undef'}`)
+                    .join(' | ');
+                debugHtml = `<div style="grid-column:1/-1;background:#1a0a2e;border:1px solid #7c3aed;border-radius:6px;padding:6px 10px;font-size:.72rem;color:#c4b5fd;margin-bottom:4px;font-family:monospace;">
+                    🔍 v31 | setlist=${!!_state.activeSetlist} | songs=${sorted.length} | w/_rank=${withRank.length}<br>
+                    últimas 4: ${sample || '(sem músicas com _position)'}
+                </div>`;
+            }
+
+            return `<div class="show-grid${colClass}">${debugHtml}${cells}</div>`;
         },
 
         _openShowDetail: function (song) {
