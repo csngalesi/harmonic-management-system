@@ -714,8 +714,9 @@
                 const colMap = { S: 1, '2': 2, '3': 3, '4': 4, '5': 5 };
                 let numCols;
                 if (_state.showColumns === 'N') {
-                    // 'N' = responsive, mirrors the CSS default (5 cols at full width)
-                    numCols = 5;
+                    // 'N' = responsive — must match CSS media queries:
+                    // ≥768px → 5 cols, <768px → 2 cols
+                    numCols = window.innerWidth >= 768 ? 5 : 2;
                 } else {
                     numCols = colMap[_state.showColumns] || 5;
                 }
