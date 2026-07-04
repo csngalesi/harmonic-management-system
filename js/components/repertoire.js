@@ -848,7 +848,7 @@
                     <div class="sd-body">
                         ${song.audio_url ? `
                         <div id="sd-audio-wrap" style="padding:0 0 8px;${_defaultTab === 'letra' ? 'display:none;' : ''}">
-                            <audio id="sd-audio" controls preload="metadata"
+                            <audio id="sd-audio" controls preload="none"
                                    style="width:100%;height:34px;display:block;"></audio>
                         </div>` : ''}
                         <div class="sd-pane${_defaultTab === 'func' ? ' active' : ''}" id="sd-pane-func">
@@ -928,64 +928,44 @@
                 window.HMSApp.closeModal();
             });
 
-            // ── Audio source setup ──────────────────────────────────
-            // Set src via JS (avoids HTML encoding issues with &amp; in URLs)
+            // ── Audio source + offline blob ────────────────────────────
+            // 1. Set src via JS (avoids HTML-encoding of & in signed URLs).
+            //    preload="none" means browser won't fetch until user presses play.
+            // 2. If a local blob exists (offline sync), swap src to blob URL.
             if (song.audio_url) {
                 const audioEl = document.getElementById('sd-audio');
                 if (audioEl) {
-                    audioEl.src = song.audio_url; // raw JS property — no HTML encoding
-                    audioEl.load();
+                    audioEl.src = song.audio_url;  // raw assignment — no HTML encoding
 
-                    // Error diagnostics
+                    // Single error handler: fires when user presses play (or on any load error)
                     const MEDIA_ERRORS = { 1: 'ABORTED', 2: 'NETWORK', 3: 'DECODE', 4: 'NOT_SUPPORTED' };
                     audioEl.addEventListener('error', () => {
-                        const code = audioEl.error ? audioEl.error.code : '?';
-                        const label = MEDIA_ERRORS[code] || code;
-                        const src80 = (audioEl.src || '').slice(0, 60);
+                        const code  = audioEl.error ? audioEl.error.code : '?';
+                        const label = MEDIA_ERRORS[code] || String(code);
                         window.HMSApp.showToast(`Áudio erro ${code}: ${label}`, 'error');
-                        console.error('[HMS] Audio error:', code, label, '\nSRC:', audioEl.src, '\nMSG:', audioEl.error?.message);
+                        console.error('[HMS] Audio error:', code, label, audioEl.error?.message, '\nSRC:', audioEl.src);
                     }, { once: true });
-                }
-            }
 
-            // ── Cached audio blob (offline playback) ─────────────────
-            // The audio element already has the remote src set (works online).
-            // Async check: if a local blob exists in IndexedDB, swap to it so it
-            // plays offline too. If no blob, do nothing — remote URL keeps loading.
-            if (song.audio_url && window.HMSOfflineDB && window.HMSOfflineDB.audioBlobs) {
-                window.HMSOfflineDB.audioBlobs.get(song.id).then(cached => {
-                    if (!cached || !cached.blob) return;  // no blob — remote URL is fine
-                    const audioEl = document.getElementById('sd-audio');
-                    if (!audioEl) return;
-                    try {
-                        const objUrl = URL.createObjectURL(cached.blob);
-                        audioEl.src = objUrl;
-                        audioEl.load(); // reset so browser picks up new src
-                        // Revoke when modal closes
-                        const revoke = () => URL.revokeObjectURL(objUrl);
-                        audioEl.addEventListener('emptied', revoke, { once: true });
-                        const overlay = document.getElementById('modal-overlay');
-                        if (overlay) {
-                            const obs = new MutationObserver(() => {
-                                if (overlay.classList.contains('hidden')) { revoke(); obs.disconnect(); }
-                            });
-                            obs.observe(overlay, { attributes: true, attributeFilter: ['class'] });
-                        }
-                    } catch (_) { /* keep remote URL */ }
-                }).catch(() => { /* IndexedDB unavailable — remote URL stays */ });
-            }
-
-            // ── Audio error diagnostics (temporary) ──────────────────
-            if (song.audio_url) {
-                const audioEl = document.getElementById('sd-audio');
-                if (audioEl) {
-                    const MEDIA_ERRORS = { 1: 'ABORTED', 2: 'NETWORK', 3: 'DECODE', 4: 'NOT_SUPPORTED' };
-                    audioEl.addEventListener('error', () => {
-                        const code = audioEl.error ? audioEl.error.code : 'unknown';
-                        const msg  = MEDIA_ERRORS[code] || code;
-                        window.HMSApp.showToast(`Áudio erro: ${msg} (${code})`, 'error');
-                        console.error('[HMS] Audio error:', code, audioEl.error?.message, audioEl.src);
-                    }, { once: true });
+                    // Offline blob swap (async — won't block the above)
+                    if (window.HMSOfflineDB && window.HMSOfflineDB.audioBlobs) {
+                        window.HMSOfflineDB.audioBlobs.get(song.id).then(cached => {
+                            if (!cached || !cached.blob) return; // no blob — remote src stays
+                            try {
+                                const objUrl = URL.createObjectURL(cached.blob);
+                                audioEl.src = objUrl;
+                                audioEl.load();
+                                const revoke = () => URL.revokeObjectURL(objUrl);
+                                audioEl.addEventListener('emptied', revoke, { once: true });
+                                const overlay = document.getElementById('modal-overlay');
+                                if (overlay) {
+                                    const obs = new MutationObserver(() => {
+                                        if (overlay.classList.contains('hidden')) { revoke(); obs.disconnect(); }
+                                    });
+                                    obs.observe(overlay, { attributes: true, attributeFilter: ['class'] });
+                                }
+                            } catch (_) { /* keep remote URL */ }
+                        }).catch(() => { /* IndexedDB unavailable — remote URL stays */ });
+                    }
                 }
             }
 
