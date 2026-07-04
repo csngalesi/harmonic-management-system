@@ -639,6 +639,7 @@ tbody tr:hover td { background: var(--glass-bg); }
     padding: 1px 7px;
     border-radius: 4px;
     flex-shrink: 0;
+    margin-right: 4px;
 }
 .show-key.key-urgent { background: rgba(239,68,68,0.5); color:#fff; }
 
@@ -749,7 +750,7 @@ tbody tr:hover td { background: var(--glass-bg); }
 }
 
 @media (min-width: 768px)  { .show-grid:not([class*="cols-"]) { grid-template-columns: repeat(5,1fr); } }
-@media (min-width: 768px)  { .show-cell { padding: 4px 6px; gap: 4px; } .show-title { font-size: .72rem; } .show-key { font-size: .68rem; padding: 1px 4px; } }
+@media (min-width: 768px)  { .show-cell { padding: 4px 6px; gap: 6px; } .show-title { font-size: .72rem; } .show-key { font-size: .68rem; padding: 1px 4px; } }
 @media (max-width: 767px)  { .show-grid:not([class*="cols-"]) { grid-template-columns: repeat(2,1fr); } }
 
 /* ── Show Grid — Column variants (S=1, 2–5) ──────────────────── */
