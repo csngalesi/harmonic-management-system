@@ -762,7 +762,9 @@
                 for (let row = 0; row < numRows; row++) {
                     for (let col = 0; col < numCols; col++) {
                         const srcIdx = col * numRows + row;
-                        if (srcIdx < n) colMajor.push(sorted[srcIdx]);
+                        // Push null for missing cells so CSS grid keeps correct column alignment.
+                        // Without this, a short last column shifts subsequent items leftward.
+                        colMajor.push(srcIdx < n ? sorted[srcIdx] : null);
                     }
                 }
                 displayList = colMajor;
@@ -770,6 +772,8 @@
 
             const isShowDrag = _state.showDragMode && !!_state.activeSetlist;
             const cells = displayList.map(s => {
+                // Null = empty placeholder cell (keeps CSS grid column alignment in col-flow mode)
+                if (!s) return '<div class="show-cell show-cell-empty" aria-hidden="true"></div>';
                 const hasHarmony = !!(s.harmony_str && s.harmony_str.trim());
                 const hasLyrics  = !!s.has_lyrics;
                 const sf         = s.status_flag || 0;

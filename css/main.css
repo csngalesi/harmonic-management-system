@@ -622,6 +622,8 @@ tbody tr:hover td { background: var(--glass-bg); }
 .show-cell.status-warn { background: rgba(251, 191, 36, 0.12); }
 .show-cell.draggable-cell { cursor: grab; outline: 1px dashed rgba(139,92,246,.3); }
 .show-cell.draggable-cell:active { cursor: grabbing; }
+/* Empty placeholder cell — occupies grid slot but is invisible (fixes col-flow alignment) */
+.show-cell-empty { background: transparent !important; border: none !important; pointer-events: none; }
 .show-title {
     font-size: .8rem;
     color: var(--text-primary);
