@@ -751,6 +751,9 @@
                     ${isDragMode ? 'draggable="true"' : ''}>
                     <span class="show-key${keyCls}" data-key="${esc(s.original_key || '')}">${esc(s.original_key || '?')}</span>
                     <span class="show-title">${esc(s.title)}</span>
+                    ${isShowDrag && s._position !== null && s._position !== undefined
+                        ? `<span class="show-pos">(${s._position})</span>`
+                        : ''}
                     <button class="show-alert-btn sf-${sf}" title="Ciclar bandeira">
                         <i class="fa-solid fa-flag"></i>
                     </button>

@@ -642,6 +642,13 @@ tbody tr:hover td { background: var(--glass-bg); }
     margin-right: 4px;
 }
 .show-key.key-urgent { background: rgba(239,68,68,0.5); color:#fff; }
+.show-pos {
+    font-size: .65rem;
+    color: var(--text-muted);
+    opacity: .7;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
 
 /* ── Show key colours ───────────────────────────────────────── */
 .show-key[data-key="C"]   { background: rgba(185,28,28,.55);  color:#fca5a5; }
