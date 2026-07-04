@@ -33,6 +33,11 @@
         filterKey:   null,   // null | 'C' | 'G' | ...
     };
 
+    // Snapshot of positions before any drag in the current drag session.
+    // Used by _savePositions to send only the changed rows to the DB.
+    let _originalPositions = {}; // { songId: position }
+    let _hasUnsavedOrder   = false;
+
     // Drag state for position reordering
     let _dragSongId = null;
 
@@ -161,6 +166,11 @@
                         <button class="sort-btn show-drag-toggle${_state.showDragMode ? ' active' : ''}" id="btn-show-drag" title="Reordenar arrastando (apenas setlist com Posição)" style="margin-left:2px;">
                             <i class="fa-solid fa-grip"></i>
                         </button>
+                        <button class="btn btn-primary btn-sm" id="btn-save-order"
+                            style="display:${_state.showDragMode && _hasUnsavedOrder ? 'inline-flex' : 'none'};align-items:center;gap:5px;padding:3px 10px;font-size:.75rem;margin-left:4px;"
+                            title="Salvar nova ordem das músicas">
+                            <i class="fa-solid fa-floppy-disk"></i> Salvar Ordem
+                        </button>
                     </span>
                 </div>
 
@@ -239,7 +249,20 @@
                 if (dragBtn) {
                     _state.showDragMode = !_state.showDragMode;
                     dragBtn.classList.toggle('active', _state.showDragMode);
-                    if (_state.viewMode === 'show') RepertoireComponent._renderSongList();
+                    // When turning OFF drag mode, discard unsaved order snapshot
+                    if (!_state.showDragMode) {
+                        _originalPositions = {};
+                        _hasUnsavedOrder   = false;
+                        // Reload to restore original order in case user dragged without saving
+                        RepertoireComponent._loadSongs();
+                    } else {
+                        if (_state.viewMode === 'show') RepertoireComponent._renderSongList();
+                    }
+                    return;
+                }
+                const saveBtn = e.target.closest('#btn-save-order');
+                if (saveBtn) {
+                    RepertoireComponent._savePositions();
                 }
             });
 
@@ -639,8 +662,6 @@
                     if (!_dragId || _dragId === targetId) return;
 
                     // Always operate in READING ORDER (sorted by _position).
-                    // _renderShowGrid handles the col-major visual reordering separately,
-                    // so the drop handler never needs to know about numCols or display order.
                     const setlistSongs = [..._state.songs]
                         .filter(s => s._position !== null && s._position !== undefined)
                         .sort((a, b) => a._position - b._position);
@@ -649,12 +670,16 @@
                     const toIdx   = setlistSongs.findIndex(s => s.id === targetId);
                     if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
 
+                    // Snapshot original positions BEFORE any mutation (first drag only).
+                    // _hasUnsavedOrder is false on the very first drag of a session.
+                    if (!_hasUnsavedOrder) {
+                        _originalPositions = {};
+                        setlistSongs.forEach(s => { _originalPositions[s.id] = s._position; });
+                    }
+
                     // Remove dragged song and insert at the correct position.
                     // • Backward drag (fromIdx > toIdx): insert AT target's index.
-                    //   → dragged song gets exactly the destination's position number.
-                    //   → destination and all songs after shift right by +1. ✓
                     // • Forward drag (fromIdx < toIdx): insert one slot before target.
-                    //   → avoids the swap-artifact that `toIdx` causes for adjacent pairs.
                     const [movedSong] = setlistSongs.splice(fromIdx, 1);
                     const insertAt = fromIdx < toIdx ? toIdx - 1 : toIdx;
                     setlistSongs.splice(insertAt, 0, movedSong);
@@ -662,8 +687,12 @@
                     // Assign sequential positions 1, 2, 3…
                     setlistSongs.forEach((s, i) => { s._position = i + 1; });
 
-                    // Persist & re-render
-                    RepertoireComponent._savePositions();
+                    // Mark unsaved and show the save button
+                    _hasUnsavedOrder = true;
+                    const saveBtn = document.getElementById('btn-save-order');
+                    if (saveBtn) saveBtn.style.display = 'inline-flex';
+
+                    // Re-render only (no DB write — user must click "Salvar Ordem")
                     RepertoireComponent._renderSongList();
                 });
             });
@@ -3718,16 +3747,42 @@
         _savePositions: async function () {
             if (!_state.activeSetlist) return;
             const songsWithPos = _state.songs.filter(s => s._position !== null && s._position !== undefined);
+
+            // Only persist rows whose position actually changed since the snapshot.
+            // If no snapshot exists (legacy auto-save path), update all.
+            const changed = Object.keys(_originalPositions).length > 0
+                ? songsWithPos.filter(s => _originalPositions[s.id] !== s._position)
+                : songsWithPos;
+
+            if (changed.length === 0) {
+                window.HMSApp.showToast('Nenhuma alteração para salvar.', 'info');
+                return;
+            }
+
+            const saveBtn = document.getElementById('btn-save-order');
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Salvando…';
+            }
             try {
                 // Use UPDATE (not upsert) to avoid RLS INSERT policy violation.
                 // Songs are already in the setlist; we only need to update their position.
                 await Promise.all(
-                    songsWithPos.map(s =>
+                    changed.map(s =>
                         window.HMSAPI.Setlists.updateSongPosition(_state.activeSetlist, s.id, s._position)
                     )
                 );
+                window.HMSApp.showToast(`${changed.length} posição(ões) salva(s).`, 'success');
+                // Reset snapshot — current positions are now the new baseline
+                _originalPositions = {};
+                _hasUnsavedOrder   = false;
+                if (saveBtn) saveBtn.style.display = 'none';
             } catch (err) {
                 window.HMSApp.showToast('Erro ao salvar posições: ' + err.message, 'error');
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Salvar Ordem';
+                }
             }
         },
 
