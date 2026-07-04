@@ -953,7 +953,6 @@
                                 const blobUrl = URL.createObjectURL(blob);
                                 audioEl.src = blobUrl;
                                 audioEl.load();
-                                audioEl.play().catch(() => {});
                                 const ov2 = document.getElementById('modal-overlay');
                                 if (ov2) {
                                     const obs2 = new MutationObserver(() => {
