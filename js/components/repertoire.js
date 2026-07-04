@@ -649,13 +649,14 @@
                     const toIdx   = setlistSongs.findIndex(s => s.id === targetId);
                     if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
 
-                    // Remove dragged song and insert at the drop target's position.
-                    // Using toIdx (not toIdx-1) ensures the dragged song lands
-                    // exactly at the target's original position. When dragging forward,
-                    // the target shifts left by 1. When dragging backward, the target
-                    // shifts right by 1 (target's position + 1), which is intuitive.
+                    // Remove dragged song and insert at the correct position.
+                    // • Backward drag (fromIdx > toIdx): insert AT target's index.
+                    //   → dragged song gets exactly the destination's position number.
+                    //   → destination and all songs after shift right by +1. ✓
+                    // • Forward drag (fromIdx < toIdx): insert one slot before target.
+                    //   → avoids the swap-artifact that `toIdx` causes for adjacent pairs.
                     const [movedSong] = setlistSongs.splice(fromIdx, 1);
-                    const insertAt = toIdx;
+                    const insertAt = fromIdx < toIdx ? toIdx - 1 : toIdx;
                     setlistSongs.splice(insertAt, 0, movedSong);
 
                     // Assign sequential positions 1, 2, 3…
