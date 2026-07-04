@@ -711,8 +711,8 @@
                     const insertAt = fromIdx < toIdx ? toIdx - 1 : toIdx;
                     setlistSongs.splice(insertAt, 0, movedSong);
 
-                    // Assign sequential positions 1, 2, 3…
-                    setlistSongs.forEach((s, i) => { s._position = i + 1; });
+                    // Assign sequential positions 1, 2, 3… and sync _rank (used for badge display)
+                    setlistSongs.forEach((s, i) => { s._position = i + 1; s._rank = i + 1; });
 
                     // Mark unsaved and show the save button
                     _hasUnsavedOrder = true;
