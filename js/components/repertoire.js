@@ -408,13 +408,14 @@
                     searchType: _state.searchType,
                 });
 
-                // If a setlist is active, normalize positions to 1..N (fill gaps).
-                // This silently fixes non-sequential position values (e.g. 1, 23, 49)
-                // that accumulate when songs are added/removed over time.
+                // If a setlist is active: assign sequential _rank (1..N) to every setlist song,
+                // and normalize _position if there are gaps (e.g. 1, 23, 49 → 1, 2, 3).
                 if (_state.activeSetlist) {
                     const withPos = _state.songs
                         .filter(s => s._position !== null && s._position !== undefined)
                         .sort((a, b) => a._position - b._position);
+                    // Always stamp sequential rank so the badge is always correct (no findIndex needed)
+                    withPos.forEach((s, i) => { s._rank = i + 1; });
                     const needsNormalization = withPos.some((s, i) => s._position !== i + 1);
                     if (needsNormalization) {
                         withPos.forEach((s, i) => { s._position = i + 1; });
@@ -778,10 +779,8 @@
                     ${isDragMode ? 'draggable="true"' : ''}>
                     <span class="show-key${keyCls}" data-key="${esc(s.original_key || '')}">${esc(s.original_key || '?')}</span>
                     <span class="show-title">${esc(s.title)}</span>
-                    ${isShowDrag && s._position !== null && s._position !== undefined
-                        // Badge uses position-rank, not display-rank, so the number is always
-                        // the sequential reading position (1..N) regardless of sort mode.
-                        ? `<span class="show-pos">(${(byPosition || sorted).findIndex(x => x.id === s.id) + 1})</span>`
+                    ${isShowDrag && s._rank !== undefined
+                        ? `<span class="show-pos">(${s._rank})</span>`
                         : ''}
                     <button class="show-alert-btn sf-${sf}" title="Ciclar bandeira">
                         <i class="fa-solid fa-flag"></i>
