@@ -928,67 +928,87 @@
                 window.HMSApp.closeModal();
             });
 
-            // ── Audio source + offline blob ────────────────────────────
-            // 1. Set src via JS (avoids HTML-encoding of & in signed URLs).
-            //    preload="none" means browser won't fetch until user presses play.
-            // 2. On error 4 (NOT_SUPPORTED): Supabase returns application/octet-stream
-            //    which mobile Chrome rejects. Auto-fetch via JS and force audio/mpeg.
-            // 3. If a local blob exists (offline sync), swap src to blob URL.
+            // ── Audio: proactive resolution ─────────────────────────────
+            // Priority: 1) IndexedDB blob (offline sync) 2) session cache 3) JS fetch
+            // Never sets src directly from Supabase URL on mobile (wrong Content-Type).
             if (song.audio_url) {
                 const audioEl = document.getElementById('sd-audio');
                 if (audioEl) {
-                    audioEl.src = song.audio_url;  // raw assignment — no HTML encoding
+                    window._HMS_audioCache = window._HMS_audioCache || new Map();
 
-                    // Error handler with auto blob-fallback for mobile Chrome
-                    const remoteUrl = song.audio_url;
-                    audioEl.addEventListener('error', async () => {
-                        const code = audioEl.error ? audioEl.error.code : 0;
-                        if (code === 4 && remoteUrl && !audioEl._blobFallbackTried) {
-                            audioEl._blobFallbackTried = true;
-                            try {
-                                const resp = await fetch(remoteUrl, { mode: 'cors', credentials: 'omit' });
-                                if (!resp.ok) throw new Error('HTTP ' + resp.status);
-                                const buf     = await resp.arrayBuffer();
-                                const blob    = new Blob([buf], { type: 'audio/mpeg' });
-                                const blobUrl = URL.createObjectURL(blob);
-                                audioEl.src = blobUrl;
-                                audioEl.load();
-                                const ov2 = document.getElementById('modal-overlay');
-                                if (ov2) {
-                                    const obs2 = new MutationObserver(() => {
-                                        if (ov2.classList.contains('hidden')) { URL.revokeObjectURL(blobUrl); obs2.disconnect(); }
-                                    });
-                                    obs2.observe(ov2, { attributes: true, attributeFilter: ['class'] });
+                    const _setBlob = (blobUrl) => {
+                        audioEl.src = blobUrl;
+                        audioEl.load();
+                        // Revoke blob on modal close (session-cache entries are kept alive)
+                        const ov = document.getElementById('modal-overlay');
+                        if (ov && blobUrl.startsWith('blob:')) {
+                            const obs = new MutationObserver(() => {
+                                if (ov.classList.contains('hidden')) {
+                                    // Only revoke if not in session cache (session cache manages its own)
+                                    if (!window._HMS_audioCache.has(song.id)) URL.revokeObjectURL(blobUrl);
+                                    obs.disconnect();
                                 }
-                            } catch (e) {
-                                window.HMSApp.showToast('Erro ao carregar \u00e1udio', 'error');
-                                console.error('[HMS] Audio blob fallback failed:', e);
-                            }
-                        } else if (code !== 4) {
-                            const L = { 1: 'ABORTED', 2: 'NETWORK', 3: 'DECODE' };
-                            window.HMSApp.showToast(`\u00c1udio erro ${code}: ${L[code] || code}`, 'error');
+                            });
+                            obs.observe(ov, { attributes: true, attributeFilter: ['class'] });
                         }
-                    });
+                    };
 
-                    // Offline blob swap (async — won't block the above)
+                    const _fetchAndCache = async () => {
+                        const wrap = document.getElementById('sd-audio-wrap');
+                        let loader = null;
+                        try {
+                            // Show subtle loading text
+                            if (wrap) {
+                                loader = document.createElement('div');
+                                loader.id = 'sd-audio-loader';
+                                loader.style.cssText = 'font-size:.72rem;color:var(--text-muted);text-align:center;padding:2px 0;';
+                                loader.textContent = 'Carregando \u00e1udio\u2026';
+                                wrap.appendChild(loader);
+                            }
+                            const resp = await fetch(song.audio_url, { mode: 'cors', credentials: 'omit' });
+                            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                            const buf  = await resp.arrayBuffer();
+                            const blob = new Blob([buf], { type: 'audio/mpeg' });
+                            const blobUrl = URL.createObjectURL(blob);
+                            window._HMS_audioCache.set(song.id, blobUrl);
+                            _setBlob(blobUrl);
+                        } catch (e) {
+                            // Fetch failed — fall back to direct URL (works on desktop)
+                            audioEl.src = song.audio_url;
+                            console.error('[HMS] Audio fetch failed, using direct URL:', e.message);
+                        } finally {
+                            loader?.remove();
+                        }
+                    };
+
+                    // 1. IndexedDB offline blob (highest priority — works offline)
                     if (window.HMSOfflineDB && window.HMSOfflineDB.audioBlobs) {
-                        window.HMSOfflineDB.audioBlobs.get(song.id).then(cached => {
-                            if (!cached || !cached.blob) return; // no blob — remote src stays
-                            try {
+                        window.HMSOfflineDB.audioBlobs.get(song.id).then(async cached => {
+                            if (cached && cached.blob) {
                                 const objUrl = URL.createObjectURL(cached.blob);
-                                audioEl.src = objUrl;
-                                audioEl.load();
-                                const revoke = () => URL.revokeObjectURL(objUrl);
-                                audioEl.addEventListener('emptied', revoke, { once: true });
-                                const overlay = document.getElementById('modal-overlay');
-                                if (overlay) {
-                                    const obs = new MutationObserver(() => {
-                                        if (overlay.classList.contains('hidden')) { revoke(); obs.disconnect(); }
-                                    });
-                                    obs.observe(overlay, { attributes: true, attributeFilter: ['class'] });
-                                }
-                            } catch (_) { /* keep remote URL */ }
-                        }).catch(() => { /* IndexedDB unavailable — remote URL stays */ });
+                                _setBlob(objUrl);
+                            } else if (window._HMS_audioCache.has(song.id)) {
+                                // 2. Session cache
+                                _setBlob(window._HMS_audioCache.get(song.id));
+                            } else {
+                                // 3. Fetch from network
+                                await _fetchAndCache();
+                            }
+                        }).catch(async () => {
+                            // IndexedDB unavailable — try session cache then network
+                            if (window._HMS_audioCache.has(song.id)) {
+                                _setBlob(window._HMS_audioCache.get(song.id));
+                            } else {
+                                await _fetchAndCache();
+                            }
+                        });
+                    } else {
+                        // No IndexedDB — try session cache then network
+                        if (window._HMS_audioCache.has(song.id)) {
+                            _setBlob(window._HMS_audioCache.get(song.id));
+                        } else {
+                            _fetchAndCache();
+                        }
                     }
                 }
             }
