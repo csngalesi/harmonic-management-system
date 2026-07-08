@@ -51,6 +51,11 @@
             const content = document.getElementById('main-content');
             // Restore saved preferences before building the UI so initial state matches user's defaults
             await RepertoireComponent._loadPrefs();
+            // Reset volatile drag state — these must not carry over between navigations
+            _state.showDragMode = false;
+            _hasUnsavedOrder    = false;
+            _originalPositions  = {};
+            _dragSongId         = null;
             content.innerHTML = `
                 <div class="page-header">
                     <div class="page-title">
