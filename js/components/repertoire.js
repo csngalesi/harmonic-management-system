@@ -3773,6 +3773,17 @@
                     const toSong   = _state.songs.find(s => s.id === targetId);
                     if (!fromSong || !toSong) return;
 
+                    // Snapshot original positions BEFORE first mutation.
+                    // Without this, _savePositions() sees _originalPositions={} and
+                    // tries to update ALL 122 songs simultaneously, silently failing.
+                    if (Object.keys(_originalPositions).length === 0) {
+                        _state.songs.forEach(s => {
+                            if (s._position !== null && s._position !== undefined) {
+                                _originalPositions[s.id] = s._position;
+                            }
+                        });
+                    }
+
                     // Swap _position values
                     const tempPos = fromSong._position;
                     fromSong._position = toSong._position;
@@ -3783,6 +3794,7 @@
                         .filter(s => s._position !== null && s._position !== undefined)
                         .sort((a, b) => a._position - b._position);
                     sortedByPos.forEach((s, i) => { s._position = i + 1; });
+
 
                     // Save to DB
                     RepertoireComponent._savePositions();
