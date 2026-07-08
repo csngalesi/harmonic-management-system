@@ -49,6 +49,8 @@
 
         render: async function () {
             const content = document.getElementById('main-content');
+            // Restore saved preferences before building the UI so initial state matches user's defaults
+            await RepertoireComponent._loadPrefs();
             content.innerHTML = `
                 <div class="page-header">
                     <div class="page-title">
@@ -166,6 +168,9 @@
                         <button class="sort-btn show-drag-toggle${_state.showDragMode ? ' active' : ''}" id="btn-show-drag" title="Reordenar arrastando (apenas setlist com Posição)" style="margin-left:2px;">
                             <i class="fa-solid fa-grip"></i>
                         </button>
+                        <button class="sort-btn" id="btn-save-prefs" title="Salvar vista atual como padrão de entrada" style="margin-left:2px;">
+                            <i class="fa-solid fa-bookmark"></i>
+                        </button>
                         <button class="btn btn-primary btn-sm" id="btn-save-order"
                             style="display:${_state.showDragMode && _hasUnsavedOrder ? 'inline-flex' : 'none'};align-items:center;gap:5px;padding:3px 10px;font-size:.75rem;margin-left:4px;"
                             title="Salvar nova ordem das músicas">
@@ -263,6 +268,10 @@
                 const saveBtn = e.target.closest('#btn-save-order');
                 if (saveBtn) {
                     RepertoireComponent._savePositions();
+                }
+                const savePrefsBtn = e.target.closest('#btn-save-prefs');
+                if (savePrefsBtn) {
+                    RepertoireComponent._savePrefs();
                 }
             });
 
@@ -4133,6 +4142,70 @@
             if (isDragMode) bindDragMode();
 
         },
+
+        // ── User Preferences ────────────────────────────────────────
+        // Preferences are persisted per-user in localStorage so the repertoire
+        // opens with the same setlist, sort and layout every time.
+
+        _getPrefsKey: async function () {
+            try {
+                const { data: { user } } = await window.supabase.auth.getUser();
+                return user ? `hms_rep_prefs_${user.id}` : 'hms_rep_prefs';
+            } catch {
+                return 'hms_rep_prefs';
+            }
+        },
+
+        _savePrefs: async function () {
+            const key = await RepertoireComponent._getPrefsKey();
+            const prefs = {
+                activeSetlist: _state.activeSetlist,
+                sortBy:        _state.sortBy,
+                sortDir:       _state.sortDir,
+                showFlow:      _state.showFlow,
+                showColumns:   _state.showColumns,
+                viewMode:      _state.viewMode,
+            };
+            try {
+                localStorage.setItem(key, JSON.stringify(prefs));
+            } catch (e) {
+                console.warn('[HMS] Erro ao salvar preferências:', e);
+                return;
+            }
+            // Brief visual confirmation on the button
+            const btn = document.getElementById('btn-save-prefs');
+            if (btn) {
+                const icon = btn.querySelector('i');
+                if (icon) {
+                    icon.className = 'fa-solid fa-check';
+                    btn.style.color = 'var(--success)';
+                    setTimeout(() => {
+                        icon.className  = 'fa-solid fa-bookmark';
+                        btn.style.color = '';
+                    }, 1800);
+                }
+            }
+            console.info('[HMS] Preferências salvas:', prefs);
+        },
+
+        _loadPrefs: async function () {
+            const key = await RepertoireComponent._getPrefsKey();
+            const raw = localStorage.getItem(key);
+            if (!raw) return;
+            try {
+                const prefs = JSON.parse(raw);
+                if (prefs.activeSetlist !== undefined) _state.activeSetlist = prefs.activeSetlist;
+                if (prefs.sortBy        !== undefined) _state.sortBy        = prefs.sortBy;
+                if (prefs.sortDir       !== undefined) _state.sortDir       = prefs.sortDir;
+                if (prefs.showFlow      !== undefined) _state.showFlow      = prefs.showFlow;
+                if (prefs.showColumns   !== undefined) _state.showColumns   = prefs.showColumns;
+                if (prefs.viewMode      !== undefined) _state.viewMode      = prefs.viewMode;
+                console.info('[HMS] Preferências restauradas:', prefs);
+            } catch (e) {
+                console.warn('[HMS] Preferências inválidas, ignorando:', e);
+            }
+        },
+
     };
 
     window.RepertoireComponent = RepertoireComponent;
