@@ -29,6 +29,52 @@
     // Map key: `${instrument}|${chordStr}`  e.g. 'guitar|Am'
     const _samplePlayers = new Map();
 
+    // ── Pitch-shift helper ────────────────────────────────────────
+    // Converte raiz + acidente para índice cromático (0=C … 11=B)
+    const _NOTE_ST = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+
+    function _parseChordForPitch(chordStr) {
+        const m = chordStr.match(/^([A-G][b#]?)(.*)/);
+        if (!m) return null;
+        let st = _NOTE_ST[m[1][0]];
+        if (st === undefined) return null;
+        if (m[1][1] === '#') st = (st + 1)  % 12;
+        if (m[1][1] === 'b') st = (st + 11) % 12;
+        return { semitone: st, quality: m[2] };
+    }
+
+    // Encontra o sample mais próximo da mesma quality e retorna {player, detuneCents}
+    function _findNearestSample(chordStr, instrument) {
+        const target = _parseChordForPitch(chordStr);
+        if (!target) return null;
+
+        let bestPlayer = null;
+        let bestDetune = 0;
+        let bestDist   = 13; // impossível — forçará substituição
+
+        for (const [k, player] of _samplePlayers) {
+            if (!k.startsWith(instrument + '|')) continue;
+            const kChord  = k.slice(instrument.length + 1);
+            const kParsed = _parseChordForPitch(kChord);
+            if (!kParsed || kParsed.quality !== target.quality) continue;
+
+            // Distância cromática circular (máx = 6 semitons)
+            let diff = target.semitone - kParsed.semitone;
+            if (diff >  6) diff -= 12;
+            if (diff < -6) diff += 12;
+            const dist = Math.abs(diff);
+
+            if (dist < bestDist) {
+                bestDist   = dist;
+                bestDetune = diff * 100;   // cents  (1 semitom = 100 cents)
+                bestPlayer = player;
+            }
+        }
+
+        if (!bestPlayer) return null;
+        return { player: bestPlayer, detuneCents: bestDetune, semitons: bestDist };
+    }
+
     // ── Guitar parameters (user-tunable) ─────────────────────────
     const _gParams = {
         synthType:   'polyperc', // 'pluck' | 'polyperc' | 'piano'
@@ -568,21 +614,46 @@
         },
 
         /**
-         * Toca o sample gravado de um acorde (se existir).
-         * @param {string} chordStr   e.g. 'Am'
+         * Toca o sample de um acorde.
+         * Se o sample exato não existir, usa pitch-shifting no sample mais
+         * próximo da mesma quality (máx ±6 semitons via Tone.Player.detune).
+         *
+         * @param {string} chordStr   e.g. 'F#m', 'Bb7', 'C'
          * @param {string} instrument 'guitar' | 'cavaco'
-         * @returns {boolean} true se tocou o sample, false se não existe
+         * @returns {boolean} true se tocou (direto ou transposto), false se sem sample
          */
         playGuitarSample(chordStr, instrument = 'guitar') {
-            const key = `${instrument}|${chordStr}`;
-            const player = _samplePlayers.get(key);
-            if (!player) return false;
+            // 1. Sample exato
+            const exactKey    = `${instrument}|${chordStr}`;
+            const exactPlayer = _samplePlayers.get(exactKey);
+
+            if (exactPlayer) {
+                try {
+                    exactPlayer.detune = 0;
+                    if (exactPlayer.state === 'started') exactPlayer.stop();
+                    exactPlayer.start();
+                    return true;
+                } catch (err) {
+                    console.warn('[AudioEngine] playGuitarSample (exact) erro:', err.message);
+                    return false;
+                }
+            }
+
+            // 2. Pitch-shift: busca sample mais próximo da mesma quality
+            const nearest = _findNearestSample(chordStr, instrument);
+            if (!nearest) return false;
+
+            const { player, detuneCents, semitons } = nearest;
             try {
                 if (player.state === 'started') player.stop();
+                player.detune = detuneCents;
                 player.start();
+                // Restaura detune após a duração máxima do sample (3s)
+                setTimeout(() => { try { player.detune = 0; } catch (_) {} }, 3000);
+                console.debug(`[AudioEngine] ${chordStr} transposto ${detuneCents > 0 ? '+' : ''}${semitons}st de ${player._url || '?'}`);
                 return true;
             } catch (err) {
-                console.warn('[AudioEngine] playGuitarSample erro:', err.message);
+                console.warn('[AudioEngine] playGuitarSample (pitch-shift) erro:', err.message);
                 return false;
             }
         },
