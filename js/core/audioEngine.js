@@ -51,25 +51,18 @@
     }
 
     // ── Guitar Pool (Karplus-Strong, individual PluckSynths) ────
-    // PolySynth(PluckSynth) is broken in Tone.js v14 because PluckSynth
-    // is monophonic and incompatible with PolySynth's voice allocator.
-    // Instead we keep a fixed pool of PluckSynths and round-robin.
     async function ensureGuitar() {
         if (guitarPool.length > 0) return;
         await Tone.start();
         await ensureReverb();
-        // Low-pass filter for body warmth
-        guitarFilter = new Tone.Filter({ frequency: 2200, type: 'lowpass', rolloff: -12 });
-        guitarFilter.connect(reverb);
-        // Create individual PluckSynth voices
         for (let i = 0; i < GUITAR_POOL_SIZE; i++) {
             const ps = new Tone.PluckSynth({
-                attackNoise: 1.8,
-                dampening:   3200,
-                resonance:   0.90,
+                attackNoise: 0.3,   // subtle pick transient (was 1.8 = pure noise burst!)
+                dampening:   4500,  // string brightness (higher = less muffled)
+                resonance:   0.95,  // sustain (nylon string rings long)
             });
-            ps.volume.value = 2;
-            ps.connect(guitarFilter);
+            ps.volume.value = -2;
+            ps.connect(reverb);     // direct to reverb — no extra filter (was double-filtering)
             guitarPool.push(ps);
         }
         guitarPoolIdx = 0;
@@ -130,9 +123,10 @@
         if (!r) return null;
         const ivs  = INTERVALS[r.quality] || INTERVALS[''];
         const ROOT = r.rootIdx;
-        const bass = [Tone.Frequency(36 + ROOT, 'midi').toNote()];        // C2 register — single bass string
-        const low  = ivs.map(i => Tone.Frequency(48 + ROOT + i, 'midi').toNote()); // C3 — mid strings
-        const high = ivs.slice(1).map(i => Tone.Frequency(60 + ROOT + i, 'midi').toNote()); // C4 — upper strings (no root)
+        //  C3 (48) for bass — C2 (36) is too low for Karplus-Strong (collapses at <100 Hz)
+        const bass = [Tone.Frequency(48 + ROOT, 'midi').toNote()];         // C3 — bass string
+        const low  = ivs.map(i => Tone.Frequency(55 + ROOT + i, 'midi').toNote()); // G3 — mid strings
+        const high = ivs.slice(1).map(i => Tone.Frequency(64 + ROOT + i, 'midi').toNote()); // E4 — upper strings
         return { bass, low, high };
     }
 
@@ -166,15 +160,15 @@
 
                 // ① Bass string — forte
                 bass.forEach(n => {
-                    events.push({ time: t, note: n, vel: 0.88, dur: BEAT_S * 0.50 });
+                    events.push({ time: t, note: n, vel: 0.85, dur: BEAT_S * 0.50 });
                 });
-                // ② Down-stroke: low strings (left→right on guitar), stagger 25 ms
+                // ② Down-stroke: mid strings low→high, stagger 10ms
                 low.forEach((n, i) => {
-                    events.push({ time: t + 0.05 + i * 0.025, note: n, vel: 0.72, dur: BEAT_S * 0.88 });
+                    events.push({ time: t + 0.04 + i * 0.010, note: n, vel: 0.70, dur: BEAT_S * 0.88 });
                 });
-                // ③ Up-stroke (contra-tempo): high strings reversed, stagger 15 ms, soft
+                // ③ Up-stroke (contra-tempo): high strings reversed, stagger 8ms, soft
                 high.slice().reverse().forEach((n, i) => {
-                    events.push({ time: t + half + i * 0.015, note: n, vel: 0.40, dur: BEAT_S * 0.42 });
+                    events.push({ time: t + half + i * 0.008, note: n, vel: 0.38, dur: BEAT_S * 0.42 });
                 });
             }
 
