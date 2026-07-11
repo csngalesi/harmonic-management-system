@@ -12,13 +12,14 @@
     'use strict';
 
     // ── Constantes ────────────────────────────────────────────────
-    const SAMPLE_RATE    = 44100;
-    const MAX_DURATION_S = 6;       // janela máxima de captura
-    const ONSET_TIMEOUT  = 10000;   // ms esperando o músico tocar
-    const RMS_THRESHOLD  = 0.018;   // sensibilidade de onset (0 a 1)
-    const SILENCE_THRESH = 0.008;   // RMS abaixo disso = silêncio para trim
-    const FADE_IN_MS     = 20;
-    const FADE_OUT_MS    = 80;
+    const SAMPLE_RATE      = 44100;
+    const MAX_DURATION_S   = 6;       // janela máxima de captura
+    const TARGET_DURATION_S = 2.0;   // duração fixa do sample após onset (segundos)
+    const ONSET_TIMEOUT    = 10000;   // ms esperando o músico tocar
+    const RMS_THRESHOLD    = 0.018;   // sensibilidade de onset (0 a 1)
+    const ONSET_THRESH     = 0.008;   // RMS para detectar início (onset finder)
+    const FADE_IN_MS       = 20;
+    const FADE_OUT_MS      = 250;     // fade-out generoso para cauda natural
 
     let _stream     = null;   // MediaStream ativo
     let _recording  = false;
@@ -31,7 +32,7 @@
         return Math.sqrt(sum / buffer.length);
     }
 
-    // Encontra o índice da primeira amostra acima do threshold
+    // Encontra o índice da primeira janela acima do threshold
     function _findOnsetSample(samples, threshold) {
         const WINDOW = 256;
         for (let i = 0; i < samples.length - WINDOW; i += WINDOW) {
@@ -40,17 +41,6 @@
             if (Math.sqrt(sum / WINDOW) > threshold) return i;
         }
         return 0;
-    }
-
-    // Encontra o índice do último sample acima do threshold
-    function _findOffsetSample(samples, threshold) {
-        const WINDOW = 256;
-        for (let i = samples.length - WINDOW; i >= 0; i -= WINDOW) {
-            let sum = 0;
-            for (let j = i; j < i + WINDOW; j++) sum += samples[j] * samples[j];
-            if (Math.sqrt(sum / WINDOW) > threshold) return Math.min(i + WINDOW * 4, samples.length);
-        }
-        return samples.length;
     }
 
     // ── WAV Encoder (puro JS) ─────────────────────────────────────
@@ -90,12 +80,14 @@
 
     // ── Processamento ─────────────────────────────────────────────
     function _process(rawSamples) {
-        // 1. Trim
-        const onset  = _findOnsetSample(rawSamples, SILENCE_THRESH);
-        const offset = _findOffsetSample(rawSamples, SILENCE_THRESH);
-        let samples  = rawSamples.slice(onset, offset);
+        // 1. Detecta onset e captura janela FIXA de TARGET_DURATION_S
+        //    → duração consistente independente do decaimento da corda
+        const onset      = _findOnsetSample(rawSamples, ONSET_THRESH);
+        const targetLen  = Math.round(SAMPLE_RATE * TARGET_DURATION_S);
+        const end        = Math.min(onset + targetLen, rawSamples.length);
+        let   samples    = rawSamples.slice(onset, end);
 
-        if (samples.length === 0) samples = rawSamples;
+        if (samples.length === 0) samples = rawSamples.slice(0, targetLen);
 
         // 2. Normalize (peak = 0.95)
         let peak = 0;
@@ -108,16 +100,14 @@
             samples = samples.map(s => s * gain);
         }
 
-        // 3. Fade in
+        // 3. Fade in (20ms — evita clique no ataque)
         const fadeInSamples  = Math.round(SAMPLE_RATE * FADE_IN_MS  / 1000);
-        const fadeOutSamples = Math.round(SAMPLE_RATE * FADE_OUT_MS / 1000);
-
         for (let i = 0; i < fadeInSamples && i < samples.length; i++) {
             samples[i] *= i / fadeInSamples;
         }
 
-        // 4. Fade out
-        for (let i = 0; i < fadeOutSamples && i < samples.length; i++) {
+        // 4. Fade out (250ms — cauda natural, sem corte abrupto)
+        const fadeOutSamples = Math.round(SAMPLE_RATE * FADE_OUT_MS / 1000);
             const idx = samples.length - 1 - i;
             samples[idx] *= i / fadeOutSamples;
         }
