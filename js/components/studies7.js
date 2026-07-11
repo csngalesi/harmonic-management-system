@@ -53,11 +53,12 @@
     const _state = {
         key: 'C',
         isMinor: false,
-        bpm: 45,
+        bpm: 80,
         playing: null,          // id of currently playing (exemplo cadId or 'rp_<uuid>')
         harmonies: {},          // editable harmony per cadence id (exemplos)
         showCavaco: false,
         showViolao: false,
+        showGuitar: false,      // true = violão 2/4 synth mode
         // Repositório
         tab:           'exemplos',
         cadences:      [],          // loaded from DB
@@ -280,6 +281,12 @@
                             <input type="checkbox" id="s7-flag-violao" ${_state.showViolao ? 'checked' : ''}>
                             Acorde Violão
                         </label>
+                        <label style="display:flex;align-items:center;gap:5px;font-size:.82rem;cursor:pointer;
+                            color:${_state.showGuitar ? 'var(--brand,#7c3aed)' : 'var(--text-secondary)'};
+                            font-weight:${_state.showGuitar ? '600' : '400'};" title="Simula marcação de violão em 2/4 (Karplus-Strong)">
+                            <input type="checkbox" id="s7-flag-guitar" ${_state.showGuitar ? 'checked' : ''}>
+                            🎸 Violão 2/4
+                        </label>
                     </div>
                 </div>
                 <div id="s7-sections">
@@ -319,6 +326,16 @@
             document.getElementById('s7-flag-violao').addEventListener('change', e => {
                 _state.showViolao = e.target.checked;
                 C._refreshAllChords();
+            });
+
+            document.getElementById('s7-flag-guitar').addEventListener('change', e => {
+                _state.showGuitar = e.target.checked;
+                // Re-render to update label colour
+                const lbl = e.target.closest('label');
+                if (lbl) {
+                    lbl.style.color  = _state.showGuitar ? 'var(--brand,#7c3aed)' : 'var(--text-secondary)';
+                    lbl.style.fontWeight = _state.showGuitar ? '600' : '400';
+                }
             });
 
             // Editable harmony inputs — update chord bar live
@@ -605,17 +622,18 @@
                 _state.playing = null;
                 if (wasSame) return;
             }
-            const cad = _state.cadences.find(c => c.id === id);
+            const cad       = _state.cadences.find(c => c.id === id);
             if (!cad) return;
-            const tokens = window.HarmonyEngine.translate(cad.harmony, cad.root, cad.is_minor);
-            _state.playing = playKey;
-            const playBtn = document.querySelector(`.rc-play-btn[data-id="${id}"]`);
+            const tokens    = window.HarmonyEngine.translate(cad.harmony, cad.root, cad.is_minor);
+            const strumMode = _state.showGuitar ? 'violao24' : 'basic';
+            _state.playing  = playKey;
+            const playBtn   = document.querySelector(`.rc-play-btn[data-id="${id}"]`);
             if (playBtn) { playBtn.innerHTML = '<i class="fa-solid fa-stop"></i>'; playBtn.className = 'btn btn-secondary rc-play-btn'; }
             window.HMSAudio.playSequence(tokens, cad.bpm || _state.bpm, () => {
                 _state.playing = null;
                 const btn = document.querySelector(`.rc-play-btn[data-id="${id}"]`);
                 if (btn) { btn.innerHTML = '<i class="fa-solid fa-play"></i>'; btn.className = 'btn btn-primary rc-play-btn'; }
-            });
+            }, strumMode);
         },
 
         // ── Playback — Exemplos ───────────────────────────────────────
@@ -642,13 +660,14 @@
                 _state.playing = null;
                 if (wasSame) return;
             }
-            const tokens = window.HarmonyEngine.translate(_state.harmonies[cadId], _state.key, _state.isMinor);
+            const tokens    = window.HarmonyEngine.translate(_state.harmonies[cadId], _state.key, _state.isMinor);
+            const strumMode = _state.showGuitar ? 'violao24' : 'basic';
             _state.playing = cadId;
             C._setPlayingUI(cadId, true);
             window.HMSAudio.playSequence(tokens, _state.bpm, () => {
                 _state.playing = null;
                 C._setPlayingUI(cadId, false);
-            });
+            }, strumMode);
         },
     };
 

@@ -3,42 +3,34 @@
  * Plays chord sequences using Tone.js (v14.x)
  * Exposed via window.HMSAudio
  *
- * Bugs fixed vs. original:
- *  1. reverb.generate() must be AWAITED before .toDestination() — otherwise
- *     the reverb enters the signal chain with no impulse → total silence.
- *  2. Replaced Promise-constructor + .then() anti-pattern with async/await so
- *     that async errors are not silently swallowed.
- *  3. Tone.Transport.start('+0.05') — small lookahead avoids AudioContext
- *     scheduling glitch that skips the very first event.
- *  4. Explicit Transport reset (position = 0, cancel()) before each play.
+ * Modes:
+ *   playSequence(tokens, bpm, onFinished, 'basic')    — original piano strum
+ *   playSequence(tokens, bpm, onFinished, 'violao24') — guitar simulation, 2/4 pattern
  */
 (function () {
     'use strict';
 
-    let sampler    = null;   // Tone.Sampler (shared, lazy-loaded)
-    let reverb     = null;   // Tone.Reverb  (shared, lazy-loaded)
-    let part       = null;   // Current Tone.Part (melody or sequence)
-    let part2      = null;   // Second Tone.Part (chords in playAll)
-    let _isPlaying = false;
+    let sampler     = null;   // Tone.Sampler        (piano, shared, lazy-loaded)
+    let guitarSynth = null;   // Tone.PolySynth       (PluckSynth, guitar mode)
+    let guitarFilter = null;  // Tone.Filter          (warmth for guitar)
+    let reverb      = null;   // Tone.Reverb          (shared)
+    let part        = null;   // Current Tone.Part
+    let part2       = null;   // Second Tone.Part (playAll chords)
+    let _isPlaying  = false;
 
-    // ── Lazy Initialization ──────────────────────────────────────
-    // Idempotent: safe to call multiple times; only loads once.
+    // ── Shared reverb ────────────────────────────────────────────
+    async function ensureReverb() {
+        if (reverb) return;
+        reverb = new Tone.Reverb({ decay: 2.0, preDelay: 0.01, wet: 0.22 });
+        await reverb.generate();
+        reverb.toDestination();
+    }
+
+    // ── Piano Sampler (Salamander) ───────────────────────────────
     async function ensureSynth() {
-        if (sampler) return; // Already ready
-
-        // ① Resume / unlock AudioContext — must be in user-gesture call chain
+        if (sampler) return;
         await Tone.start();
-        console.info('[AudioEngine] Tone.start() OK — AudioContext:', Tone.context.state);
-
-        // ② Create Reverb and AWAIT generate() BEFORE connecting to destination
-        //    BUG ORIGINAL: new Tone.Reverb({...}).toDestination() chains immediately,
-        //    bypassing the async generate → reverb routes signal but outputs silence.
-        reverb = new Tone.Reverb({ decay: 2.5, preDelay: 0.01, wet: 0.25 });
-        await reverb.generate();   // ← generates offline impulse response first
-        reverb.toDestination();    // ← then wire into the audio graph
-        console.info('[AudioEngine] Reverb ready.');
-
-        // ③ Load Sampler — wrap onload/onerror in a proper Promise
+        await ensureReverb();
         await new Promise((resolve, reject) => {
             sampler = new Tone.Sampler({
                 urls: {
@@ -47,24 +39,35 @@
                 },
                 baseUrl: 'https://tonejs.github.io/audio/salamander/',
                 release: 1.5,
-                onload: () => {
-                    console.info('[AudioEngine] Sampler loaded ✓');
-                    resolve();
-                },
-                onerror: (err) => {
-                    sampler = null; // allow retry on next call
-                    reject(new Error('Sampler load failed: ' + (err?.message ?? err)));
-                },
+                onload:  resolve,
+                onerror: (err) => { sampler = null; reject(new Error('Sampler load failed: ' + (err?.message ?? err))); },
             });
         });
-
-        // ④ Wire: sampler → reverb → destination
         sampler.connect(reverb);
-        sampler.volume.value = -2; // Salamander samples are recorded quiet
-        console.info('[AudioEngine] Signal chain: sampler → reverb → destination ✓');
+        sampler.volume.value = -2;
+        console.info('[AudioEngine] Piano sampler ready ✓');
     }
 
-    // ── Chord → MIDI Notes ───────────────────────────────────────
+    // ── Guitar Synth (Karplus-Strong via PolySynth+PluckSynth) ──
+    async function ensureGuitar() {
+        if (guitarSynth) return;
+        await Tone.start();
+        await ensureReverb();
+        // Warm low-pass filter to simulate body resonance
+        guitarFilter = new Tone.Filter(2200, 'lowpass');
+        guitarFilter.connect(reverb);
+        // PluckSynth inside PolySynth = polyphonic plucked string synthesis
+        guitarSynth = new Tone.PolySynth(Tone.PluckSynth, {
+            attackNoise: 1.8,   // pick attack transient
+            dampening:   3200,  // brightness of the string (higher = brighter)
+            resonance:   0.90,  // sustain (0-1, higher = longer ring)
+        });
+        guitarSynth.volume.value = 1;
+        guitarSynth.connect(guitarFilter);
+        console.info('[AudioEngine] Guitar synth ready ✓');
+    }
+
+    // ── Chord → Notes ────────────────────────────────────────────
     const INTERVALS = {
         '':       [0, 4, 7],
         'm':      [0, 3, 7],
@@ -79,25 +82,91 @@
         'sus2':   [0, 2, 7],
     };
 
-    function parseChordToNotes(chordStr) {
+    function _parseRoot(chordStr) {
         if (!chordStr || chordStr === '/' || chordStr.startsWith('[')) return null;
-
         const m = chordStr.match(/^([A-G][b#]?)(.*)/);
         if (!m) return null;
-
-        const rootStr = m[1];
-        let   quality = m[2].trim();
-        const rootIdx = window.HarmonyEngine._noteToIdx(rootStr);
+        let quality = m[2].trim();
+        const rootIdx = window.HarmonyEngine._noteToIdx(m[1]);
         if (rootIdx == null) return null;
+        if (!INTERVALS[quality]) quality = (quality.includes('m') && !quality.includes('M7')) ? 'm' : '';
+        return { rootIdx, quality };
+    }
 
-        if (!INTERVALS[quality]) {
-            quality = (quality.includes('m') && !quality.includes('M7')) ? 'm' : '';
-        }
-
-        const BASE_MIDI = 48; // C3 = 48
-        return (INTERVALS[quality] || INTERVALS['']).map(interval =>
-            Tone.Frequency(BASE_MIDI + rootIdx + interval, 'midi').toNote()
+    /** Piano mode: [root, 3rd, 5th] at C3 base */
+    function parseChordToNotes(chordStr) {
+        const r = _parseRoot(chordStr);
+        if (!r) return null;
+        const BASE = 48; // C3
+        return (INTERVALS[r.quality] || INTERVALS['']).map(i =>
+            Tone.Frequency(BASE + r.rootIdx + i, 'midi').toNote()
         );
+    }
+
+    /**
+     * Guitar strum mode: returns { bass, low, high }
+     *   bass — root note in C2 register (single string, grave)
+     *   low  — chord tones in C3 register (down-stroke, grave→agudo)
+     *   high — upper chord tones in C4 register (up-stroke, agudo→grave)
+     */
+    function parseChordToStrumNotes(chordStr) {
+        const r = _parseRoot(chordStr);
+        if (!r) return null;
+        const ivs  = INTERVALS[r.quality] || INTERVALS[''];
+        const ROOT = r.rootIdx;
+        const bass = [Tone.Frequency(36 + ROOT, 'midi').toNote()];        // C2 register — single bass string
+        const low  = ivs.map(i => Tone.Frequency(48 + ROOT + i, 'midi').toNote()); // C3 — mid strings
+        const high = ivs.slice(1).map(i => Tone.Frequency(60 + ROOT + i, 'midi').toNote()); // C4 — upper strings (no root)
+        return { bass, low, high };
+    }
+
+    // ── Violão 2/4 strum builder ─────────────────────────────────
+    /**
+     * Builds a flat event list with stagger and velocity for each chord.
+     * Pattern per chord slot (BEAT_S = 60/bpm seconds):
+     *
+     *   t + 0.000          : bass string (root, C2) — forte
+     *   t + 0.050 + n*0.025: down-stroke (C3 register, low→high, 3 strings) — médio
+     *   t + BEAT_S * 0.5   : up-stroke   (C4 register, high→low, 2 strings) — suave
+     */
+    function buildStrumEvents(tokens, bpm) {
+        const BEAT_S = 60 / bpm;
+        const events = [];
+        let t = 0;
+        let lastNotes = null;
+
+        for (const token of tokens) {
+            let notes = null;
+            if (token.type === 'CHORD') {
+                notes = parseChordToStrumNotes(token.value);
+                if (notes) lastNotes = notes;
+            } else if (token.type === 'STRUCT' && token.value === '/') {
+                notes = lastNotes;
+            }
+
+            if (notes) {
+                const { bass, low, high } = notes;
+                const half = BEAT_S * 0.5;
+
+                // ① Bass string — forte
+                bass.forEach(n => {
+                    events.push({ time: t, note: n, vel: 0.88, dur: BEAT_S * 0.50 });
+                });
+                // ② Down-stroke: low strings (left→right on guitar), stagger 25 ms
+                low.forEach((n, i) => {
+                    events.push({ time: t + 0.05 + i * 0.025, note: n, vel: 0.72, dur: BEAT_S * 0.88 });
+                });
+                // ③ Up-stroke (contra-tempo): high strings reversed, stagger 15 ms, soft
+                high.slice().reverse().forEach((n, i) => {
+                    events.push({ time: t + half + i * 0.015, note: n, vel: 0.40, dur: BEAT_S * 0.42 });
+                });
+            }
+
+            if (token.type === 'CHORD' || (token.type === 'STRUCT' && token.value === '/')) {
+                t += BEAT_S;
+            }
+        }
+        return { events, totalTime: t };
     }
 
     // ── Public API ───────────────────────────────────────────────
@@ -110,34 +179,59 @@
          * @param {Array}    tokens     - ResultToken[]
          * @param {number}   bpm        - beats per minute
          * @param {Function} onFinished - called when sequence ends naturally
+         * @param {string}   strumMode  - 'basic' (piano) | 'violao24' (guitar 2/4)
          */
-        async playSequence(tokens, bpm = 60, onFinished) {
-            // Stop any current playback cleanly first
+        async playSequence(tokens, bpm = 60, onFinished, strumMode = 'basic') {
             AudioEngine.stop();
 
-            // Load sampler (no-op if already loaded)
+            // ── Violão 2/4 mode ──────────────────────────────────
+            if (strumMode === 'violao24') {
+                await ensureGuitar();
+
+                const { events, totalTime } = buildStrumEvents(tokens, bpm);
+                if (events.length === 0) {
+                    console.warn('[AudioEngine] No playable chords for guitar mode.');
+                    return;
+                }
+
+                Tone.Transport.cancel();
+                Tone.Transport.stop();
+                Tone.Transport.position = 0;
+                Tone.Transport.bpm.value = bpm;
+                Tone.Transport.timeSignature = [2, 4];
+
+                part = new Tone.Part((audioTime, value) => {
+                    guitarSynth.triggerAttack(value.note, audioTime, value.vel);
+                }, events);
+                part.start(0);
+
+                _isPlaying = true;
+                Tone.Transport.start('+0.05');
+
+                Tone.Transport.scheduleOnce(() => {
+                    AudioEngine.stop();
+                    if (onFinished) onFinished();
+                }, totalTime + 3.0); // extra tail for string decay
+                return;
+            }
+
+            // ── Basic (piano) mode ───────────────────────────────
             await ensureSynth();
 
-            // ── Build event list ─────────────────────────────────
-            const BEAT_S  = 60 / bpm; // seconds per "chord slot"
+            const BEAT_S  = 60 / bpm;
             const events  = [];
             let   t       = 0;
             let   lastNotes = [];
 
             for (const token of tokens) {
                 let notes = null;
-
                 if (token.type === 'CHORD') {
                     notes = parseChordToNotes(token.value);
                     if (notes) lastNotes = notes;
                 } else if (token.type === 'STRUCT' && token.value === '/') {
-                    // Repeat bar: reuse last chord
                     notes = lastNotes.length ? [...lastNotes] : null;
                 }
-
                 if (notes) events.push({ time: t, notes });
-
-                // Advance timeline for playable slots
                 if (token.type === 'CHORD' || (token.type === 'STRUCT' && token.value === '/')) {
                     t += BEAT_S;
                 }
@@ -147,18 +241,13 @@
                 console.warn('[AudioEngine] No playable chords in token list.');
                 return;
             }
-            console.info(`[AudioEngine] Scheduling ${events.length} chords at ${bpm} BPM`);
 
-            // ── Reset Transport ──────────────────────────────────
-            //   BUG ORIGINAL: no reset → replaying after stop left position mid-song.
             Tone.Transport.cancel();
             Tone.Transport.stop();
             Tone.Transport.position = 0;
             Tone.Transport.bpm.value = bpm;
 
-            // ── Create Part ──────────────────────────────────────
             part = new Tone.Part((audioTime, value) => {
-                // Strum effect: each note slightly offset (≈ guitar strum)
                 value.notes.forEach((note, i) => {
                     sampler.triggerAttackRelease(note, '2n', audioTime + i * 0.04);
                 });
@@ -166,25 +255,16 @@
             part.start(0);
 
             _isPlaying = true;
-
-            // ── Start Transport with small lookahead ─────────────
-            //   BUG ORIGINAL: start() with no offset can skip the very first
-            //   scheduled event due to AudioContext internal scheduling lag.
             Tone.Transport.start('+0.05');
 
-            // ── Auto-stop after all chords + release tail ────────
-            const totalDuration = t + 2.5; // 2.5 s extra for release tails
             Tone.Transport.scheduleOnce(() => {
                 AudioEngine.stop();
                 if (onFinished) onFinished();
-            }, totalDuration);
+            }, t + 2.5);
         },
 
         /**
          * Play a processed melody array from MelodyEngine.translate().
-         * @param {Array}    notes      [{note:'C2', dur:'8n'}, ...]
-         * @param {number}   bpm        beats per minute
-         * @param {Function} onFinished called when playback ends naturally
          */
         async playMelody(notes, bpm = 80, onFinished, timeSig = '4/4') {
             AudioEngine.stop();
@@ -192,19 +272,15 @@
 
             if (!notes || notes.length === 0) return;
 
-            // Resolve ties: merge tied notes into single events with duration in seconds
-            // Notes with note === null are rests: advance time but don't trigger
             const events = [];
             let t = 0;
             let i = 0;
             while (i < notes.length) {
                 const n = notes[i];
                 const durSec = window.MelodyEngine.durToSeconds(n.dur, bpm);
-                if (!n.note) { // rest — silence
-                    t += durSec;
-                    i++;
+                if (!n.note) {
+                    t += durSec; i++;
                 } else if (n.tie) {
-                    // Accumulate duration across all tied notes
                     let totalSec = durSec;
                     let j = i + 1;
                     while (j < notes.length && notes[j - 1].tie) {
@@ -212,12 +288,10 @@
                         j++;
                     }
                     events.push({ time: t, note: n.note, durSec: totalSec });
-                    t += totalSec;
-                    i = j;
+                    t += totalSec; i = j;
                 } else {
                     events.push({ time: t, note: n.note, durSec });
-                    t += durSec;
-                    i++;
+                    t += durSec; i++;
                 }
             }
 
@@ -236,7 +310,6 @@
             _isPlaying = true;
             Tone.Transport.start('+0.05');
 
-            // Auto-stop after last note + release tail
             Tone.Transport.scheduleOnce(() => {
                 AudioEngine.stop();
                 if (onFinished) onFinished();
@@ -245,10 +318,6 @@
 
         /**
          * Play melody and chord sequence simultaneously.
-         * @param {Array}    notes      [{note:'C2', dur:'8n'}, ...] from MelodyEngine.translate
-         * @param {Array}    tokens     ResultToken[] from HarmonyEngine.translate
-         * @param {number}   bpm        beats per minute
-         * @param {Function} onFinished called when playback ends naturally
          */
         async playAll(notes, tokens, bpm = 80, onFinished) {
             AudioEngine.stop();
@@ -256,7 +325,6 @@
 
             if (!notes || notes.length === 0) return;
 
-            // Build melody events (skip rests)
             const melodyEvents = [];
             let mt = 0;
             for (const n of notes) {
@@ -264,7 +332,6 @@
                 mt += window.MelodyEngine.durToSeconds(n.dur, bpm);
             }
 
-            // Build chord events (same logic as playSequence)
             const BEAT_S = 60 / bpm;
             const chordEvents = [];
             let ct = 0;
@@ -288,13 +355,11 @@
             Tone.Transport.position = 0;
             Tone.Transport.bpm.value = bpm;
 
-            // Melody part
             part = new Tone.Part((audioTime, value) => {
                 sampler.triggerAttackRelease(value.note, value.dur, audioTime);
             }, melodyEvents);
             part.start(0);
 
-            // Chords part (if we have chord events)
             if (chordEvents.length > 0) {
                 part2 = new Tone.Part((audioTime, value) => {
                     value.notes.forEach((note, i) => {
@@ -315,11 +380,7 @@
         },
 
         /**
-         * Play melody and chords simultaneously with explicit chord timings.
-         * @param {Array}    notes        [{note, dur}, ...] from MelodyEngine.translate
-         * @param {Array}    chordTimings [{time: seconds, chord: 'Am7', duration: seconds}, ...]
-         * @param {number}   bpm          beats per minute
-         * @param {Function} onFinished   called when playback ends naturally
+         * Play melody and chords with explicit chord timings.
          */
         async playAllWithTimings(notes, chordTimings, bpm = 80, onFinished) {
             AudioEngine.stop();
@@ -327,7 +388,6 @@
 
             if (!notes || notes.length === 0) return;
 
-            // Build melody events (skip rests — note === null — but advance time)
             const melodyEvents = [];
             let mt = 0;
             for (const n of notes) {
@@ -335,7 +395,6 @@
                 mt += window.MelodyEngine.durToSeconds(n.dur, bpm);
             }
 
-            // Build chord events from pre-computed timings
             const chordEvents = (chordTimings || []).map(ct => {
                 const cNotes = parseChordToNotes(ct.chord);
                 return cNotes ? { time: ct.time, notes: cNotes, duration: ct.duration } : null;
@@ -354,7 +413,7 @@
             if (chordEvents.length > 0) {
                 part2 = new Tone.Part((audioTime, value) => {
                     const relDur = value.duration > 0 ? value.duration : (60 / bpm);
-                    const noteDur = Math.max(relDur * 0.92, 0.05); // slight overlap trim
+                    const noteDur = Math.max(relDur * 0.92, 0.05);
                     value.notes.forEach((note, i) => {
                         sampler.triggerAttackRelease(note, noteDur, audioTime + i * 0.03);
                     });
@@ -376,6 +435,7 @@
             _isPlaying = false;
             if (part)  { part.stop();  part.dispose();  part  = null; }
             if (part2) { part2.stop(); part2.dispose(); part2 = null; }
+            if (guitarSynth) { try { guitarSynth.releaseAll(); } catch (_) {} }
             Tone.Transport.stop();
             Tone.Transport.cancel();
         },
