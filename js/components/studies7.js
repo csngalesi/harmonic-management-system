@@ -54,14 +54,13 @@
         key: 'C',
         isMinor: false,
         bpm: 80,
-        playing: null,          // id of currently playing (exemplo cadId or 'rp_<uuid>')
-        harmonies: {},          // editable harmony per cadence id (exemplos)
+        playing: null,
+        harmonies: {},
         showCavaco: false,
         showViolao: false,
-        showGuitar: false,      // true = violão 2/4 synth mode
         // Repositório
         tab:           'exemplos',
-        cadences:      [],          // loaded from DB
+        cadences:      [],
         editingId:     null,
         newForm:       false,
         currentUserId: null,
@@ -251,60 +250,6 @@
 
         // ── Exemplos tab ──────────────────────────────────────────────
 
-        _guitarPanelHtml: function () {
-            const p  = window.HMSAudio?.getGuitarParams?.() || {};
-            const t  = p.synthType || 'polyperc';
-            const sel = (v) => t === v ? 'selected' : '';
-            return `
-            <div id="s7-guitar-panel"
-                style="margin-bottom:1rem;padding:10px 14px;border-radius:8px;
-                    border:1px solid var(--brand,#7c3aed);
-                    background:var(--brand-dim,rgba(124,58,237,.08));
-                    display:flex;flex-wrap:wrap;gap:12px;align-items:center;font-size:.82rem;">
-                <span style="font-weight:600;color:var(--brand,#7c3aed);white-space:nowrap;🎸 Ajuste de Som:</span>
-                <label style="display:flex;align-items:center;gap:5px;">
-                    <span style="color:var(--text-secondary);">Tipo:</span>
-                    <select class="form-select" id="s7-guitar-type" style="padding:3px 8px;font-size:.8rem;">
-                        <option value="polyperc" ${sel('polyperc')}>Triangle percussivo</option>
-                        <option value="pluck"    ${sel('pluck')}>PluckSynth (Karplus-Strong)</option>
-                        <option value="piano"    ${sel('piano')}>Piano Salamander</option>
-                    </select>
-                </label>
-                <div id="s7-guitar-sliders" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
-                    ${t === 'polyperc' ? `
-                    <label style="display:flex;align-items:center;gap:5px;">
-                        <span style="color:var(--text-secondary);white-space:nowrap;">Decay
-                            <span id="s7-decay-val" style="color:var(--brand,#7c3aed);min-width:28px;display:inline-block;text-align:right;">${(p.decay||0.45).toFixed(2)}s</span>
-                        </span>
-                        <input type="range" id="s7-decay" min="0.10" max="2.00" step="0.05"
-                            value="${p.decay||0.45}" style="width:100px;accent-color:var(--brand,#7c3aed);">
-                    </label>` : ''}
-                    ${t === 'pluck' ? `
-                    <label style="display:flex;align-items:center;gap:5px;">
-                        <span style="color:var(--text-secondary);white-space:nowrap;">Ataque
-                            <span id="s7-an-val" style="color:var(--brand,#7c3aed);min-width:24px;display:inline-block;text-align:right;">${(p.attackNoise||0.3).toFixed(1)}</span>
-                        </span>
-                        <input type="range" id="s7-attack-noise" min="0.1" max="2.0" step="0.1"
-                            value="${p.attackNoise||0.3}" style="width:90px;accent-color:var(--brand,#7c3aed);">
-                    </label>
-                    <label style="display:flex;align-items:center;gap:5px;">
-                        <span style="color:var(--text-secondary);white-space:nowrap;">Brilho
-                            <span id="s7-damp-val" style="color:var(--brand,#7c3aed);min-width:36px;display:inline-block;text-align:right;">${(p.dampening||4500)}</span>
-                        </span>
-                        <input type="range" id="s7-dampening" min="500" max="8000" step="100"
-                            value="${p.dampening||4500}" style="width:90px;accent-color:var(--brand,#7c3aed);">
-                    </label>
-                    <label style="display:flex;align-items:center;gap:5px;">
-                        <span style="color:var(--text-secondary);white-space:nowrap;">Sustain
-                            <span id="s7-res-val" style="color:var(--brand,#7c3aed);min-width:30px;display:inline-block;text-align:right;">${(p.resonance||0.95).toFixed(2)}</span>
-                        </span>
-                        <input type="range" id="s7-resonance" min="0.50" max="0.99" step="0.01"
-                            value="${p.resonance||0.95}" style="width:90px;accent-color:var(--brand,#7c3aed);">
-                    </label>` : ''}
-                </div>
-            </div>`;
-        },
-
         _renderExemplos: function () {
             const C = Studies7Component;
             const keyOptions = KEYS.map(k =>
@@ -335,15 +280,8 @@
                             <input type="checkbox" id="s7-flag-violao" ${_state.showViolao ? 'checked' : ''}>
                             Acorde Violão
                         </label>
-                        <label style="display:flex;align-items:center;gap:5px;font-size:.82rem;cursor:pointer;
-                            color:${_state.showGuitar ? 'var(--brand,#7c3aed)' : 'var(--text-secondary)'};
-                            font-weight:${_state.showGuitar ? '600' : '400'};">
-                            <input type="checkbox" id="s7-flag-guitar" ${_state.showGuitar ? 'checked' : ''}>
-                            🎸 Violão 2/4
-                        </label>
                     </div>
                 </div>
-                ${_state.showGuitar ? C._guitarPanelHtml() : ''}
                 <div id="s7-sections">
                     ${SECTIONS.map(sectionHtml).join('')}
                 </div>
@@ -383,63 +321,6 @@
                 C._refreshAllChords();
             });
 
-            document.getElementById('s7-flag-guitar').addEventListener('change', e => {
-                _state.showGuitar = e.target.checked;
-                // Re-render Exemplos so guitar panel shows/hides
-                C._renderExemplos();
-            });
-
-            // ── Guitar panel controls (only present when showGuitar=true) ──
-            function _bindGuitarPanel() {
-                const typeEl = document.getElementById('s7-guitar-type');
-                if (!typeEl) return;
-
-                typeEl.addEventListener('change', e => {
-                    window.HMSAudio.setGuitarParams({ synthType: e.target.value });
-                    // Re-render panel so sliders for the new type appear
-                    const panel = document.getElementById('s7-guitar-panel');
-                    if (panel) {
-                        const tmp = document.createElement('div');
-                        tmp.innerHTML = C._guitarPanelHtml();
-                        panel.replaceWith(tmp.firstElementChild);
-                        _bindGuitarPanel();
-                    }
-                });
-
-                const decayEl = document.getElementById('s7-decay');
-                if (decayEl) {
-                    decayEl.addEventListener('input', e => {
-                        const v = parseFloat(e.target.value);
-                        document.getElementById('s7-decay-val').textContent = v.toFixed(2) + 's';
-                        window.HMSAudio.setGuitarParams({ decay: v });
-                    });
-                }
-                const anEl = document.getElementById('s7-attack-noise');
-                if (anEl) {
-                    anEl.addEventListener('input', e => {
-                        const v = parseFloat(e.target.value);
-                        document.getElementById('s7-an-val').textContent = v.toFixed(1);
-                        window.HMSAudio.setGuitarParams({ attackNoise: v });
-                    });
-                }
-                const dampEl = document.getElementById('s7-dampening');
-                if (dampEl) {
-                    dampEl.addEventListener('input', e => {
-                        const v = parseInt(e.target.value);
-                        document.getElementById('s7-damp-val').textContent = v;
-                        window.HMSAudio.setGuitarParams({ dampening: v });
-                    });
-                }
-                const resEl = document.getElementById('s7-resonance');
-                if (resEl) {
-                    resEl.addEventListener('input', e => {
-                        const v = parseFloat(e.target.value);
-                        document.getElementById('s7-res-val').textContent = v.toFixed(2);
-                        window.HMSAudio.setGuitarParams({ resonance: v });
-                    });
-                }
-            }
-            _bindGuitarPanel();
 
             // Editable harmony inputs — update chord bar live
             document.querySelectorAll('.s7-harmony-input').forEach(inp => {
@@ -728,7 +609,6 @@
             const cad       = _state.cadences.find(c => c.id === id);
             if (!cad) return;
             const tokens    = window.HarmonyEngine.translate(cad.harmony, cad.root, cad.is_minor);
-            const strumMode = _state.showGuitar ? 'violao24' : 'basic';
             _state.playing  = playKey;
             const playBtn   = document.querySelector(`.rc-play-btn[data-id="${id}"]`);
             if (playBtn) { playBtn.innerHTML = '<i class="fa-solid fa-stop"></i>'; playBtn.className = 'btn btn-secondary rc-play-btn'; }
@@ -736,7 +616,7 @@
                 _state.playing = null;
                 const btn = document.querySelector(`.rc-play-btn[data-id="${id}"]`);
                 if (btn) { btn.innerHTML = '<i class="fa-solid fa-play"></i>'; btn.className = 'btn btn-primary rc-play-btn'; }
-            }, strumMode);
+            });
         },
 
         // ── Playback — Exemplos ───────────────────────────────────────
@@ -764,13 +644,12 @@
                 if (wasSame) return;
             }
             const tokens    = window.HarmonyEngine.translate(_state.harmonies[cadId], _state.key, _state.isMinor);
-            const strumMode = _state.showGuitar ? 'violao24' : 'basic';
             _state.playing = cadId;
             C._setPlayingUI(cadId, true);
             window.HMSAudio.playSequence(tokens, _state.bpm, () => {
                 _state.playing = null;
                 C._setPlayingUI(cadId, false);
-            }, strumMode);
+            });
         },
     };
 
