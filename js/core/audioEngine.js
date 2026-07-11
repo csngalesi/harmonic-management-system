@@ -10,13 +10,15 @@
 (function () {
     'use strict';
 
-    let sampler     = null;   // Tone.Sampler        (piano, shared, lazy-loaded)
-    let guitarSynth = null;   // Tone.PolySynth       (PluckSynth, guitar mode)
-    let guitarFilter = null;  // Tone.Filter          (warmth for guitar)
-    let reverb      = null;   // Tone.Reverb          (shared)
-    let part        = null;   // Current Tone.Part
-    let part2       = null;   // Second Tone.Part (playAll chords)
-    let _isPlaying  = false;
+    let sampler      = null;    // Tone.Sampler  (piano, lazy-loaded)
+    let guitarPool   = [];      // PluckSynth[]  (guitar pool, round-robin)
+    let guitarFilter = null;    // Tone.Filter   (warmth)
+    let guitarPoolIdx = 0;
+    const GUITAR_POOL_SIZE = 8; // polyphony limit
+    let reverb       = null;    // Tone.Reverb   (shared)
+    let part         = null;
+    let part2        = null;
+    let _isPlaying   = false;
 
     // ── Shared reverb ────────────────────────────────────────────
     async function ensureReverb() {
@@ -48,23 +50,37 @@
         console.info('[AudioEngine] Piano sampler ready ✓');
     }
 
-    // ── Guitar Synth (Karplus-Strong via PolySynth+PluckSynth) ──
+    // ── Guitar Pool (Karplus-Strong, individual PluckSynths) ────
+    // PolySynth(PluckSynth) is broken in Tone.js v14 because PluckSynth
+    // is monophonic and incompatible with PolySynth's voice allocator.
+    // Instead we keep a fixed pool of PluckSynths and round-robin.
     async function ensureGuitar() {
-        if (guitarSynth) return;
+        if (guitarPool.length > 0) return;
         await Tone.start();
         await ensureReverb();
-        // Warm low-pass filter to simulate body resonance
-        guitarFilter = new Tone.Filter(2200, 'lowpass');
+        // Low-pass filter for body warmth
+        guitarFilter = new Tone.Filter({ frequency: 2200, type: 'lowpass', rolloff: -12 });
         guitarFilter.connect(reverb);
-        // PluckSynth inside PolySynth = polyphonic plucked string synthesis
-        guitarSynth = new Tone.PolySynth(Tone.PluckSynth, {
-            attackNoise: 1.8,   // pick attack transient
-            dampening:   3200,  // brightness of the string (higher = brighter)
-            resonance:   0.90,  // sustain (0-1, higher = longer ring)
-        });
-        guitarSynth.volume.value = 1;
-        guitarSynth.connect(guitarFilter);
-        console.info('[AudioEngine] Guitar synth ready ✓');
+        // Create individual PluckSynth voices
+        for (let i = 0; i < GUITAR_POOL_SIZE; i++) {
+            const ps = new Tone.PluckSynth({
+                attackNoise: 1.8,
+                dampening:   3200,
+                resonance:   0.90,
+            });
+            ps.volume.value = 2;
+            ps.connect(guitarFilter);
+            guitarPool.push(ps);
+        }
+        guitarPoolIdx = 0;
+        console.info('[AudioEngine] Guitar pool ready ✓', GUITAR_POOL_SIZE, 'voices');
+    }
+
+    function pluckNote(note, audioTime) {
+        const voice = guitarPool[guitarPoolIdx];
+        guitarPoolIdx = (guitarPoolIdx + 1) % GUITAR_POOL_SIZE;
+        try { voice.triggerAttack(note, audioTime); }
+        catch (e) { console.warn('[Guitar] triggerAttack error:', note, e.message); }
     }
 
     // ── Chord → Notes ────────────────────────────────────────────
@@ -186,13 +202,22 @@
 
             // ── Violão 2/4 mode ──────────────────────────────────
             if (strumMode === 'violao24') {
-                await ensureGuitar();
+                let dbg = null;
+                try {
+                    await ensureGuitar();
+                } catch (err) {
+                    console.error('[Guitar] init failed:', err);
+                    window.HMSApp?.showToast('DEBUG Violão: falha ao inicializar synth — ' + err.message, 'error');
+                    return;
+                }
 
                 const { events, totalTime } = buildStrumEvents(tokens, bpm);
                 if (events.length === 0) {
-                    console.warn('[AudioEngine] No playable chords for guitar mode.');
+                    window.HMSApp?.showToast('DEBUG Violão: nenhuma nota gerada (tokens vazios?)', 'warning');
+                    console.warn('[AudioEngine] No events for violao24 mode.', tokens);
                     return;
                 }
+                console.info(`[Guitar] ${events.length} events, totalTime=${totalTime.toFixed(2)}s, bpm=${bpm}`);
 
                 Tone.Transport.cancel();
                 Tone.Transport.stop();
@@ -201,7 +226,7 @@
                 Tone.Transport.timeSignature = [2, 4];
 
                 part = new Tone.Part((audioTime, value) => {
-                    guitarSynth.triggerAttack(value.note, audioTime, value.vel);
+                    pluckNote(value.note, audioTime);
                 }, events);
                 part.start(0);
 
@@ -211,7 +236,7 @@
                 Tone.Transport.scheduleOnce(() => {
                     AudioEngine.stop();
                     if (onFinished) onFinished();
-                }, totalTime + 3.0); // extra tail for string decay
+                }, totalTime + 3.5);
                 return;
             }
 
@@ -435,7 +460,8 @@
             _isPlaying = false;
             if (part)  { part.stop();  part.dispose();  part  = null; }
             if (part2) { part2.stop(); part2.dispose(); part2 = null; }
-            if (guitarSynth) { try { guitarSynth.releaseAll(); } catch (_) {} }
+            // guitarPool: PluckSynths self-decay, no explicit release needed
+            guitarPoolIdx = 0;
             Tone.Transport.stop();
             Tone.Transport.cancel();
         },
