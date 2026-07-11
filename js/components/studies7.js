@@ -58,6 +58,7 @@
         harmonies: {},
         showCavaco: false,
         showViolao: false,
+        instrument: 'synth',   // 'synth' | 'guitar' | 'cavaco'
         // Repositório
         tab:           'exemplos',
         cadences:      [],
@@ -272,6 +273,20 @@
                         <input type="number" class="form-input" id="s7-global-bpm"
                             value="${_state.bpm}" min="20" max="300"
                             style="width:68px;text-align:center;" title="BPM">
+                        <div style="display:flex;border:1px solid var(--glass-border);border-radius:8px;overflow:hidden;">
+                            <button class="s7-ins-btn ${_state.instrument==='synth'   ? 'active':''}"
+                                data-ins="synth"  title="Synth (piano)" style="padding:6px 10px;border:none;background:${_state.instrument==='synth'   ? 'var(--brand-dim)':'transparent'};color:${_state.instrument==='synth'   ? 'var(--brand)':'var(--text-muted)'};cursor:pointer;font-size:.8rem;font-family:var(--font-ui);font-weight:600;transition:all .15s;">
+                                <i class="fa-solid fa-piano-keyboard"></i> Synth
+                            </button>
+                            <button class="s7-ins-btn ${_state.instrument==='guitar'  ? 'active':''}"
+                                data-ins="guitar" title="Samples violão" style="padding:6px 10px;border:none;border-left:1px solid var(--glass-border);background:${_state.instrument==='guitar'  ? 'var(--brand-dim)':'transparent'};color:${_state.instrument==='guitar'  ? 'var(--brand)':'var(--text-muted)'};cursor:pointer;font-size:.8rem;font-family:var(--font-ui);font-weight:600;transition:all .15s;">
+                                <i class="fa-solid fa-guitar"></i> Violão
+                            </button>
+                            <button class="s7-ins-btn ${_state.instrument==='cavaco'  ? 'active':''}"
+                                data-ins="cavaco" title="Samples cavaco" style="padding:6px 10px;border:none;border-left:1px solid var(--glass-border);background:${_state.instrument==='cavaco'  ? 'var(--brand-dim)':'transparent'};color:${_state.instrument==='cavaco'  ? 'var(--brand)':'var(--text-muted)'};cursor:pointer;font-size:.8rem;font-family:var(--font-ui);font-weight:600;transition:all .15s;">
+                                <i class="fa-solid fa-music"></i> Cavaco
+                            </button>
+                        </div>
                         <label style="display:flex;align-items:center;gap:5px;font-size:.82rem;cursor:pointer;color:var(--text-secondary);">
                             <input type="checkbox" id="s7-flag-cavaco" ${_state.showCavaco ? 'checked' : ''}>
                             Acorde Cavaco
@@ -309,6 +324,18 @@
             document.getElementById('s7-global-bpm').addEventListener('change', e => {
                 _state.bpm = Math.max(40, Math.min(300, parseInt(e.target.value) || 80));
                 e.target.value = _state.bpm;
+            });
+
+            // Seletor de instrumento
+            document.querySelectorAll('.s7-ins-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    _state.instrument = btn.dataset.ins;
+                    document.querySelectorAll('.s7-ins-btn').forEach(b => {
+                        const on = b.dataset.ins === _state.instrument;
+                        b.style.background = on ? 'var(--brand-dim)' : 'transparent';
+                        b.style.color      = on ? 'var(--brand)'     : 'var(--text-muted)';
+                    });
+                });
             });
 
             document.getElementById('s7-flag-cavaco').addEventListener('change', e => {
@@ -606,9 +633,12 @@
                 _state.playing = null;
                 if (wasSame) return;
             }
-            const cad       = _state.cadences.find(c => c.id === id);
+            const cad      = _state.cadences.find(c => c.id === id);
             if (!cad) return;
-            const tokens    = window.HarmonyEngine.translate(cad.harmony, cad.root, cad.is_minor);
+            const tokens   = window.HarmonyEngine.translate(cad.harmony, cad.root, cad.is_minor);
+            const strumMode = _state.instrument === 'guitar' ? 'guitar-sample'
+                            : _state.instrument === 'cavaco' ? 'cavaco-sample'
+                            : 'basic';
             _state.playing  = playKey;
             const playBtn   = document.querySelector(`.rc-play-btn[data-id="${id}"]`);
             if (playBtn) { playBtn.innerHTML = '<i class="fa-solid fa-stop"></i>'; playBtn.className = 'btn btn-secondary rc-play-btn'; }
@@ -616,7 +646,7 @@
                 _state.playing = null;
                 const btn = document.querySelector(`.rc-play-btn[data-id="${id}"]`);
                 if (btn) { btn.innerHTML = '<i class="fa-solid fa-play"></i>'; btn.className = 'btn btn-primary rc-play-btn'; }
-            });
+            }, strumMode);
         },
 
         // ── Playback — Exemplos ───────────────────────────────────────
@@ -643,13 +673,16 @@
                 _state.playing = null;
                 if (wasSame) return;
             }
-            const tokens    = window.HarmonyEngine.translate(_state.harmonies[cadId], _state.key, _state.isMinor);
+            const tokens   = window.HarmonyEngine.translate(_state.harmonies[cadId], _state.key, _state.isMinor);
+            const strumMode = _state.instrument === 'guitar' ? 'guitar-sample'
+                            : _state.instrument === 'cavaco' ? 'cavaco-sample'
+                            : 'basic';
             _state.playing = cadId;
             C._setPlayingUI(cadId, true);
             window.HMSAudio.playSequence(tokens, _state.bpm, () => {
                 _state.playing = null;
                 C._setPlayingUI(cadId, false);
-            });
+            }, strumMode);
         },
     };
 

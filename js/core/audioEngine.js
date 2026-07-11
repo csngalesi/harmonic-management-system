@@ -237,7 +237,7 @@
          * @param {Array}    tokens
          * @param {number}   bpm
          * @param {Function} onFinished
-         * @param {string}   strumMode  'basic' | 'violao24'
+         * @param {string}   strumMode  'basic' | 'violao24' | 'guitar-sample' | 'cavaco-sample'
          */
         async playSequence(tokens, bpm = 60, onFinished, strumMode = 'basic') {
             AudioEngine.stop();
@@ -276,6 +276,60 @@
                     AudioEngine.stop();
                     if (onFinished) onFinished();
                 }, totalTime + 3.5);
+                return;
+            }
+
+            // ── Sample real (guitar-sample / cavaco-sample) ────────────
+            if (strumMode === 'guitar-sample' || strumMode === 'cavaco-sample') {
+                const instrument = strumMode === 'guitar-sample' ? 'guitar' : 'cavaco';
+
+                // Carrega players se ainda não existirem
+                await AudioEngine.loadGuitarSamplers(instrument);
+
+                // Garante piano como fallback
+                try { await ensureSynth(); } catch (_) {}
+
+                const BEAT_S = 60 / bpm;
+                const events = [];
+                let t = 0;
+                let lastChord = null;
+
+                for (const token of tokens) {
+                    if (token.type === 'CHORD') {
+                        events.push({ time: t, chord: token.value });
+                        lastChord = token.value;
+                        t += BEAT_S;
+                    } else if (token.type === 'STRUCT' && token.value === '/') {
+                        if (lastChord) events.push({ time: t, chord: lastChord });
+                        t += BEAT_S;
+                    }
+                }
+
+                if (events.length === 0) return;
+
+                Tone.Transport.cancel();
+                Tone.Transport.stop();
+                Tone.Transport.position = 0;
+                Tone.Transport.bpm.value = bpm;
+
+                part = new Tone.Part((audioTime, ev) => {
+                    // Tenta sample real; se não tiver, usa piano
+                    const played = AudioEngine.playGuitarSample(ev.chord, instrument);
+                    if (!played && sampler?.loaded) {
+                        const notes = parseChordToNotes(ev.chord);
+                        if (notes) notes.forEach((n, i) =>
+                            sampler.triggerAttackRelease(n, '2n', audioTime + i * 0.04)
+                        );
+                    }
+                }, events);
+                part.start(0);
+
+                _isPlaying = true;
+                Tone.Transport.start('+0.05');
+                Tone.Transport.scheduleOnce(() => {
+                    AudioEngine.stop();
+                    if (onFinished) onFinished();
+                }, t + 2.5);
                 return;
             }
 
