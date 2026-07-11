@@ -24,6 +24,7 @@
     let part            = null;
     let part2           = null;
     let _isPlaying      = false;
+    let _seqAbortFn     = null;   // cancela fila sequencial de samples
 
     // ── Guitar Sample Players (samples reais gravados pelo usuário) ─
     // Map key: `${instrument}|${chordStr}`  e.g. 'guitar|Am'
@@ -325,63 +326,69 @@
                 return;
             }
 
-            // ── Sample real (guitar-sample / cavaco-sample) ────────────
+            // ── Sample real: fila sequencial (sem BPM) ───────────────────
             if (strumMode === 'guitar-sample' || strumMode === 'cavaco-sample') {
                 const instrument = strumMode === 'guitar-sample' ? 'guitar' : 'cavaco';
 
-                // Carrega players se ainda não existirem
                 await AudioEngine.loadGuitarSamplers(instrument);
-
-                // Garante piano como fallback
                 try { await ensureSynth(); } catch (_) {}
 
-                const BEAT_S = 60 / bpm;
-                const events = [];
-                let t = 0;
+                // Monta lista ordenada de acordes
+                const chords = [];
                 let lastChord = null;
-
                 for (const token of tokens) {
                     if (token.type === 'CHORD') {
-                        events.push({ time: t, chord: token.value });
+                        chords.push(token.value);
                         lastChord = token.value;
-                        t += BEAT_S;
                     } else if (token.type === 'STRUCT' && token.value === '/') {
-                        if (lastChord) events.push({ time: t, chord: lastChord });
-                        t += BEAT_S;
+                        if (lastChord) chords.push(lastChord);
                     }
                 }
-
-                if (events.length === 0) return;
-
-                Tone.Transport.cancel();
-                Tone.Transport.stop();
-                Tone.Transport.position = 0;
-                Tone.Transport.bpm.value = bpm;
-
-                part = new Tone.Part((audioTime, ev) => {
-                    // Para todos os samples ativos no momento exato do novo acorde
-                    for (const [, p] of _samplePlayers) {
-                        try { if (p.state === 'started') p.stop(audioTime); } catch (_) {}
-                    }
-                    // Toca sample real agendado no audioTime do Transport
-                    const played = AudioEngine.playGuitarSample(ev.chord, instrument, audioTime);
-                    if (!played && sampler?.loaded) {
-                        const notes = parseChordToNotes(ev.chord);
-                        if (notes) notes.forEach((n, i) =>
-                            sampler.triggerAttackRelease(n, '2n', audioTime + i * 0.04)
-                        );
-                    }
-                }, events);
-                part.start(0);
+                if (chords.length === 0) return;
 
                 _isPlaying = true;
-                Tone.Transport.start('+0.05');
-                Tone.Transport.scheduleOnce(() => {
-                    AudioEngine.stop();
-                    if (onFinished) onFinished();
-                }, t + 2.5);
+
+                // Toca cada acorde e espera terminar antes do próximo
+                for (const chord of chords) {
+                    if (!_isPlaying) break;
+
+                    const normalizedChord = chord.replace('m7(b5)', 'm7');
+                    const key = `${instrument}|${normalizedChord}`;
+                    let player = _samplePlayers.get(key);
+                    let detune = 0;
+
+                    if (!player) {
+                        const nearest = _findNearestSample(normalizedChord, instrument);
+                        if (nearest) { player = nearest.player; detune = nearest.detuneCents; }
+                    }
+
+                    let duration = 2.0;
+                    if (player) {
+                        duration = player.buffer?.duration ?? 2.0;
+                        try {
+                            if (player.state === 'started') player.stop();
+                            player.detune = detune;
+                            player.start();
+                            if (detune !== 0) setTimeout(() => { try { player.detune = 0; } catch(_) {} }, duration * 1000 + 200);
+                        } catch (e) { console.warn('[AudioEngine] seq play erro:', e.message); }
+                    } else if (sampler?.loaded) {
+                        const notes = parseChordToNotes(chord);
+                        if (notes) notes.forEach((n, i) => sampler.triggerAttackRelease(n, '2n', Tone.now() + i * 0.04));
+                    }
+
+                    // Aguarda duração do sample antes do próximo (abortável)
+                    await new Promise(resolve => {
+                        const t = setTimeout(resolve, Math.round(duration * 1000));
+                        _seqAbortFn = () => { clearTimeout(t); resolve(); };
+                    });
+                    _seqAbortFn = null;
+                }
+
+                _isPlaying = false;
+                if (onFinished) onFinished();
                 return;
             }
+
 
             // ── Basic (piano strum) ───────────────────────────────
             await ensureSynth();
@@ -537,6 +544,12 @@
 
         stop() {
             _isPlaying = false;
+            // Aborta fila sequencial de samples (violão/cavaco)
+            if (_seqAbortFn) { _seqAbortFn(); _seqAbortFn = null; }
+            // Para todos os sample players ativos
+            for (const [, p] of _samplePlayers) {
+                try { if (p.state === 'started') p.stop(); } catch (_) {}
+            }
             if (part)  { part.stop();  part.dispose();  part  = null; }
             if (part2) { part2.stop(); part2.dispose(); part2 = null; }
             guitarPoolIdx = 0;
