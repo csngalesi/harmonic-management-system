@@ -2,6 +2,10 @@
  * HMS — Estudos Cadências
  * Estudo de audição de cadências em harmonia funcional.
  * Exposed via window.Studies7Component
+ *
+ * Tabs:
+ *   Exemplos   — cadências pré-definidas (comportamento original)
+ *   Repositório — CRUD de cadências nomeadas (salvo no banco)
  */
 (function () {
     'use strict';
@@ -9,7 +13,7 @@
     const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const KEYS = window.HarmonyEngine.allKeys();
 
-    // ── Cadências ────────────────────────────────────────────────────
+    // ── Cadências de exemplo ──────────────────────────────────────────
     const SECTIONS = [
         {
             id: 'livre',
@@ -45,15 +49,21 @@
         },
     ];
 
-    // ── Global state ─────────────────────────────────────────────────
+    // ── Global state ──────────────────────────────────────────────────
     const _state = {
         key: 'C',
         isMinor: false,
         bpm: 45,
-        playing: null,       // id of currently playing card
-        harmonies: {},       // editable harmony per cadence id
-        showCavaco: false,   // flag: show cavaco chord diagrams
-        showViolao: false,   // flag: show violão chord diagrams
+        playing: null,          // id of currently playing (exemplo cadId or 'rp_<uuid>')
+        harmonies: {},          // editable harmony per cadence id (exemplos)
+        showCavaco: false,
+        showViolao: false,
+        // Repositório
+        tab:           'exemplos',
+        cadences:      [],          // loaded from DB
+        editingId:     null,
+        newForm:       false,
+        currentUserId: null,
     };
 
     // Seed harmonies from SECTIONS defaults
@@ -61,9 +71,11 @@
         _state.harmonies[cad.id] = cad.harmony;
     }));
 
-    // ── Helpers ──────────────────────────────────────────────────────
-    function renderChordBar(harmony) {
-        const tokens = window.HarmonyEngine.translate(harmony, _state.key, _state.isMinor);
+    // ── Helpers ───────────────────────────────────────────────────────
+    function renderChordBar(harmony, key, isMinor) {
+        const k = key     !== undefined ? key     : _state.key;
+        const m = isMinor !== undefined ? isMinor : _state.isMinor;
+        const tokens = window.HarmonyEngine.translate(harmony, k, m);
         return tokens.map(t => {
             if (t.type === 'LABEL')  return `<span class="harmony-text">${esc(t.value)}</span>`;
             if (t.type === 'STRUCT') return `<div class="chord-cell struct">${esc(t.value)}</div>`;
@@ -88,6 +100,7 @@
             .join(' - ');
     }
 
+    // ── HTML builders — Exemplos ──────────────────────────────────────
     function cadenceCardHtml(cad) {
         const isPlaying = _state.playing === cad.id;
         const harmony   = _state.harmonies[cad.id];
@@ -126,16 +139,126 @@
         </div>`;
     }
 
-    // ── Component ────────────────────────────────────────────────────
+    // ── HTML builders — Repositório ───────────────────────────────────
+    function repoCadenceCardHtml(c) {
+        const isPlaying = _state.playing === 'rp_' + c.id;
+        const isOwner   = c.user_id === _state.currentUserId;
+        const keyVal    = c.root + (c.is_minor ? 'm' : '');
+        const keyLabel  = KEYS.find(k => k.value === keyVal)?.label || c.root;
+        return `
+        <div class="panel" style="margin-bottom:.75rem;" id="rc-card-${esc(c.id)}">
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line-color);">
+                <div style="flex:1;min-width:0;">
+                    <span style="font-size:.9rem;font-weight:600;color:var(--text-primary);">${esc(c.title)}</span>
+                    ${c.description ? `<span style="font-size:.75rem;color:var(--text-muted);margin-left:8px;">${esc(c.description)}</span>` : ''}
+                </div>
+                <span style="font-size:.72rem;color:var(--text-muted);flex-shrink:0;">${esc(keyLabel)} · ${c.bpm || 60} BPM</span>
+                <button class="btn ${isPlaying ? 'btn-secondary' : 'btn-primary'} rc-play-btn"
+                    data-id="${esc(c.id)}" style="padding:5px 14px;font-size:.85rem;flex-shrink:0;">
+                    <i class="fa-solid fa-${isPlaying ? 'stop' : 'play'}"></i>
+                </button>
+                ${isOwner ? `
+                <button class="btn btn-ghost rc-edit-btn" data-id="${esc(c.id)}" title="Editar"
+                    style="padding:5px 10px;font-size:.85rem;flex-shrink:0;">
+                    <i class="fa-solid fa-pen"></i>
+                </button>
+                <button class="btn btn-ghost rc-del-btn" data-id="${esc(c.id)}" title="Deletar"
+                    style="padding:5px 10px;font-size:.85rem;flex-shrink:0;color:var(--chord-red,#f87171);">
+                    <i class="fa-solid fa-trash"></i>
+                </button>` : ''}
+            </div>
+            <div class="chord-grid size-md" style="padding:12px 14px;gap:8px;min-height:52px;flex-wrap:wrap;align-items:flex-start;">
+                ${renderChordBar(c.harmony, c.root, c.is_minor)}
+            </div>
+        </div>`;
+    }
+
+    function repoCadenceEditCardHtml(c) {
+        const keyVal    = c.root + (c.is_minor ? 'm' : '');
+        const keyOptions = KEYS.map(k =>
+            `<option value="${esc(k.value)}" ${k.value === keyVal ? 'selected' : ''}>${esc(k.label)}</option>`
+        ).join('');
+        return `
+        <div class="panel" style="margin-bottom:.75rem;border:1px solid var(--brand,#7c3aed);" id="rc-card-${esc(c.id)}">
+            <div style="padding:12px 14px;display:flex;flex-direction:column;gap:10px;">
+                <div style="display:flex;gap:8px;">
+                    <input type="text" class="form-input" id="rc-edit-title-${esc(c.id)}"
+                        value="${esc(c.title)}" placeholder="Nome da cadência*" style="flex:1;" />
+                    <input type="text" class="form-input" id="rc-edit-desc-${esc(c.id)}"
+                        value="${esc(c.description || '')}" placeholder="Descrição" style="flex:2;" />
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <input type="text" class="form-input rc-edit-harmony" data-id="${esc(c.id)}"
+                        id="rc-edit-harmony-${esc(c.id)}" value="${esc(c.harmony)}"
+                        placeholder="ex: 25(1) 1  ou  1 5(2) 5"
+                        style="flex:1;font-family:var(--font-mono);font-size:.82rem;" />
+                    <select class="form-select" id="rc-edit-key-${esc(c.id)}" style="width:auto;">${keyOptions}</select>
+                    <input type="number" class="form-input" id="rc-edit-bpm-${esc(c.id)}"
+                        value="${c.bpm || 60}" min="20" max="300"
+                        style="width:68px;text-align:center;" title="BPM" />
+                </div>
+                <div class="chord-grid size-md" style="padding:4px 0;gap:8px;min-height:52px;flex-wrap:wrap;align-items:flex-start;"
+                    id="rc-edit-chords-${esc(c.id)}">
+                    ${renderChordBar(c.harmony, c.root, c.is_minor)}
+                </div>
+                <div style="display:flex;gap:8px;justify-content:flex-end;">
+                    <button class="btn btn-secondary rc-cancel-edit-btn" data-id="${esc(c.id)}">Cancelar</button>
+                    <button class="btn btn-primary rc-save-edit-btn" data-id="${esc(c.id)}">
+                        <i class="fa-solid fa-check"></i> Salvar
+                    </button>
+                </div>
+            </div>
+        </div>`;
+    }
+
+    // ── Component ─────────────────────────────────────────────────────
     const Studies7Component = {
 
         render: function () {
+            const C = Studies7Component;
             const content = document.getElementById('main-content');
+            const tabStyle = (active) =>
+                `padding:7px 18px;border-radius:var(--radius-sm,6px);font-size:.85rem;cursor:pointer;` +
+                `font-weight:${active ? '600' : '400'};` +
+                `background:${active ? 'var(--brand-dim,rgba(124,58,237,.12))' : 'var(--glass-bg,rgba(255,255,255,.04))'};` +
+                `border:1px solid ${active ? 'var(--brand,#7c3aed)' : 'var(--glass-border,rgba(255,255,255,.08))'};` +
+                `color:${active ? 'var(--brand,#7c3aed)' : 'var(--text-secondary)'};`;
+
+            content.innerHTML = `
+                <div style="display:flex;gap:8px;margin-bottom:1.25rem;">
+                    <button class="s7-tab" data-tab="exemplos" style="${tabStyle(_state.tab === 'exemplos')}">
+                        <i class="fa-solid fa-book-open"></i> Exemplos
+                    </button>
+                    <button class="s7-tab" data-tab="repositorio" style="${tabStyle(_state.tab === 'repositorio')}">
+                        <i class="fa-solid fa-folder-open"></i> Repositório
+                    </button>
+                </div>
+                <div id="s7-tab-content"></div>
+            `;
+
+            document.querySelectorAll('.s7-tab').forEach(btn => {
+                btn.addEventListener('click', e => {
+                    _state.tab = e.currentTarget.dataset.tab;
+                    C.render();
+                });
+            });
+
+            if (_state.tab === 'exemplos') {
+                C._renderExemplos();
+            } else {
+                C._renderRepositorio();
+            }
+        },
+
+        // ── Exemplos tab ──────────────────────────────────────────────
+
+        _renderExemplos: function () {
+            const C = Studies7Component;
             const keyOptions = KEYS.map(k =>
                 `<option value="${esc(k.value)}" ${k.value === (_state.key + (_state.isMinor ? 'm' : '')) ? 'selected' : ''}>${esc(k.label)}</option>`
             ).join('');
 
-            content.innerHTML = `
+            document.getElementById('s7-tab-content').innerHTML = `
                 <div class="page-header">
                     <div class="page-title">
                         <div class="page-title-icon"><i class="fa-solid fa-ear-listen"></i></div>
@@ -161,13 +284,11 @@
                         </label>
                     </div>
                 </div>
-
                 <div id="s7-sections">
                     ${SECTIONS.map(sectionHtml).join('')}
                 </div>
             `;
-
-            Studies7Component._bindEvents();
+            C._bindExemplosEvents();
         },
 
         _refreshAllChords: function () {
@@ -177,12 +298,14 @@
             }));
         },
 
-        _bindEvents: function () {
+        _bindExemplosEvents: function () {
+            const C = Studies7Component;
+
             document.getElementById('s7-global-key').addEventListener('change', e => {
                 const val = e.target.value;
                 _state.isMinor = val.endsWith('m');
                 _state.key     = val.replace(/m$/, '');
-                Studies7Component._refreshAllChords();
+                C._refreshAllChords();
             });
 
             document.getElementById('s7-global-bpm').addEventListener('change', e => {
@@ -192,15 +315,15 @@
 
             document.getElementById('s7-flag-cavaco').addEventListener('change', e => {
                 _state.showCavaco = e.target.checked;
-                Studies7Component._refreshAllChords();
+                C._refreshAllChords();
             });
 
             document.getElementById('s7-flag-violao').addEventListener('change', e => {
                 _state.showViolao = e.target.checked;
-                Studies7Component._refreshAllChords();
+                C._refreshAllChords();
             });
 
-            // Editable harmony inputs — update chord bar live on each keystroke
+            // Editable harmony inputs — update chord bar live
             document.querySelectorAll('.s7-harmony-input').forEach(inp => {
                 inp.addEventListener('input', e => {
                     const cadId = e.target.dataset.cadid;
@@ -226,7 +349,6 @@
                             btn.style.borderColor = '';
                         }, 1500);
                     }).catch(() => {
-                        // fallback for older browsers
                         const ta = document.createElement('textarea');
                         ta.value = text;
                         ta.style.position = 'fixed';
@@ -247,6 +369,258 @@
             });
         },
 
+        // ── Repositório tab ───────────────────────────────────────────
+
+        _renderRepositorio: function () {
+            const C = Studies7Component;
+
+            document.getElementById('s7-tab-content').innerHTML = `
+                <div class="page-header">
+                    <div class="page-title">
+                        <div class="page-title-icon"><i class="fa-solid fa-folder-open"></i></div>
+                        <div>
+                            <h2>Repositório de Cadências</h2>
+                            <p>Cadências salvas — crie, nomeie e reproduza</p>
+                        </div>
+                    </div>
+                </div>
+                <div style="margin-bottom:1rem;">
+                    <button class="btn btn-primary" id="rc-btn-new">
+                        <i class="fa-solid fa-plus"></i> Nova Cadência
+                    </button>
+                </div>
+                <div id="rc-new-form-container"></div>
+                <div id="rc-list">
+                    <div style="text-align:center;padding:2rem;color:var(--text-muted);">
+                        <i class="fa-solid fa-spinner fa-spin"></i> Carregando…
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('rc-btn-new').addEventListener('click', () => {
+                _state.newForm = !_state.newForm;
+                C._renderNewForm();
+            });
+
+            // Event delegation for list actions
+            const listEl = document.getElementById('rc-list');
+            listEl.addEventListener('click', e => {
+                const play       = e.target.closest('.rc-play-btn');
+                const edit       = e.target.closest('.rc-edit-btn');
+                const del        = e.target.closest('.rc-del-btn');
+                const saveEdit   = e.target.closest('.rc-save-edit-btn');
+                const cancelEdit = e.target.closest('.rc-cancel-edit-btn');
+                if (play)       C._togglePlayCadence(play.dataset.id);
+                if (edit)       { _state.editingId = edit.dataset.id; C._refreshCard(edit.dataset.id); }
+                if (del)        C._deleteCadence(del.dataset.id);
+                if (saveEdit)   C._updateCadence(saveEdit.dataset.id);
+                if (cancelEdit) { _state.editingId = null; C._refreshCard(cancelEdit.dataset.id); }
+            });
+
+            // Live chord preview in edit cards
+            listEl.addEventListener('input', e => {
+                const inp = e.target.closest('.rc-edit-harmony');
+                if (!inp) return;
+                const id    = inp.dataset.id;
+                const keyV  = document.getElementById('rc-edit-key-' + id)?.value || 'C';
+                const m     = keyV.endsWith('m');
+                const k     = keyV.replace(/m$/, '');
+                const chBar = document.getElementById('rc-edit-chords-' + id);
+                if (chBar) chBar.innerHTML = renderChordBar(inp.value, k, m);
+            });
+            listEl.addEventListener('change', e => {
+                const isKey = e.target.id?.startsWith('rc-edit-key-');
+                if (!isKey) return;
+                const id    = e.target.id.replace('rc-edit-key-', '');
+                const keyV  = e.target.value;
+                const m     = keyV.endsWith('m');
+                const k     = keyV.replace(/m$/, '');
+                const harm  = document.getElementById('rc-edit-harmony-' + id)?.value || '';
+                const chBar = document.getElementById('rc-edit-chords-' + id);
+                if (chBar) chBar.innerHTML = renderChordBar(harm, k, m);
+            });
+
+            C._loadCadences().then(() => C._renderCadenceList());
+        },
+
+        _loadCadences: async function () {
+            try {
+                const user = await window.HMSAuth.currentUser();
+                _state.currentUserId = user?.id || null;
+                _state.cadences = await window.HMSAPI.CadencePhrases.getAll();
+            } catch (_e) {
+                window.HMSApp.showToast('Erro ao carregar cadências.', 'error');
+                _state.cadences = [];
+            }
+        },
+
+        _renderCadenceList: function () {
+            const listEl = document.getElementById('rc-list');
+            if (!listEl) return;
+            if (!_state.cadences.length) {
+                listEl.innerHTML = `
+                    <div style="text-align:center;padding:3rem;color:var(--text-muted);">
+                        <i class="fa-solid fa-ear-listen" style="font-size:2rem;opacity:.3;display:block;margin-bottom:.75rem;"></i>
+                        Nenhuma cadência salva ainda. Crie a primeira!
+                    </div>`;
+                return;
+            }
+            listEl.innerHTML = _state.cadences.map(c =>
+                _state.editingId === c.id ? repoCadenceEditCardHtml(c) : repoCadenceCardHtml(c)
+            ).join('');
+        },
+
+        _refreshCard: function (id) {
+            const card = document.getElementById('rc-card-' + id);
+            if (!card) return;
+            const cad  = _state.cadences.find(c => c.id === id);
+            if (!cad) return;
+            const tmp  = document.createElement('div');
+            tmp.innerHTML = _state.editingId === id ? repoCadenceEditCardHtml(cad) : repoCadenceCardHtml(cad);
+            card.replaceWith(tmp.firstElementChild);
+        },
+
+        _renderNewForm: function () {
+            const C = Studies7Component;
+            const container = document.getElementById('rc-new-form-container');
+            if (!container) return;
+            if (!_state.newForm) { container.innerHTML = ''; return; }
+
+            const keyOptions = KEYS.map(k =>
+                `<option value="${esc(k.value)}" ${k.value === (_state.key + (_state.isMinor ? 'm' : '')) ? 'selected' : ''}>${esc(k.label)}</option>`
+            ).join('');
+
+            container.innerHTML = `
+            <div class="panel" style="margin-bottom:1.25rem;border:1px solid var(--brand,#7c3aed);">
+                <div style="padding:12px 14px;display:flex;flex-direction:column;gap:10px;">
+                    <div style="display:flex;gap:8px;">
+                        <input type="text" class="form-input" id="rc-title" placeholder="Nome da cadência*" style="flex:1;" />
+                        <input type="text" class="form-input" id="rc-desc"  placeholder="Descrição (opcional)" style="flex:2;" />
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                        <input type="text" class="form-input" id="rc-harmony"
+                            placeholder="ex: 25(1) 1  ou  1 5(2) 5"
+                            style="flex:1;font-family:var(--font-mono);font-size:.82rem;" />
+                        <select class="form-select" id="rc-key" style="width:auto;">${keyOptions}</select>
+                        <input type="number" class="form-input" id="rc-bpm" value="${_state.bpm}"
+                            min="20" max="300" style="width:68px;text-align:center;" title="BPM" />
+                    </div>
+                    <div class="chord-grid size-md" style="padding:4px 0;gap:8px;min-height:52px;flex-wrap:wrap;align-items:flex-start;"
+                        id="rc-new-chords"></div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button class="btn btn-secondary" id="rc-cancel-new">Cancelar</button>
+                        <button class="btn btn-primary"   id="rc-save-new">
+                            <i class="fa-solid fa-check"></i> Salvar Cadência
+                        </button>
+                    </div>
+                </div>
+            </div>`;
+
+            const updateNewPreview = () => {
+                const harm = document.getElementById('rc-harmony').value;
+                const keyV = document.getElementById('rc-key').value;
+                const m    = keyV.endsWith('m');
+                const k    = keyV.replace(/m$/, '');
+                document.getElementById('rc-new-chords').innerHTML = renderChordBar(harm, k, m);
+            };
+            document.getElementById('rc-harmony').addEventListener('input',  updateNewPreview);
+            document.getElementById('rc-key').addEventListener('change',     updateNewPreview);
+            document.getElementById('rc-cancel-new').addEventListener('click', () => {
+                _state.newForm = false;
+                C._renderNewForm();
+            });
+            document.getElementById('rc-save-new').addEventListener('click', () => C._saveNewCadence());
+        },
+
+        _saveNewCadence: async function () {
+            const C       = Studies7Component;
+            const title   = (document.getElementById('rc-title')?.value   || '').trim();
+            const desc    = (document.getElementById('rc-desc')?.value    || '').trim();
+            const harmony = (document.getElementById('rc-harmony')?.value || '').trim();
+            const keyV    = document.getElementById('rc-key')?.value || 'C';
+            const is_minor = keyV.endsWith('m');
+            const root    = keyV.replace(/m$/, '');
+            const bpm     = parseInt(document.getElementById('rc-bpm')?.value) || 60;
+            if (!title) { window.HMSApp.showToast('Nome obrigatório.', 'warning'); return; }
+            try {
+                const saved = await window.HMSAPI.CadencePhrases.create({ title, description: desc, harmony, root, is_minor, bpm });
+                _state.cadences.unshift(saved);
+                _state.newForm = false;
+                C._renderNewForm();
+                C._renderCadenceList();
+                window.HMSApp.showToast('Cadência salva!', 'success');
+            } catch (e) {
+                window.HMSApp.showToast('Erro ao salvar: ' + (e.message || e), 'error');
+            }
+        },
+
+        _updateCadence: async function (id) {
+            const C       = Studies7Component;
+            const title   = (document.getElementById('rc-edit-title-'   + id)?.value || '').trim();
+            const desc    = (document.getElementById('rc-edit-desc-'    + id)?.value || '').trim();
+            const harmony = (document.getElementById('rc-edit-harmony-' + id)?.value || '').trim();
+            const keyV    = document.getElementById('rc-edit-key-' + id)?.value || 'C';
+            const is_minor = keyV.endsWith('m');
+            const root    = keyV.replace(/m$/, '');
+            const bpm     = parseInt(document.getElementById('rc-edit-bpm-' + id)?.value) || 60;
+            if (!title) { window.HMSApp.showToast('Nome obrigatório.', 'warning'); return; }
+            try {
+                const updated = await window.HMSAPI.CadencePhrases.update(id, { title, description: desc, harmony, root, is_minor, bpm });
+                const idx = _state.cadences.findIndex(c => c.id === id);
+                if (idx !== -1) _state.cadences[idx] = updated;
+                _state.editingId = null;
+                C._refreshCard(id);
+                window.HMSApp.showToast('Cadência atualizada!', 'success');
+            } catch (e) {
+                window.HMSApp.showToast('Erro ao atualizar: ' + (e.message || e), 'error');
+            }
+        },
+
+        _deleteCadence: async function (id) {
+            if (!confirm('Deletar esta cadência?')) return;
+            try {
+                await window.HMSAPI.CadencePhrases.delete(id);
+                _state.cadences = _state.cadences.filter(c => c.id !== id);
+                document.getElementById('rc-card-' + id)?.remove();
+                if (!_state.cadences.length) Studies7Component._renderCadenceList();
+                window.HMSApp.showToast('Cadência removida.', 'success');
+            } catch (e) {
+                window.HMSApp.showToast('Erro ao deletar: ' + (e.message || e), 'error');
+            }
+        },
+
+        // ── Playback — Repositório ────────────────────────────────────
+        _togglePlayCadence: function (id) {
+            const C       = Studies7Component;
+            const playKey = 'rp_' + id;
+            if (_state.playing) {
+                window.HMSAudio.stop();
+                const prevKey = _state.playing;
+                if (prevKey.startsWith('rp_')) {
+                    const prevId = prevKey.slice(3);
+                    const btn = document.querySelector(`.rc-play-btn[data-id="${prevId}"]`);
+                    if (btn) { btn.innerHTML = '<i class="fa-solid fa-play"></i>'; btn.className = 'btn btn-primary rc-play-btn'; }
+                } else {
+                    C._setPlayingUI(prevKey, false);
+                }
+                const wasSame = prevKey === playKey;
+                _state.playing = null;
+                if (wasSame) return;
+            }
+            const cad = _state.cadences.find(c => c.id === id);
+            if (!cad) return;
+            const tokens = window.HarmonyEngine.translate(cad.harmony, cad.root, cad.is_minor);
+            _state.playing = playKey;
+            const playBtn = document.querySelector(`.rc-play-btn[data-id="${id}"]`);
+            if (playBtn) { playBtn.innerHTML = '<i class="fa-solid fa-stop"></i>'; playBtn.className = 'btn btn-secondary rc-play-btn'; }
+            window.HMSAudio.playSequence(tokens, cad.bpm || _state.bpm, () => {
+                _state.playing = null;
+                const btn = document.querySelector(`.rc-play-btn[data-id="${id}"]`);
+                if (btn) { btn.innerHTML = '<i class="fa-solid fa-play"></i>'; btn.className = 'btn btn-primary rc-play-btn'; }
+            });
+        },
+
+        // ── Playback — Exemplos ───────────────────────────────────────
         _setPlayingUI: function (cadId, playing) {
             const btn = document.querySelector(`.s7-play-btn[data-cadid="${cadId}"]`);
             if (!btn) return;
@@ -255,23 +629,27 @@
         },
 
         _togglePlay: function (cadId) {
-            // Stop current
+            const C = Studies7Component;
             if (_state.playing) {
                 window.HMSAudio.stop();
-                Studies7Component._setPlayingUI(_state.playing, false);
+                const prev = _state.playing;
+                if (prev.startsWith('rp_')) {
+                    const prevId = prev.slice(3);
+                    const btn = document.querySelector(`.rc-play-btn[data-id="${prevId}"]`);
+                    if (btn) { btn.innerHTML = '<i class="fa-solid fa-play"></i>'; btn.className = 'btn btn-primary rc-play-btn'; }
+                } else {
+                    C._setPlayingUI(prev, false);
+                }
                 const wasSame = _state.playing === cadId;
                 _state.playing = null;
                 if (wasSame) return;
             }
-
-            // Play new card using current (possibly edited) harmony
             const tokens = window.HarmonyEngine.translate(_state.harmonies[cadId], _state.key, _state.isMinor);
             _state.playing = cadId;
-            Studies7Component._setPlayingUI(cadId, true);
-
+            C._setPlayingUI(cadId, true);
             window.HMSAudio.playSequence(tokens, _state.bpm, () => {
                 _state.playing = null;
-                Studies7Component._setPlayingUI(cadId, false);
+                C._setPlayingUI(cadId, false);
             });
         },
     };
