@@ -142,7 +142,6 @@
     // ── HTML builders — Repositório ───────────────────────────────────
     function repoCadenceCardHtml(c) {
         const isPlaying = _state.playing === 'rp_' + c.id;
-        const isOwner   = c.user_id === _state.currentUserId;
         const keyVal    = c.root + (c.is_minor ? 'm' : '');
         const keyLabel  = KEYS.find(k => k.value === keyVal)?.label || c.root;
         return `
@@ -157,7 +156,6 @@
                     data-id="${esc(c.id)}" style="padding:5px 14px;font-size:.85rem;flex-shrink:0;">
                     <i class="fa-solid fa-${isPlaying ? 'stop' : 'play'}"></i>
                 </button>
-                ${isOwner ? `
                 <button class="btn btn-ghost rc-edit-btn" data-id="${esc(c.id)}" title="Editar"
                     style="padding:5px 10px;font-size:.85rem;flex-shrink:0;">
                     <i class="fa-solid fa-pen"></i>
@@ -165,7 +163,7 @@
                 <button class="btn btn-ghost rc-del-btn" data-id="${esc(c.id)}" title="Deletar"
                     style="padding:5px 10px;font-size:.85rem;flex-shrink:0;color:var(--chord-red,#f87171);">
                     <i class="fa-solid fa-trash"></i>
-                </button>` : ''}
+                </button>
             </div>
             <div class="chord-grid size-md" style="padding:12px 14px;gap:8px;min-height:52px;flex-wrap:wrap;align-items:flex-start;">
                 ${renderChordBar(c.harmony, c.root, c.is_minor)}
