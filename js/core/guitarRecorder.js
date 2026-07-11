@@ -108,6 +108,7 @@
 
         // 4. Fade out (250ms — cauda natural, sem corte abrupto)
         const fadeOutSamples = Math.round(SAMPLE_RATE * FADE_OUT_MS / 1000);
+        for (let i = 0; i < fadeOutSamples && i < samples.length; i++) {
             const idx = samples.length - 1 - i;
             samples[idx] *= i / fadeOutSamples;
         }
