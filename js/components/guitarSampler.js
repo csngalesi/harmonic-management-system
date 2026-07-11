@@ -21,11 +21,11 @@
     const ROOTS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 
     const QUALITIES = [
-        { key: '',    label: 'Maior',  short: 'M'   },
-        { key: 'm',   label: 'Menor',  short: 'm'   },
-        { key: '7',   label: 'Dom 7',  short: '7'   },
-        { key: 'm7',  label: 'Min 7',  short: 'm7'  },
-        { key: 'dim', label: 'Dim',    short: '°'   },
+        { key: '',    label: 'Maior',    short: 'M'  },
+        { key: 'm',   label: 'Menor',    short: 'm'  },
+        { key: '7',   label: 'Dom 7',    short: '7'  },
+        { key: 'm7',  label: 'ø  m7b5', short: 'ø'  },
+        { key: 'dim', label: 'Dim °',    short: '°'  },
     ];
 
     const INSTRUMENTS = [

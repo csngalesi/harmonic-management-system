@@ -623,8 +623,12 @@
          * @returns {boolean} true se tocou (direto ou transposto), false se sem sample
          */
         playGuitarSample(chordStr, instrument = 'guitar') {
-            // 1. Sample exato
-            const exactKey    = `${instrument}|${chordStr}`;
+            // Normaliza m7(b5) → m7 para casar com os samples gravados como 'm7'
+            // (HarmonyEngine gera 'm7(b5)'; GuitarSampler armazena como 'm7')
+            const normalizedStr = chordStr.replace('m7(b5)', 'm7');
+
+            // 1. Sample exato (ou normalizado)
+            const exactKey    = `${instrument}|${normalizedStr}`;
             const exactPlayer = _samplePlayers.get(exactKey);
 
             if (exactPlayer) {
@@ -640,7 +644,7 @@
             }
 
             // 2. Pitch-shift: busca sample mais próximo da mesma quality
-            const nearest = _findNearestSample(chordStr, instrument);
+            const nearest = _findNearestSample(normalizedStr, instrument);
             if (!nearest) return false;
 
             const { player, detuneCents, semitons } = nearest;
