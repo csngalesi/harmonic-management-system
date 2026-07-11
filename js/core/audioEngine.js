@@ -359,7 +359,11 @@
                 Tone.Transport.bpm.value = bpm;
 
                 part = new Tone.Part((audioTime, ev) => {
-                    // Tenta sample real agendado no audioTime do Transport
+                    // Para todos os samples ativos no momento exato do novo acorde
+                    for (const [, p] of _samplePlayers) {
+                        try { if (p.state === 'started') p.stop(audioTime); } catch (_) {}
+                    }
+                    // Toca sample real agendado no audioTime do Transport
                     const played = AudioEngine.playGuitarSample(ev.chord, instrument, audioTime);
                     if (!played && sampler?.loaded) {
                         const notes = parseChordToNotes(ev.chord);
