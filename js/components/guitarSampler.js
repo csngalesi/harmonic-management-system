@@ -28,6 +28,15 @@
         { key: 'dim', label: 'Dim °',    short: '°'  },
     ];
 
+    // Nome exibido na célula (independente da chave armazenada no banco)
+    const QUALITY_DISPLAY = {
+        '':    '',
+        'm':   'm',
+        '7':   '7',
+        'm7':  'm7b5',   // meio-diminuto: armazenado como m7, exibido como m7b5
+        'dim': '°',      // diminuto: exibido com símbolo °
+    };
+
     const INSTRUMENTS = [
         { key: 'guitar', label: 'Violão', icon: 'fa-guitar' },
         { key: 'cavaco', label: 'Cavaco', icon: 'fa-music'  },
@@ -184,10 +193,10 @@
         },
 
         _renderCell: function (root, quality, sample) {
-            const instrument = _activeTab;
-            const id = `gs-cell-${instrument}-${root}-${quality}`;
-            const q = QUALITIES.find(q => q.key === quality) || QUALITIES[0];
-            const chordName = `${root}${quality}`;
+            const instrument  = _activeTab;
+            const id          = `gs-cell-${instrument}-${root}-${quality}`;
+            const displayQuality = QUALITY_DISPLAY[quality] ?? quality;
+            const chordName   = `${root}${displayQuality}`;
             const isRec = _recording && _recording.root === root
                        && _recording.quality === quality
                        && _recording.instrument === instrument;
