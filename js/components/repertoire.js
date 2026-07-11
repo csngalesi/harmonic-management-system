@@ -925,6 +925,13 @@
                                         <i class="fa-solid fa-music"></i> Cavaco
                                     </button>
                                 </div>
+                                <!-- BPM + Tocar -->
+                                <input type="number" id="sd-bpm" value="60" min="30" max="240"
+                                    style="width:52px;height:32px;padding:4px 6px;text-align:center;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:8px;color:var(--text-primary);font-family:var(--font-mono);font-size:.8rem;outline:none;" title="BPM">
+                                <button id="sd-play-btn"
+                                    style="height:32px;padding:0 14px;border-radius:8px;border:none;background:var(--brand);color:#fff;font-size:.8rem;font-weight:700;font-family:var(--font-ui);cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .15s;flex-shrink:0;">
+                                    <i class="fa-solid fa-play"></i> Tocar
+                                </button>
                             </div>
                             <div class="sd-chords" id="sd-chords-display">${buildChordsHtml(tokens)}</div>
                         </div>
@@ -1128,6 +1135,41 @@
                 });
             };
             _bindChordChips();
+
+            // ── Play / Stop ──────────────────────────────────────────────
+            const _sdPlayBtn = document.getElementById('sd-play-btn');
+            const _sdBpmInput = document.getElementById('sd-bpm');
+
+            const _setPlaying = (on) => {
+                if (!_sdPlayBtn) return;
+                _sdPlayBtn.innerHTML = on
+                    ? '<i class="fa-solid fa-stop"></i> Parar'
+                    : '<i class="fa-solid fa-play"></i> Tocar';
+                _sdPlayBtn.style.background = on ? 'var(--danger, #e53e3e)' : 'var(--brand)';
+            };
+
+            _sdPlayBtn?.addEventListener('click', async () => {
+                if (window.HMSAudio.isPlaying) {
+                    window.HMSAudio.stop();
+                    _setPlaying(false);
+                    return;
+                }
+                const keyVal    = document.getElementById('sd-key-select')?.value || origKey;
+                const isMinor   = keyVal.endsWith('m');
+                const root      = keyVal.replace(/m$/, '');
+                const bpm       = parseInt(_sdBpmInput?.value, 10) || 60;
+                const strumMode = _sdInstrument === 'guitar' ? 'guitar-sample'
+                                : _sdInstrument === 'cavaco' ? 'cavaco-sample'
+                                : 'basic';
+                const toks = window.HarmonyEngine.translate(song.harmony_str || '', root, isMinor);
+                _setPlaying(true);
+                try {
+                    await window.HMSAudio.playSequence(toks, bpm, () => _setPlaying(false), strumMode);
+                } catch (err) {
+                    _setPlaying(false);
+                    console.warn('[Repertoire] playSequence erro:', err.message);
+                }
+            });
 
             document.getElementById('sd-key-select')?.addEventListener('change', function () {
                 const newIsMinor = this.value.endsWith('m');
