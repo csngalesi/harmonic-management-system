@@ -13,7 +13,7 @@
 
     // ── Constantes ────────────────────────────────────────────────
     const SAMPLE_RATE      = 44100;
-    const MAX_DURATION_S   = 6;       // janela máxima de captura
+    const MAX_DURATION_S   = 4;       // janela máxima de captura
     const TARGET_DURATION_S = 2.0;   // duração fixa do sample após onset (segundos)
     const ONSET_TIMEOUT    = 10000;   // ms esperando o músico tocar
     const RMS_THRESHOLD    = 0.018;   // sensibilidade de onset (0 a 1)
