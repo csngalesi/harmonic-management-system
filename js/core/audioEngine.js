@@ -3,32 +3,46 @@
  * Plays chord sequences using Tone.js (v14.x)
  * Exposed via window.HMSAudio
  *
- * Modes:
- *   playSequence(tokens, bpm, onFinished, 'basic')    — original piano strum
- *   playSequence(tokens, bpm, onFinished, 'violao24') — guitar simulation, 2/4 pattern
+ * strumMode values for playSequence:
+ *   'basic'    — piano strum (original)
+ *   'violao24' — 2/4 guitar pattern; synthType in _gParams controls the synth
+ *
+ * Guitar synthTypes (_gParams.synthType):
+ *   'pluck'    — PluckSynth pool (Karplus-Strong)
+ *   'polyperc' — PolySynth(Synth) with percussive envelope (triangle wave)
+ *   'piano'    — Salamander piano sampler with short durations
  */
 (function () {
     'use strict';
 
-    let sampler      = null;    // Tone.Sampler  (piano, lazy-loaded)
-    let guitarPool   = [];      // PluckSynth[]  (guitar pool, round-robin)
-    let guitarFilter = null;    // Tone.Filter   (warmth)
-    let guitarPoolIdx = 0;
-    const GUITAR_POOL_SIZE = 8; // polyphony limit
-    let reverb       = null;    // Tone.Reverb   (shared)
-    let part         = null;
-    let part2        = null;
-    let _isPlaying   = false;
+    let sampler         = null;   // Tone.Sampler      (piano, lazy)
+    let guitarPool      = [];     // PluckSynth[]      (pluck mode)
+    let guitarPolySynth = null;   // Tone.PolySynth    (polyperc mode)
+    let guitarPoolIdx   = 0;
+    const GUITAR_POOL   = 8;
+    let reverb          = null;   // Tone.Reverb       (shared)
+    let part            = null;
+    let part2           = null;
+    let _isPlaying      = false;
 
-    // ── Shared reverb ────────────────────────────────────────────
+    // ── Guitar parameters (user-tunable) ─────────────────────────
+    const _gParams = {
+        synthType:   'polyperc', // 'pluck' | 'polyperc' | 'piano'
+        attackNoise: 0.3,        // PluckSynth: pick noise (0.1–2.0)
+        dampening:   4500,       // PluckSynth: string brightness (500–8000)
+        resonance:   0.95,       // PluckSynth: sustain (0.5–0.99)
+        decay:       0.45,       // polyperc: envelope decay in seconds (0.1–2.0)
+    };
+
+    // ── Shared Reverb ─────────────────────────────────────────────
     async function ensureReverb() {
         if (reverb) return;
-        reverb = new Tone.Reverb({ decay: 2.0, preDelay: 0.01, wet: 0.22 });
+        reverb = new Tone.Reverb({ decay: 2.0, preDelay: 0.01, wet: 0.20 });
         await reverb.generate();
         reverb.toDestination();
     }
 
-    // ── Piano Sampler (Salamander) ───────────────────────────────
+    // ── Piano Sampler (Salamander) ────────────────────────────────
     async function ensureSynth() {
         if (sampler) return;
         await Tone.start();
@@ -42,7 +56,7 @@
                 baseUrl: 'https://tonejs.github.io/audio/salamander/',
                 release: 1.5,
                 onload:  resolve,
-                onerror: (err) => { sampler = null; reject(new Error('Sampler load failed: ' + (err?.message ?? err))); },
+                onerror: (err) => { sampler = null; reject(new Error('Sampler: ' + (err?.message ?? err))); },
             });
         });
         sampler.connect(reverb);
@@ -50,33 +64,71 @@
         console.info('[AudioEngine] Piano sampler ready ✓');
     }
 
-    // ── Guitar Pool (Karplus-Strong, individual PluckSynths) ────
+    // ── Guitar Synths ─────────────────────────────────────────────
+    function _disposeGuitar() {
+        guitarPool.forEach(ps => { try { ps.dispose(); } catch (_) {} });
+        guitarPool = [];
+        guitarPoolIdx = 0;
+        if (guitarPolySynth) {
+            try { guitarPolySynth.dispose(); } catch (_) {}
+            guitarPolySynth = null;
+        }
+    }
+
     async function ensureGuitar() {
-        if (guitarPool.length > 0) return;
+        const t = _gParams.synthType;
+        if (t === 'piano') { await ensureSynth(); return; }
+        if (t === 'pluck'    && guitarPool.length > 0) return;
+        if (t === 'polyperc' && guitarPolySynth)       return;
+
         await Tone.start();
         await ensureReverb();
-        for (let i = 0; i < GUITAR_POOL_SIZE; i++) {
-            const ps = new Tone.PluckSynth({
-                attackNoise: 0.3,   // subtle pick transient (was 1.8 = pure noise burst!)
-                dampening:   4500,  // string brightness (higher = less muffled)
-                resonance:   0.95,  // sustain (nylon string rings long)
+
+        if (t === 'polyperc') {
+            // Triangle wave with percussive envelope — reliable polyphony
+            guitarPolySynth = new Tone.PolySynth(Tone.Synth, {
+                oscillator: { type: 'triangle' },
+                envelope: {
+                    attack:  0.002,
+                    decay:   _gParams.decay,
+                    sustain: 0.0,
+                    release: 0.3,
+                },
             });
-            ps.volume.value = -2;
-            ps.connect(reverb);     // direct to reverb — no extra filter (was double-filtering)
-            guitarPool.push(ps);
+            guitarPolySynth.volume.value = -8;
+            guitarPolySynth.connect(reverb);
+            console.info('[AudioEngine] PolySynth percussivo ready ✓ decay=' + _gParams.decay);
+        } else {
+            // PluckSynth pool (Karplus-Strong)
+            for (let i = 0; i < GUITAR_POOL; i++) {
+                const ps = new Tone.PluckSynth({
+                    attackNoise: _gParams.attackNoise,
+                    dampening:   _gParams.dampening,
+                    resonance:   _gParams.resonance,
+                });
+                ps.volume.value = -2;
+                ps.connect(reverb);
+                guitarPool.push(ps);
+            }
+            guitarPoolIdx = 0;
+            console.info('[AudioEngine] PluckSynth pool ready ✓ x' + GUITAR_POOL);
         }
-        guitarPoolIdx = 0;
-        console.info('[AudioEngine] Guitar pool ready ✓', GUITAR_POOL_SIZE, 'voices');
     }
 
-    function pluckNote(note, audioTime) {
-        const voice = guitarPool[guitarPoolIdx];
-        guitarPoolIdx = (guitarPoolIdx + 1) % GUITAR_POOL_SIZE;
-        try { voice.triggerAttack(note, audioTime); }
-        catch (e) { console.warn('[Guitar] triggerAttack error:', note, e.message); }
+    function _triggerGuitar(note, audioTime, vel) {
+        const t = _gParams.synthType;
+        if (t === 'piano') {
+            if (sampler?.loaded) sampler.triggerAttackRelease(note, 0.35, audioTime, vel);
+        } else if (t === 'polyperc') {
+            try { guitarPolySynth.triggerAttack(note, audioTime, vel); } catch (e) { console.warn('[polyperc]', e.message); }
+        } else {
+            const voice = guitarPool[guitarPoolIdx];
+            guitarPoolIdx = (guitarPoolIdx + 1) % GUITAR_POOL;
+            try { voice.triggerAttack(note, audioTime); } catch (e) { console.warn('[pluck]', e.message); }
+        }
     }
 
-    // ── Chord → Notes ────────────────────────────────────────────
+    // ── Chord → Notes ─────────────────────────────────────────────
     const INTERVALS = {
         '':       [0, 4, 7],
         'm':      [0, 3, 7],
@@ -102,43 +154,27 @@
         return { rootIdx, quality };
     }
 
-    /** Piano mode: [root, 3rd, 5th] at C3 base */
     function parseChordToNotes(chordStr) {
         const r = _parseRoot(chordStr);
         if (!r) return null;
-        const BASE = 48; // C3
         return (INTERVALS[r.quality] || INTERVALS['']).map(i =>
-            Tone.Frequency(BASE + r.rootIdx + i, 'midi').toNote()
+            Tone.Frequency(48 + r.rootIdx + i, 'midi').toNote()
         );
     }
 
-    /**
-     * Guitar strum mode: returns { bass, low, high }
-     *   bass — root note in C2 register (single string, grave)
-     *   low  — chord tones in C3 register (down-stroke, grave→agudo)
-     *   high — upper chord tones in C4 register (up-stroke, agudo→grave)
-     */
     function parseChordToStrumNotes(chordStr) {
         const r = _parseRoot(chordStr);
         if (!r) return null;
         const ivs  = INTERVALS[r.quality] || INTERVALS[''];
         const ROOT = r.rootIdx;
-        //  C3 (48) for bass — C2 (36) is too low for Karplus-Strong (collapses at <100 Hz)
-        const bass = [Tone.Frequency(48 + ROOT, 'midi').toNote()];         // C3 — bass string
-        const low  = ivs.map(i => Tone.Frequency(55 + ROOT + i, 'midi').toNote()); // G3 — mid strings
-        const high = ivs.slice(1).map(i => Tone.Frequency(64 + ROOT + i, 'midi').toNote()); // E4 — upper strings
+        // C3 (48) for bass — PluckSynth degrades below ~100Hz
+        const bass = [Tone.Frequency(48 + ROOT, 'midi').toNote()];
+        const low  = ivs.map(i => Tone.Frequency(55 + ROOT + i, 'midi').toNote()); // G3 register
+        const high = ivs.slice(1).map(i => Tone.Frequency(64 + ROOT + i, 'midi').toNote()); // E4 register
         return { bass, low, high };
     }
 
-    // ── Violão 2/4 strum builder ─────────────────────────────────
-    /**
-     * Builds a flat event list with stagger and velocity for each chord.
-     * Pattern per chord slot (BEAT_S = 60/bpm seconds):
-     *
-     *   t + 0.000          : bass string (root, C2) — forte
-     *   t + 0.050 + n*0.025: down-stroke (C3 register, low→high, 3 strings) — médio
-     *   t + BEAT_S * 0.5   : up-stroke   (C4 register, high→low, 2 strings) — suave
-     */
+    // ── 2/4 strum event builder ───────────────────────────────────
     function buildStrumEvents(tokens, bpm) {
         const BEAT_S = 60 / bpm;
         const events = [];
@@ -158,18 +194,12 @@
                 const { bass, low, high } = notes;
                 const half = BEAT_S * 0.5;
 
-                // ① Bass string — forte
-                bass.forEach(n => {
-                    events.push({ time: t, note: n, vel: 0.85, dur: BEAT_S * 0.50 });
-                });
-                // ② Down-stroke: mid strings low→high, stagger 10ms
-                low.forEach((n, i) => {
-                    events.push({ time: t + 0.04 + i * 0.010, note: n, vel: 0.70, dur: BEAT_S * 0.88 });
-                });
-                // ③ Up-stroke (contra-tempo): high strings reversed, stagger 8ms, soft
-                high.slice().reverse().forEach((n, i) => {
-                    events.push({ time: t + half + i * 0.008, note: n, vel: 0.38, dur: BEAT_S * 0.42 });
-                });
+                bass.forEach(n =>
+                    events.push({ time: t,                       note: n, vel: 0.85, dur: BEAT_S * 0.50 }));
+                low.forEach((n, i) =>
+                    events.push({ time: t + 0.04 + i * 0.012,   note: n, vel: 0.70, dur: BEAT_S * 0.88 }));
+                high.slice().reverse().forEach((n, i) =>
+                    events.push({ time: t + half + i * 0.009,   note: n, vel: 0.38, dur: BEAT_S * 0.42 }));
             }
 
             if (token.type === 'CHORD' || (token.type === 'STRUCT' && token.value === '/')) {
@@ -179,39 +209,50 @@
         return { events, totalTime: t };
     }
 
-    // ── Public API ───────────────────────────────────────────────
+    // ── Public API ────────────────────────────────────────────────
     const AudioEngine = {
 
         get isPlaying() { return _isPlaying; },
 
+        /** Returns a copy of current guitar params */
+        getGuitarParams() { return { ..._gParams }; },
+
         /**
-         * Play an array of ResultTokens (from HarmonyEngine.translate).
-         * @param {Array}    tokens     - ResultToken[]
-         * @param {number}   bpm        - beats per minute
-         * @param {Function} onFinished - called when sequence ends naturally
-         * @param {string}   strumMode  - 'basic' (piano) | 'violao24' (guitar 2/4)
+         * Update guitar params. Disposes existing synth so it's rebuilt
+         * with new settings on next playSequence call.
+         */
+        setGuitarParams(params) {
+            const typeChanged = params.synthType && params.synthType !== _gParams.synthType;
+            Object.assign(_gParams, params);
+            // Always dispose and rebuild so new params take effect
+            _disposeGuitar();
+            console.info('[Guitar] Params updated →', JSON.stringify(_gParams));
+        },
+
+        /**
+         * @param {Array}    tokens
+         * @param {number}   bpm
+         * @param {Function} onFinished
+         * @param {string}   strumMode  'basic' | 'violao24'
          */
         async playSequence(tokens, bpm = 60, onFinished, strumMode = 'basic') {
             AudioEngine.stop();
 
-            // ── Violão 2/4 mode ──────────────────────────────────
+            // ── Violão 2/4 ───────────────────────────────────────
             if (strumMode === 'violao24') {
-                let dbg = null;
-                try {
-                    await ensureGuitar();
-                } catch (err) {
-                    console.error('[Guitar] init failed:', err);
-                    window.HMSApp?.showToast('DEBUG Violão: falha ao inicializar synth — ' + err.message, 'error');
+                try { await ensureGuitar(); }
+                catch (err) {
+                    window.HMSApp?.showToast('DEBUG Guitar init: ' + err.message, 'error');
+                    console.error('[Guitar] init error', err);
                     return;
                 }
 
                 const { events, totalTime } = buildStrumEvents(tokens, bpm);
                 if (events.length === 0) {
-                    window.HMSApp?.showToast('DEBUG Violão: nenhuma nota gerada (tokens vazios?)', 'warning');
-                    console.warn('[AudioEngine] No events for violao24 mode.', tokens);
+                    window.HMSApp?.showToast('DEBUG Guitar: 0 events gerados (harmonia vazia?)', 'warning');
                     return;
                 }
-                console.info(`[Guitar] ${events.length} events, totalTime=${totalTime.toFixed(2)}s, bpm=${bpm}`);
+                console.info(`[Guitar] mode=${_gParams.synthType} events=${events.length} total=${totalTime.toFixed(2)}s`);
 
                 Tone.Transport.cancel();
                 Tone.Transport.stop();
@@ -219,8 +260,8 @@
                 Tone.Transport.bpm.value = bpm;
                 Tone.Transport.timeSignature = [2, 4];
 
-                part = new Tone.Part((audioTime, value) => {
-                    pluckNote(value.note, audioTime);
+                part = new Tone.Part((audioTime, ev) => {
+                    _triggerGuitar(ev.note, audioTime, ev.vel);
                 }, events);
                 part.start(0);
 
@@ -234,13 +275,13 @@
                 return;
             }
 
-            // ── Basic (piano) mode ───────────────────────────────
+            // ── Basic (piano strum) ───────────────────────────────
             await ensureSynth();
 
-            const BEAT_S  = 60 / bpm;
-            const events  = [];
-            let   t       = 0;
-            let   lastNotes = [];
+            const BEAT_S = 60 / bpm;
+            const events = [];
+            let t = 0;
+            let lastNotes = [];
 
             for (const token of tokens) {
                 let notes = null;
@@ -251,15 +292,10 @@
                     notes = lastNotes.length ? [...lastNotes] : null;
                 }
                 if (notes) events.push({ time: t, notes });
-                if (token.type === 'CHORD' || (token.type === 'STRUCT' && token.value === '/')) {
-                    t += BEAT_S;
-                }
+                if (token.type === 'CHORD' || (token.type === 'STRUCT' && token.value === '/')) t += BEAT_S;
             }
 
-            if (events.length === 0) {
-                console.warn('[AudioEngine] No playable chords in token list.');
-                return;
-            }
+            if (events.length === 0) return;
 
             Tone.Transport.cancel();
             Tone.Transport.stop();
@@ -275,37 +311,23 @@
 
             _isPlaying = true;
             Tone.Transport.start('+0.05');
-
-            Tone.Transport.scheduleOnce(() => {
-                AudioEngine.stop();
-                if (onFinished) onFinished();
-            }, t + 2.5);
+            Tone.Transport.scheduleOnce(() => { AudioEngine.stop(); if (onFinished) onFinished(); }, t + 2.5);
         },
 
-        /**
-         * Play a processed melody array from MelodyEngine.translate().
-         */
         async playMelody(notes, bpm = 80, onFinished, timeSig = '4/4') {
             AudioEngine.stop();
             await ensureSynth();
-
             if (!notes || notes.length === 0) return;
 
             const events = [];
-            let t = 0;
-            let i = 0;
+            let t = 0, i = 0;
             while (i < notes.length) {
                 const n = notes[i];
                 const durSec = window.MelodyEngine.durToSeconds(n.dur, bpm);
-                if (!n.note) {
-                    t += durSec; i++;
-                } else if (n.tie) {
-                    let totalSec = durSec;
-                    let j = i + 1;
-                    while (j < notes.length && notes[j - 1].tie) {
-                        totalSec += window.MelodyEngine.durToSeconds(notes[j].dur, bpm);
-                        j++;
-                    }
+                if (!n.note) { t += durSec; i++; }
+                else if (n.tie) {
+                    let totalSec = durSec, j = i + 1;
+                    while (j < notes.length && notes[j - 1].tie) { totalSec += window.MelodyEngine.durToSeconds(notes[j].dur, bpm); j++; }
                     events.push({ time: t, note: n.note, durSec: totalSec });
                     t += totalSec; i = j;
                 } else {
@@ -314,34 +336,23 @@
                 }
             }
 
-            Tone.Transport.cancel();
-            Tone.Transport.stop();
-            Tone.Transport.position = 0;
+            Tone.Transport.cancel(); Tone.Transport.stop(); Tone.Transport.position = 0;
             Tone.Transport.bpm.value = bpm;
-            const tsParts = String(timeSig).split('/');
-            Tone.Transport.timeSignature = [parseInt(tsParts[0]) || 4, parseInt(tsParts[1]) || 4];
+            const ts = String(timeSig).split('/');
+            Tone.Transport.timeSignature = [parseInt(ts[0]) || 4, parseInt(ts[1]) || 4];
 
-            part = new Tone.Part((audioTime, value) => {
-                sampler.triggerAttackRelease(value.note, value.durSec, audioTime);
+            part = new Tone.Part((audioTime, v) => {
+                sampler.triggerAttackRelease(v.note, v.durSec, audioTime);
             }, events);
             part.start(0);
-
             _isPlaying = true;
             Tone.Transport.start('+0.05');
-
-            Tone.Transport.scheduleOnce(() => {
-                AudioEngine.stop();
-                if (onFinished) onFinished();
-            }, t + 2.0);
+            Tone.Transport.scheduleOnce(() => { AudioEngine.stop(); if (onFinished) onFinished(); }, t + 2.0);
         },
 
-        /**
-         * Play melody and chord sequence simultaneously.
-         */
         async playAll(notes, tokens, bpm = 80, onFinished) {
             AudioEngine.stop();
             await ensureSynth();
-
             if (!notes || notes.length === 0) return;
 
             const melodyEvents = [];
@@ -353,58 +364,36 @@
 
             const BEAT_S = 60 / bpm;
             const chordEvents = [];
-            let ct = 0;
-            let lastNotes = [];
+            let ct = 0, lastNotes = [];
             for (const token of (tokens || [])) {
                 let cNotes = null;
-                if (token.type === 'CHORD') {
-                    cNotes = parseChordToNotes(token.value);
-                    if (cNotes) lastNotes = cNotes;
-                } else if (token.type === 'STRUCT' && token.value === '/') {
-                    cNotes = lastNotes.length ? [...lastNotes] : null;
-                }
+                if (token.type === 'CHORD') { cNotes = parseChordToNotes(token.value); if (cNotes) lastNotes = cNotes; }
+                else if (token.type === 'STRUCT' && token.value === '/') { cNotes = lastNotes.length ? [...lastNotes] : null; }
                 if (cNotes) chordEvents.push({ time: ct, notes: cNotes });
-                if (token.type === 'CHORD' || (token.type === 'STRUCT' && token.value === '/')) {
-                    ct += BEAT_S;
-                }
+                if (token.type === 'CHORD' || (token.type === 'STRUCT' && token.value === '/')) ct += BEAT_S;
             }
 
-            Tone.Transport.cancel();
-            Tone.Transport.stop();
-            Tone.Transport.position = 0;
+            Tone.Transport.cancel(); Tone.Transport.stop(); Tone.Transport.position = 0;
             Tone.Transport.bpm.value = bpm;
 
-            part = new Tone.Part((audioTime, value) => {
-                sampler.triggerAttackRelease(value.note, value.dur, audioTime);
-            }, melodyEvents);
+            part = new Tone.Part((audioTime, v) => { sampler.triggerAttackRelease(v.note, v.dur, audioTime); }, melodyEvents);
             part.start(0);
 
             if (chordEvents.length > 0) {
-                part2 = new Tone.Part((audioTime, value) => {
-                    value.notes.forEach((note, i) => {
-                        sampler.triggerAttackRelease(note, '2n', audioTime + i * 0.04);
-                    });
+                part2 = new Tone.Part((audioTime, v) => {
+                    v.notes.forEach((n, i) => sampler.triggerAttackRelease(n, '2n', audioTime + i * 0.04));
                 }, chordEvents);
                 part2.start(0);
             }
 
             _isPlaying = true;
             Tone.Transport.start('+0.05');
-
-            const totalDuration = Math.max(mt, ct) + 2.5;
-            Tone.Transport.scheduleOnce(() => {
-                AudioEngine.stop();
-                if (onFinished) onFinished();
-            }, totalDuration);
+            Tone.Transport.scheduleOnce(() => { AudioEngine.stop(); if (onFinished) onFinished(); }, Math.max(mt, ct) + 2.5);
         },
 
-        /**
-         * Play melody and chords with explicit chord timings.
-         */
         async playAllWithTimings(notes, chordTimings, bpm = 80, onFinished) {
             AudioEngine.stop();
             await ensureSynth();
-
             if (!notes || notes.length === 0) return;
 
             const melodyEvents = [];
@@ -419,42 +408,29 @@
                 return cNotes ? { time: ct.time, notes: cNotes, duration: ct.duration } : null;
             }).filter(Boolean);
 
-            Tone.Transport.cancel();
-            Tone.Transport.stop();
-            Tone.Transport.position = 0;
+            Tone.Transport.cancel(); Tone.Transport.stop(); Tone.Transport.position = 0;
             Tone.Transport.bpm.value = bpm;
 
-            part = new Tone.Part((audioTime, value) => {
-                sampler.triggerAttackRelease(value.note, value.dur, audioTime);
-            }, melodyEvents);
+            part = new Tone.Part((audioTime, v) => { sampler.triggerAttackRelease(v.note, v.dur, audioTime); }, melodyEvents);
             part.start(0);
 
             if (chordEvents.length > 0) {
-                part2 = new Tone.Part((audioTime, value) => {
-                    const relDur = value.duration > 0 ? value.duration : (60 / bpm);
-                    const noteDur = Math.max(relDur * 0.92, 0.05);
-                    value.notes.forEach((note, i) => {
-                        sampler.triggerAttackRelease(note, noteDur, audioTime + i * 0.03);
-                    });
+                part2 = new Tone.Part((audioTime, v) => {
+                    const dur = Math.max((v.duration > 0 ? v.duration : 60 / bpm) * 0.92, 0.05);
+                    v.notes.forEach((n, i) => sampler.triggerAttackRelease(n, dur, audioTime + i * 0.03));
                 }, chordEvents);
                 part2.start(0);
             }
 
             _isPlaying = true;
             Tone.Transport.start('+0.05');
-
-            const totalDuration = mt + 2.5;
-            Tone.Transport.scheduleOnce(() => {
-                AudioEngine.stop();
-                if (onFinished) onFinished();
-            }, totalDuration);
+            Tone.Transport.scheduleOnce(() => { AudioEngine.stop(); if (onFinished) onFinished(); }, mt + 2.5);
         },
 
         stop() {
             _isPlaying = false;
             if (part)  { part.stop();  part.dispose();  part  = null; }
             if (part2) { part2.stop(); part2.dispose(); part2 = null; }
-            // guitarPool: PluckSynths self-decay, no explicit release needed
             guitarPoolIdx = 0;
             Tone.Transport.stop();
             Tone.Transport.cancel();
