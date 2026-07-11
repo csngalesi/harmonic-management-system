@@ -359,8 +359,8 @@
                 Tone.Transport.bpm.value = bpm;
 
                 part = new Tone.Part((audioTime, ev) => {
-                    // Tenta sample real; se não tiver, usa piano
-                    const played = AudioEngine.playGuitarSample(ev.chord, instrument);
+                    // Tenta sample real agendado no audioTime do Transport
+                    const played = AudioEngine.playGuitarSample(ev.chord, instrument, audioTime);
                     if (!played && sampler?.loaded) {
                         const notes = parseChordToNotes(ev.chord);
                         if (notes) notes.forEach((n, i) =>
@@ -552,20 +552,23 @@
                 const rows = await window.HMSAPI.GuitarSamples.getAll();
                 const filtered = rows.filter(r => r.instrument === instrument);
 
-                for (const row of filtered) {
+                // Cria todos os players em paralelo (muito mais rápido que sequencial)
+                const loaded = await Promise.all(filtered.map(async row => {
                     const key = `${instrument}|${row.chord_root}${row.chord_quality}`;
                     const url = window.HMSAPI.GuitarSamples.getPublicUrl(row.storage_path);
-                    if (!url) continue;
-
-                    // Descarta player antigo se existir
+                    if (!url) return null;
                     if (_samplePlayers.has(key)) {
                         try { _samplePlayers.get(key).dispose(); } catch (_) {}
                     }
+                    const player = new Tone.Player(url).toDestination();
+                    return { key, player };
+                }));
 
-                    const player = new Tone.Player(url);
-                    await Tone.loaded();
-                    player.toDestination();
-                    _samplePlayers.set(key, player);
+                // Espera todos carregarem de uma vez
+                await Tone.loaded();
+
+                for (const item of loaded) {
+                    if (item) _samplePlayers.set(item.key, item.player);
                 }
                 console.info(`[AudioEngine] ${filtered.length} samples carregados para ${instrument}`);
             } catch (err) {
@@ -622,12 +625,14 @@
          * @param {string} instrument 'guitar' | 'cavaco'
          * @returns {boolean} true se tocou (direto ou transposto), false se sem sample
          */
-        playGuitarSample(chordStr, instrument = 'guitar') {
-            // Normaliza m7(b5) → m7 para casar com os samples gravados como 'm7'
-            // (HarmonyEngine gera 'm7(b5)'; GuitarSampler armazena como 'm7')
+        playGuitarSample(chordStr, instrument = 'guitar', audioTime = undefined) {
+            // Normaliza m7(b5) → m7
             const normalizedStr = chordStr.replace('m7(b5)', 'm7');
 
-            // 1. Sample exato (ou normalizado)
+            // Quando audioTime não é fornecido (clique manual), toca imediatamente
+            const when = audioTime !== undefined ? audioTime : Tone.now();
+
+            // 1. Sample exato
             const exactKey    = `${instrument}|${normalizedStr}`;
             const exactPlayer = _samplePlayers.get(exactKey);
 
@@ -635,7 +640,7 @@
                 try {
                     exactPlayer.detune = 0;
                     if (exactPlayer.state === 'started') exactPlayer.stop();
-                    exactPlayer.start();
+                    exactPlayer.start(when);
                     return true;
                 } catch (err) {
                     console.warn('[AudioEngine] playGuitarSample (exact) erro:', err.message);
@@ -643,7 +648,7 @@
                 }
             }
 
-            // 2. Pitch-shift: busca sample mais próximo da mesma quality
+            // 2. Pitch-shift: sample mais próximo da mesma quality
             const nearest = _findNearestSample(normalizedStr, instrument);
             if (!nearest) return false;
 
@@ -651,10 +656,9 @@
             try {
                 if (player.state === 'started') player.stop();
                 player.detune = detuneCents;
-                player.start();
-                // Restaura detune após a duração máxima do sample (3s)
+                player.start(when);
                 setTimeout(() => { try { player.detune = 0; } catch (_) {} }, 3000);
-                console.debug(`[AudioEngine] ${chordStr} transposto ${detuneCents > 0 ? '+' : ''}${semitons}st de ${player._url || '?'}`);
+                console.debug(`[AudioEngine] ${chordStr} transposto ${detuneCents > 0 ? '+' : ''}${semitons}st`);
                 return true;
             } catch (err) {
                 console.warn('[AudioEngine] playGuitarSample (pitch-shift) erro:', err.message);
