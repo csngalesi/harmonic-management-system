@@ -905,12 +905,26 @@
                             <div class="sd-chords">${buildFuncHtml(song.harmony_str)}</div>
                         </div>
                         <div class="sd-pane${_defaultTab === 'acor' ? ' active' : ''}" id="sd-pane-acor">
-                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
                                 <span style="font-size:.8rem;color:var(--text-muted);">Tom:</span>
                                 <select id="sd-key-select" class="form-input form-select"
                                         style="width:140px;padding:4px 8px;height:32px;">
                                     ${keyOptionsHtml}
                                 </select>
+                                <div style="display:flex;border:1px solid var(--glass-border);border-radius:8px;overflow:hidden;margin-left:4px;">
+                                    <button class="sd-ins-btn" data-ins="synth"
+                                        style="padding:5px 10px;border:none;font-size:.75rem;font-family:var(--font-ui);font-weight:600;cursor:pointer;transition:all .15s;background:var(--brand-dim);color:var(--brand);">
+                                        <i class="fa-solid fa-wave-square"></i> Synth
+                                    </button>
+                                    <button class="sd-ins-btn" data-ins="guitar"
+                                        style="padding:5px 10px;border:none;border-left:1px solid var(--glass-border);font-size:.75rem;font-family:var(--font-ui);font-weight:600;cursor:pointer;transition:all .15s;background:transparent;color:var(--text-muted);">
+                                        <i class="fa-solid fa-guitar"></i> Violão
+                                    </button>
+                                    <button class="sd-ins-btn" data-ins="cavaco"
+                                        style="padding:5px 10px;border:none;border-left:1px solid var(--glass-border);font-size:.75rem;font-family:var(--font-ui);font-weight:600;cursor:pointer;transition:all .15s;background:transparent;color:var(--text-muted);">
+                                        <i class="fa-solid fa-music"></i> Cavaco
+                                    </button>
+                                </div>
                             </div>
                             <div class="sd-chords" id="sd-chords-display">${buildChordsHtml(tokens)}</div>
                         </div>
@@ -1087,11 +1101,40 @@
             });
 
 
+            // ── Instrumento para play de acordes ─────────────────────────
+            let _sdInstrument = 'synth'; // 'synth' | 'guitar' | 'cavaco'
+
+            document.querySelectorAll('.sd-ins-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    _sdInstrument = btn.dataset.ins;
+                    document.querySelectorAll('.sd-ins-btn').forEach(b => {
+                        const on = b.dataset.ins === _sdInstrument;
+                        b.style.background = on ? 'var(--brand-dim)' : 'transparent';
+                        b.style.color      = on ? 'var(--brand)'     : 'var(--text-muted)';
+                    });
+                    // Rebind chord chips para o instrumento novo
+                    _bindChordChips();
+                });
+            });
+
+            const _bindChordChips = () => {
+                document.querySelectorAll('#sd-chords-display .sd-chord').forEach(chip => {
+                    const chord = chip.textContent?.trim();
+                    if (!chord || chord === '/' || chord === '|') return;
+                    chip.style.cursor = _sdInstrument === 'synth' ? '' : 'pointer';
+                    chip.onclick = _sdInstrument === 'synth' ? null : () => {
+                        window.HMSAudio.playGuitarSample(chord, _sdInstrument);
+                    };
+                });
+            };
+            _bindChordChips();
+
             document.getElementById('sd-key-select')?.addEventListener('change', function () {
                 const newIsMinor = this.value.endsWith('m');
                 const newRoot = this.value.replace(/m$/, '');
                 const newTokens = window.HarmonyEngine.translate(song.harmony_str || '', newRoot, newIsMinor);
                 document.getElementById('sd-chords-display').innerHTML = buildChordsHtml(newTokens);
+                _bindChordChips();
             });
 
             // ── Reading mode toggle ────────────────────────────────
