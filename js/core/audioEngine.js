@@ -25,6 +25,10 @@
     let part2           = null;
     let _isPlaying      = false;
 
+    // ── Guitar Sample Players (samples reais gravados pelo usuário) ─
+    // Map key: `${instrument}|${chordStr}`  e.g. 'guitar|Am'
+    const _samplePlayers = new Map();
+
     // ── Guitar parameters (user-tunable) ─────────────────────────
     const _gParams = {
         synthType:   'polyperc', // 'pluck' | 'polyperc' | 'piano'
@@ -435,8 +439,102 @@
             Tone.Transport.stop();
             Tone.Transport.cancel();
         },
+
+        // ── Guitar Sample Players ─────────────────────────────────
+
+        /**
+         * Carrega todos os samples gravados para um instrumento.
+         * Cria Tone.Player para cada um e armazena em _samplePlayers.
+         * @param {string} instrument 'guitar' | 'cavaco'
+         */
+        async loadGuitarSamplers(instrument = 'guitar') {
+            try {
+                const rows = await window.HMSAPI.GuitarSamples.getAll();
+                const filtered = rows.filter(r => r.instrument === instrument);
+
+                for (const row of filtered) {
+                    const key = `${instrument}|${row.chord_root}${row.chord_quality}`;
+                    const url = window.HMSAPI.GuitarSamples.getPublicUrl(row.storage_path);
+                    if (!url) continue;
+
+                    // Descarta player antigo se existir
+                    if (_samplePlayers.has(key)) {
+                        try { _samplePlayers.get(key).dispose(); } catch (_) {}
+                    }
+
+                    const player = new Tone.Player(url);
+                    await Tone.loaded();
+                    player.toDestination();
+                    _samplePlayers.set(key, player);
+                }
+                console.info(`[AudioEngine] ${filtered.length} samples carregados para ${instrument}`);
+            } catch (err) {
+                console.warn('[AudioEngine] loadGuitarSamplers erro:', err.message);
+            }
+        },
+
+        /**
+         * Adiciona/atualiza um único sample player (chamado após nova gravação).
+         * @param {string} chordStr   e.g. 'Am', 'C', 'G7'
+         * @param {string} instrument 'guitar' | 'cavaco'
+         * @param {string} url        URL pública do WAV
+         */
+        async addGuitarSample(chordStr, instrument, url) {
+            try {
+                const key = `${instrument}|${chordStr}`;
+                if (_samplePlayers.has(key)) {
+                    try { _samplePlayers.get(key).dispose(); } catch (_) {}
+                }
+                const player = new Tone.Player(url);
+                await Tone.loaded();
+                player.toDestination();
+                _samplePlayers.set(key, player);
+                console.info(`[AudioEngine] Sample adicionado: ${key}`);
+            } catch (err) {
+                console.warn('[AudioEngine] addGuitarSample erro:', err.message);
+            }
+        },
+
+        /**
+         * Remove um sample player da memória.
+         */
+        removeGuitarSample(chordStr, instrument) {
+            const key = `${instrument}|${chordStr}`;
+            if (_samplePlayers.has(key)) {
+                try { _samplePlayers.get(key).dispose(); } catch (_) {}
+                _samplePlayers.delete(key);
+            }
+        },
+
+        /**
+         * Verifica se existe sample gravado para este acorde/instrumento.
+         */
+        hasGuitarSample(chordStr, instrument) {
+            return _samplePlayers.has(`${instrument}|${chordStr}`);
+        },
+
+        /**
+         * Toca o sample gravado de um acorde (se existir).
+         * @param {string} chordStr   e.g. 'Am'
+         * @param {string} instrument 'guitar' | 'cavaco'
+         * @returns {boolean} true se tocou o sample, false se não existe
+         */
+        playGuitarSample(chordStr, instrument = 'guitar') {
+            const key = `${instrument}|${chordStr}`;
+            const player = _samplePlayers.get(key);
+            if (!player) return false;
+            try {
+                if (player.state === 'started') player.stop();
+                player.start();
+                return true;
+            } catch (err) {
+                console.warn('[AudioEngine] playGuitarSample erro:', err.message);
+                return false;
+            }
+        },
     };
 
     window.HMSAudio = AudioEngine;
     console.info('[HMS] AudioEngine loaded.');
 })();
+

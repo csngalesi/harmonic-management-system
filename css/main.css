@@ -921,3 +921,103 @@ tbody tr:hover td { background: var(--glass-bg); }
 .chord-cell-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .chord-diagram-wrap { width: 72px; }
 .chord-diagram-wrap svg { display: block; width: 100%; }
+
+/* ══════════════════════════════════════════════════════════════
+   GUITAR SAMPLER — Tela de gravação de acordes
+══════════════════════════════════════════════════════════════ */
+
+.gs-instruction {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-size: .82rem;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+}
+
+.gs-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+
+.gs-tab {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 22px; border-radius: 10px;
+    border: 1px solid var(--glass-border); background: var(--glass-bg);
+    color: var(--text-muted); font-family: var(--font-ui);
+    font-size: .88rem; font-weight: 600; cursor: pointer; transition: all .2s;
+}
+.gs-tab:hover  { border-color: var(--brand); color: var(--brand); }
+.gs-tab.active { background: var(--brand-dim); border-color: var(--brand); color: var(--brand); }
+
+.gs-grid { display: flex; flex-direction: column; gap: 6px; min-width: 480px; }
+
+.gs-row {
+    display: grid;
+    grid-template-columns: 40px repeat(7, 1fr);
+    gap: 6px; align-items: center;
+}
+
+.gs-header-cell {
+    text-align: center; font-size: .78rem; font-weight: 700;
+    color: var(--text-muted); letter-spacing: .06em; padding: 4px 0;
+}
+
+.gs-quality-label {
+    text-align: center; font-size: .72rem; font-weight: 700;
+    color: var(--text-muted); font-family: var(--font-mono);
+}
+
+.gs-cell {
+    position: relative; border-radius: 10px; padding: 10px 6px 8px;
+    min-height: 72px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 4px;
+    transition: all .18s; user-select: none;
+}
+
+.gs-cell-chord {
+    font-family: var(--font-mono); font-size: .82rem; font-weight: 700;
+    color: var(--text-primary); line-height: 1;
+}
+
+/* empty */
+.gs-cell.empty { border: 1.5px dashed var(--line-color); background: transparent; cursor: pointer; }
+.gs-cell.empty:hover { border-color: var(--brand); background: var(--brand-dim); }
+.gs-cell.empty:hover .gs-cell-chord,
+.gs-cell.empty:hover .gs-cell-add { color: var(--brand); }
+.gs-cell-add { font-size: 1.1rem; color: var(--text-muted); transition: color .18s; }
+
+/* recording */
+.gs-cell.recording { border: 1.5px solid #ef4444; background: rgba(239,68,68,.08); cursor: default; }
+.gs-cell-status {
+    display: flex; align-items: center; gap: 6px;
+    font-size: .72rem; color: #ef4444; font-weight: 600; font-family: var(--font-mono);
+}
+.gs-rec-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: #ef4444;
+    animation: gs-pulse 1s ease-in-out infinite; flex-shrink: 0;
+}
+@keyframes gs-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: .4; transform: scale(.7); }
+}
+.gs-level-bar {
+    width: 100%; height: 3px; background: rgba(239,68,68,.2);
+    border-radius: 2px; margin-top: 4px; overflow: hidden;
+}
+.gs-level-fill { height: 100%; background: #ef4444; border-radius: 2px; transition: width .1s linear; }
+
+/* filled */
+.gs-cell.filled { border: 1.5px solid rgba(16,185,129,.4); background: rgba(16,185,129,.07); }
+.gs-cell.filled .gs-cell-chord { color: #10b981; }
+.gs-cell-dur { font-size: .65rem; color: var(--text-muted); font-family: var(--font-mono); }
+.gs-cell-actions { display: flex; gap: 6px; margin-top: 2px; }
+
+.gs-btn-play, .gs-btn-del {
+    width: 26px; height: 26px; border-radius: 6px;
+    border: 1px solid var(--glass-border); background: var(--glass-bg);
+    color: var(--text-muted); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .72rem; transition: all .15s;
+}
+.gs-btn-play:hover { background: rgba(16,185,129,.15); border-color: #10b981; color: #10b981; }
+.gs-btn-del:hover  { background: rgba(239,68,68,.15);  border-color: #ef4444;  color: #ef4444; }
+

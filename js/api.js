@@ -394,7 +394,110 @@
         },
     };
 
-    window.HMSAPI = { Songs, Setlists, Profile, MelodicPhrases, HarmonicStudies, BassStudies, CadencePhrases };
+    // ── Guitar Samples ───────────────────────────────────────────
+    const GUITAR_BUCKET = 'guitar-samples';
+
+    const GuitarSamples = {
+        /** Retorna todos os samples do usuário logado */
+        async getAll() {
+            const { data, error } = await db()
+                .from('guitar_samples')
+                .select('id, chord_root, chord_quality, instrument, storage_path, duration_ms, created_at')
+                .order('instrument', { ascending: true })
+                .order('chord_root',    { ascending: true })
+                .order('chord_quality', { ascending: true });
+            if (error) throw error;
+            return data || [];
+        },
+
+        /** Retorna URL pública de um storage_path */
+        getPublicUrl(storagePath) {
+            const { data } = db().storage.from(GUITAR_BUCKET).getPublicUrl(storagePath);
+            return data?.publicUrl || null;
+        },
+
+        /**
+         * Faz upload do WAV blob para o bucket e atualiza/insere a linha na tabela.
+         * @param {Blob}   blob         - WAV mono PCM16
+         * @param {string} chordRoot    - 'C', 'D', ...
+         * @param {string} chordQuality - '', 'm', '7', 'm7', 'dim'
+         * @param {string} instrument   - 'guitar' | 'cavaco'
+         * @param {number} durationMs   - duração em ms após processamento
+         */
+        async upload(blob, chordRoot, chordQuality, instrument, durationMs) {
+            requireOnline('gravar sample');
+            const user = await window.HMSAuth.currentUser();
+            const qualityKey = chordQuality === '' ? 'maj' : chordQuality;
+            const storagePath = `${user.id}/${instrument}/${chordRoot}${qualityKey}.wav`;
+
+            // Upload para o bucket (upsert=true sobrescreve sample anterior)
+            const { error: upErr } = await db()
+                .storage
+                .from(GUITAR_BUCKET)
+                .upload(storagePath, blob, {
+                    contentType: 'audio/wav',
+                    upsert: true,
+                });
+            if (upErr) throw upErr;
+
+            // Upsert da linha na tabela
+            return GuitarSamples.upsert(chordRoot, chordQuality, instrument, storagePath, durationMs);
+        },
+
+        /**
+         * Atualiza ou insere metadados de um sample (sem re-upload do arquivo).
+         */
+        async upsert(chordRoot, chordQuality, instrument, storagePath, durationMs) {
+            requireOnline('salvar sample');
+            const user = await window.HMSAuth.currentUser();
+            const { data, error } = await db()
+                .from('guitar_samples')
+                .upsert(
+                    {
+                        user_id:       user.id,
+                        chord_root:    chordRoot,
+                        chord_quality: chordQuality,
+                        instrument,
+                        storage_path:  storagePath,
+                        duration_ms:   durationMs || null,
+                    },
+                    { onConflict: 'user_id,chord_root,chord_quality,instrument' }
+                )
+                .select()
+                .single();
+            if (error) throw error;
+            return data;
+        },
+
+        /**
+         * Remove sample do storage e da tabela.
+         */
+        async remove(chordRoot, chordQuality, instrument) {
+            requireOnline('deletar sample');
+            const user = await window.HMSAuth.currentUser();
+            const qualityKey = chordQuality === '' ? 'maj' : chordQuality;
+            const storagePath = `${user.id}/${instrument}/${chordRoot}${qualityKey}.wav`;
+
+            // Deletar do storage
+            const { error: stErr } = await db()
+                .storage
+                .from(GUITAR_BUCKET)
+                .remove([storagePath]);
+            if (stErr) console.warn('[GuitarSamples] storage remove warning:', stErr.message);
+
+            // Deletar da tabela
+            const { error: dbErr } = await db()
+                .from('guitar_samples')
+                .delete()
+                .eq('chord_root',    chordRoot)
+                .eq('chord_quality', chordQuality)
+                .eq('instrument',    instrument)
+                .eq('user_id',       user.id);
+            if (dbErr) throw dbErr;
+        },
+    };
+
+    window.HMSAPI = { Songs, Setlists, Profile, MelodicPhrases, HarmonicStudies, BassStudies, CadencePhrases, GuitarSamples };
 
     console.info('[HMS] API module loaded.');
 })();

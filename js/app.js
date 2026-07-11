@@ -117,11 +117,12 @@
         player: window.PlayerComponent,
         analyzer: window.AnalyzerComponent,
         extractor: window.ExtractorComponent,
-        studies7:   window.Studies7Component,
+        studies7:       window.Studies7Component,
         fretboard7:     window.Fretboard7Component,
-        melodicStudies:   window.MelodicStudiesComponent,
-        harmonicMelodic:  window.HarmonicMelodicComponent,
-        harmonicBass:     window.HarmonicBassComponent,
+        melodicStudies: window.MelodicStudiesComponent,
+        harmonicMelodic: window.HarmonicMelodicComponent,
+        harmonicBass:    window.HarmonicBassComponent,
+        guitarSampler:   window.GuitarSamplerComponent,
     };
 
     // ── App Controller ───────────────────────────────────────────
