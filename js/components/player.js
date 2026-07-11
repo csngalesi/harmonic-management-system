@@ -11,6 +11,7 @@
         displayKey: null,
         displayMinor: false,
         fontSize: 'md', // 'md' | 'lg' | 'xl'
+        instrument: 'synth', // 'synth' | 'guitar' | 'cavaco'
     };
 
     const KEYS = window.HarmonyEngine.allKeys();
@@ -103,10 +104,31 @@
                                 <span class="song-key-badge">${esc(s.original_key)}</span>
                             </div>
                             <div style="display:flex;align-items:center;gap:8px;">
-                                <label class="form-label" style="margin:0;" for="key-select">Tom Exibido:</label>
+                                <label class="form-label" style="margin:0;" for="key-select">Tom:</label>
                                 <select id="key-select" class="form-input form-select" style="width:160px;">
                                     ${keyOptions}
                                 </select>
+                            </div>
+                            <!-- Seletor de instrumento -->
+                            <div style="display:flex;border:1px solid var(--glass-border);border-radius:8px;overflow:hidden;">
+                                <button class="pl-ins-btn" data-ins="synth"
+                                    style="padding:6px 12px;border:none;font-size:.8rem;font-family:var(--font-ui);font-weight:600;cursor:pointer;transition:all .15s;
+                                    background:${_state.instrument==='synth'   ?'var(--brand-dim)':'transparent'};
+                                    color:${_state.instrument==='synth'        ?'var(--brand)':'var(--text-muted)'}">
+                                    <i class="fa-solid fa-wave-square"></i> Synth
+                                </button>
+                                <button class="pl-ins-btn" data-ins="guitar"
+                                    style="padding:6px 12px;border:none;border-left:1px solid var(--glass-border);font-size:.8rem;font-family:var(--font-ui);font-weight:600;cursor:pointer;transition:all .15s;
+                                    background:${_state.instrument==='guitar'  ?'var(--brand-dim)':'transparent'};
+                                    color:${_state.instrument==='guitar'       ?'var(--brand)':'var(--text-muted)'}">
+                                    <i class="fa-solid fa-guitar"></i> Violão
+                                </button>
+                                <button class="pl-ins-btn" data-ins="cavaco"
+                                    style="padding:6px 12px;border:none;border-left:1px solid var(--glass-border);font-size:.8rem;font-family:var(--font-ui);font-weight:600;cursor:pointer;transition:all .15s;
+                                    background:${_state.instrument==='cavaco'  ?'var(--brand-dim)':'transparent'};
+                                    color:${_state.instrument==='cavaco'       ?'var(--brand)':'var(--text-muted)'}">
+                                    <i class="fa-solid fa-music"></i> Cavaco
+                                </button>
                             </div>
                             <div style="display:flex;align-items:center;gap:6px;margin-left:auto;">
                                 <button class="btn btn-secondary btn-sm font-size-btn ${_state.fontSize === 'md' ? 'active' : ''}" data-size="md">A</button>
@@ -207,6 +229,9 @@
                 } else {
                     const bpmInput = document.getElementById('play-bpm');
                     const bpm = bpmInput ? parseInt(bpmInput.value, 10) || 60 : 60;
+                    const strumMode = _state.instrument === 'guitar' ? 'guitar-sample'
+                                    : _state.instrument === 'cavaco' ? 'cavaco-sample'
+                                    : 'basic';
 
                     const tokens = window.HarmonyEngine.translate(
                         _state.song.harmony_str,
@@ -222,7 +247,7 @@
                                 playBtn.classList.remove('btn-danger');
                                 playBtn.classList.add('btn-primary');
                             }
-                        });
+                        }, strumMode);
 
                         playBtn.innerHTML = '<i class="fa-solid fa-stop"></i> Parar';
                         playBtn.classList.remove('btn-primary');
@@ -258,9 +283,19 @@
                     document.querySelectorAll('.font-size-btn').forEach(b => b.classList.remove('active'));
                     btn.classList.add('active');
                     const grid = document.getElementById('chord-grid');
-                    if (grid) {
-                        grid.className = `chord-grid size-${_state.fontSize}`;
-                    }
+                    if (grid) grid.className = `chord-grid size-${_state.fontSize}`;
+                });
+            });
+
+            // Seletor de instrumento
+            document.querySelectorAll('.pl-ins-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    _state.instrument = btn.dataset.ins;
+                    document.querySelectorAll('.pl-ins-btn').forEach(b => {
+                        const on = b.dataset.ins === _state.instrument;
+                        b.style.background = on ? 'var(--brand-dim)' : 'transparent';
+                        b.style.color      = on ? 'var(--brand)'     : 'var(--text-muted)';
+                    });
                 });
             });
 
@@ -362,8 +397,20 @@
                 i++;
             }
             grid.innerHTML = out.join('');
-        },
-    };
+
+            // Clique em acorde → toca sample (ou synth)
+            grid.querySelectorAll('.chord-cell').forEach(cell => {
+                const chord = cell.textContent?.trim();
+                if (!chord || chord === '/' || chord === '|') return;
+                cell.style.cursor = 'pointer';
+                cell.addEventListener('click', () => {
+                    if (_state.instrument === 'synth') return; // synth só toca via Ouvir Tática
+                    window.HMSAudio.playGuitarSample(chord, _state.instrument);
+                });
+            });
+
+        },  // end _renderChords
+    };      // end PlayerComponent
 
     window.PlayerComponent = PlayerComponent;
     console.info('[HMS] PlayerComponent loaded.');

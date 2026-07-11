@@ -409,6 +409,26 @@
                             <p>Cadências salvas — crie, nomeie e reproduza</p>
                         </div>
                     </div>
+                    <div style="display:flex;border:1px solid var(--glass-border);border-radius:8px;overflow:hidden;flex-shrink:0;">
+                        <button class="s7-ins-btn ${_state.instrument==='synth'  ?'active':''}" data-ins="synth"
+                            style="padding:6px 12px;border:none;font-size:.8rem;font-family:var(--font-ui);font-weight:600;cursor:pointer;transition:all .15s;
+                            background:${_state.instrument==='synth'  ?'var(--brand-dim)':'transparent'};
+                            color:${_state.instrument==='synth'       ?'var(--brand)':'var(--text-muted)'}">
+                            <i class="fa-solid fa-wave-square"></i> Synth
+                        </button>
+                        <button class="s7-ins-btn ${_state.instrument==='guitar' ?'active':''}" data-ins="guitar"
+                            style="padding:6px 12px;border:none;border-left:1px solid var(--glass-border);font-size:.8rem;font-family:var(--font-ui);font-weight:600;cursor:pointer;transition:all .15s;
+                            background:${_state.instrument==='guitar' ?'var(--brand-dim)':'transparent'};
+                            color:${_state.instrument==='guitar'      ?'var(--brand)':'var(--text-muted)'}">
+                            <i class="fa-solid fa-guitar"></i> Violão
+                        </button>
+                        <button class="s7-ins-btn ${_state.instrument==='cavaco' ?'active':''}" data-ins="cavaco"
+                            style="padding:6px 12px;border:none;border-left:1px solid var(--glass-border);font-size:.8rem;font-family:var(--font-ui);font-weight:600;cursor:pointer;transition:all .15s;
+                            background:${_state.instrument==='cavaco' ?'var(--brand-dim)':'transparent'};
+                            color:${_state.instrument==='cavaco'      ?'var(--brand)':'var(--text-muted)'}">
+                            <i class="fa-solid fa-music"></i> Cavaco
+                        </button>
+                    </div>
                 </div>
                 <div style="margin-bottom:1rem;">
                     <button class="btn btn-primary" id="rc-btn-new">
@@ -426,6 +446,18 @@
             document.getElementById('rc-btn-new').addEventListener('click', () => {
                 _state.newForm = !_state.newForm;
                 C._renderNewForm();
+            });
+
+            // Seletor de instrumento (compartilhado com Exemplos via _state.instrument)
+            document.querySelectorAll('.s7-ins-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    _state.instrument = btn.dataset.ins;
+                    document.querySelectorAll('.s7-ins-btn').forEach(b => {
+                        const on = b.dataset.ins === _state.instrument;
+                        b.style.background = on ? 'var(--brand-dim)' : 'transparent';
+                        b.style.color      = on ? 'var(--brand)'     : 'var(--text-muted)';
+                    });
+                });
             });
 
             // Event delegation for list actions
