@@ -817,10 +817,14 @@
                     // Assign sequential positions 1, 2, 3… and sync _rank (used for badge display)
                     setlistSongs.forEach((s, i) => { s._position = i + 1; s._rank = i + 1; });
 
-                    // Mark unsaved and show the save button
+                    // Mark unsaved and show the save button (sempre reseta o texto)
                     _hasUnsavedOrder = true;
                     const saveBtn = document.getElementById('btn-save-order');
-                    if (saveBtn) saveBtn.style.display = 'inline-flex';
+                    if (saveBtn) {
+                        saveBtn.style.display = 'inline-flex';
+                        saveBtn.disabled = false;
+                        saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Salvar Ordem';
+                    }
 
                     // Re-render only (no DB write — user must click "Salvar Ordem")
                     RepertoireComponent._renderSongList();
@@ -4064,7 +4068,11 @@
                 window.HMSApp.showToast(`${changed.length} posição(oes) salva(s)${totalSaved < changed.length ? ` (${changed.length - totalSaved} falhou no banco!)` : ''}.`, totalSaved < changed.length ? 'warning' : 'success');
                 _originalPositions = {};
                 _hasUnsavedOrder   = false;
-                if (saveBtn) saveBtn.style.display = 'none';
+                if (saveBtn) {
+                    saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Salvar Ordem';
+                    saveBtn.disabled  = false;
+                    saveBtn.style.display = 'none';
+                }
             } catch (err) {
                 _dbg.add('Erro no save: ' + err.message, 'err');
                 window.HMSApp.showToast('Erro ao salvar: ' + err.message, 'error');
