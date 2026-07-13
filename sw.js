@@ -4,7 +4,7 @@
  * Strategy: Cache-first for static assets, network-first for API calls.
  */
 
-const CACHE_NAME = 'hms-v36';
+const CACHE_NAME = 'hms-v37';
 
 
 
@@ -33,7 +33,7 @@ const APP_SHELL = [
     '/js/components/melodicStudies.js?v=13',
     '/js/components/harmonicMelodic.js?v=13',
     '/js/components/harmonicBass.js?v=13',
-    '/js/app.js?v=13',
+    '/js/app.js?v=22',
     // CDN libs
     'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',
     'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css',

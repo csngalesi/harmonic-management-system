@@ -136,24 +136,65 @@
             try {
                 const session = await window.HMSAuth.getSession();
                 if (session) {
+                    // Salva usuário em cache para uso offline futuro
+                    localStorage.setItem('hms-cached-user', JSON.stringify({
+                        id:    session.user.id,
+                        email: session.user.email,
+                        user_metadata: session.user.user_metadata || {},
+                    }));
                     App._showApp(session.user);
                 } else {
-                    App._showLogin();
+                    // Sem sessão — tenta cache offline
+                    const cached = App._getCachedUser();
+                    if (cached && !navigator.onLine) {
+                        console.info('[HMS] Offline: usando usuário em cache', cached.email);
+                        App._showApp(cached);
+                    } else {
+                        App._showLogin();
+                    }
                 }
             } catch (err) {
                 console.error('[HMS] Session check failed:', err);
-                App._showLogin();
+                // Se offline, tenta cache mesmo com erro
+                const cached = App._getCachedUser();
+                if (cached && !navigator.onLine) {
+                    console.info('[HMS] Offline fallback:', cached.email);
+                    App._showApp(cached);
+                } else {
+                    App._showLogin();
+                }
             } finally {
                 window.HMSApp.hideLoading();
             }
 
             window.HMSAuth.onAuthStateChange((event, session) => {
                 if (event === 'SIGNED_IN' && session) {
+                    // Atualiza cache a cada login bem-sucedido
+                    localStorage.setItem('hms-cached-user', JSON.stringify({
+                        id:    session.user.id,
+                        email: session.user.email,
+                        user_metadata: session.user.user_metadata || {},
+                    }));
                     App._showApp(session.user);
                 } else if (event === 'SIGNED_OUT') {
+                    // Se offline, SIGNED_OUT é falso alarme (token refresh falhou)
+                    // Só desloga de verdade se o usuário clicou em logout (online)
+                    if (!navigator.onLine && App._getCachedUser()) {
+                        console.info('[HMS] Offline SIGNED_OUT ignorado — mantendo sessão em cache');
+                        return;
+                    }
+                    // Limpa cache só no logout real (online)
+                    localStorage.removeItem('hms-cached-user');
                     App._showLogin();
                 }
             });
+        },
+
+        _getCachedUser() {
+            try {
+                const raw = localStorage.getItem('hms-cached-user');
+                return raw ? JSON.parse(raw) : null;
+            } catch { return null; }
         },
 
         // ── Screens ──────────────────────────────────────────────
@@ -391,6 +432,8 @@
             if (!confirm('Deseja sair do HMS?')) return;
             try {
                 window.HMSApp.showLoading();
+                // Limpa cache offline ANTES de signOut (garante que SIGNED_OUT não restaura)
+                localStorage.removeItem('hms-cached-user');
                 await window.HMSAuth.logout();
             } catch (err) {
                 window.HMSApp.showToast('Erro ao sair: ' + err.message, 'error');
