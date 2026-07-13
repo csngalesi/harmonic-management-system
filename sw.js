@@ -4,7 +4,7 @@
  * Strategy: Cache-first for static assets, network-first for API calls.
  */
 
-const CACHE_NAME = 'hms-v33';
+const CACHE_NAME = 'hms-v35';
 
 
 // App shell — all static assets needed to run offline
@@ -22,8 +22,8 @@ const APP_SHELL = [
     '/js/core/syncManager.js?v=13',
     '/js/supabase-client.js?v=13',
     '/js/auth.js?v=13',
-    '/js/api.js?v=20',
-    '/js/components/repertoire.js?v=20',
+    '/js/api.js?v=21',
+    '/js/components/repertoire.js?v=21',
     '/js/components/player.js?v=13',
     '/js/components/analyzer.js?v=13',
     '/js/components/extractor.js?v=13',
