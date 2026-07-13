@@ -4010,6 +4010,26 @@
                 return;
             }
 
+            // ── Diagnóstico pré-save: verifica se a linha existe e é legível ──
+            const firstSong = changed[0];
+            _dbg.add(`DIAG setlist_id="${_state.activeSetlist}" (tipo: ${typeof _state.activeSetlist})`, 'warn');
+            _dbg.add(`DIAG song_id="${firstSong.id}" (tipo: ${typeof firstSong.id})`, 'warn');
+            try {
+                const { data: probe, error: probeErr } = await window.supabaseClient
+                    .from('setlist_songs')
+                    .select('song_id, position, setlist_id')
+                    .eq('setlist_id', _state.activeSetlist)
+                    .eq('song_id', firstSong.id);
+                if (probeErr) {
+                    _dbg.add(`DIAG SELECT erro: ${probeErr.message}`, 'err');
+                } else if (!probe || probe.length === 0) {
+                    _dbg.add(`DIAG SELECT: linha NAO encontrada no banco!`, 'err');
+                    _dbg.add(`  → setlist_id e/ou song_id nao batem com o banco`, 'err');
+                } else {
+                    _dbg.add(`DIAG SELECT: linha OK! pos atual no banco=${probe[0].position}`, 'ok');
+                }
+            } catch(e) { _dbg.add('DIAG probe falhou: ' + e.message, 'err'); }
+
             _isSaving = true;
             const saveBtn = document.getElementById('btn-save-order');
             if (saveBtn) {
