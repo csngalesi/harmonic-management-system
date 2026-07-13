@@ -259,12 +259,18 @@
                 if (dragBtn) {
                     _state.showDragMode = !_state.showDragMode;
                     dragBtn.classList.toggle('active', _state.showDragMode);
-                    // When turning OFF drag mode, discard unsaved order snapshot
                     if (!_state.showDragMode) {
-                        _originalPositions = {};
-                        _hasUnsavedOrder   = false;
-                        // Reload to restore original order in case user dragged without saving
-                        RepertoireComponent._loadSongs();
+                        if (_hasUnsavedOrder) {
+                            // Há mudanças não salvas — descarta recarregando do banco
+                            _originalPositions = {};
+                            _hasUnsavedOrder   = false;
+                            RepertoireComponent._loadSongs();
+                        } else {
+                            // Tudo já salvo — só re-renderiza sem buscar no banco
+                            // (evita sobrescrever o estado em memória correto)
+                            _originalPositions = {};
+                            RepertoireComponent._renderSongList();
+                        }
                     } else {
                         if (_state.viewMode === 'show') RepertoireComponent._renderSongList();
                     }
