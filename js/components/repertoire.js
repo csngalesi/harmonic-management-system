@@ -4010,25 +4010,32 @@
                 return;
             }
 
-            // ── Diagnóstico pré-save: verifica se a linha existe e é legível ──
+            // ── Teste de 1 música antes de salvar todas ─────────────
             const firstSong = changed[0];
-            _dbg.add(`DIAG setlist_id="${_state.activeSetlist}" (tipo: ${typeof _state.activeSetlist})`, 'warn');
-            _dbg.add(`DIAG song_id="${firstSong.id}" (tipo: ${typeof firstSong.id})`, 'warn');
+            _dbg.add(`IDs: setlist="${_state.activeSetlist}" song="${firstSong.id}"`, 'warn');
             try {
-                const { data: probe, error: probeErr } = await window.supabaseClient
+                // 1) SELECT — verifica se linha existe
+                const { data: sel } = await window.supabaseClient
                     .from('setlist_songs')
-                    .select('song_id, position, setlist_id')
+                    .select('song_id, position')
                     .eq('setlist_id', _state.activeSetlist)
                     .eq('song_id', firstSong.id);
-                if (probeErr) {
-                    _dbg.add(`DIAG SELECT erro: ${probeErr.message}`, 'err');
-                } else if (!probe || probe.length === 0) {
-                    _dbg.add(`DIAG SELECT: linha NAO encontrada no banco!`, 'err');
-                    _dbg.add(`  → setlist_id e/ou song_id nao batem com o banco`, 'err');
+                const selCount = sel ? sel.length : 0;
+                _dbg.add(`SELECT: ${selCount} linha(s)${selCount > 0 ? ' pos_banco=' + sel[0].position : ' → ID ERRADO'}`, selCount > 0 ? 'ok' : 'err');
+
+                // 2) UPDATE neutro — mesma posição, só pra ver se RLS permite
+                const { data: upd, error: updErr } = await window.supabaseClient
+                    .from('setlist_songs')
+                    .update({ position: firstSong._position })
+                    .eq('setlist_id', _state.activeSetlist)
+                    .eq('song_id', firstSong.id)
+                    .select('song_id, position');
+                if (updErr) {
+                    _dbg.add(`UPDATE teste ERRO: ${updErr.message} (${updErr.code})`, 'err');
                 } else {
-                    _dbg.add(`DIAG SELECT: linha OK! pos atual no banco=${probe[0].position}`, 'ok');
+                    _dbg.add(`UPDATE teste: ${upd?.length ?? 0} row(s)${(!upd || upd.length === 0) ? ' → RLS BLOQUEANDO!' : ' → OK, RLS OK'}`, (upd && upd.length > 0) ? 'ok' : 'err');
                 }
-            } catch(e) { _dbg.add('DIAG probe falhou: ' + e.message, 'err'); }
+            } catch(diagErr) { _dbg.add('teste falhou: ' + diagErr.message, 'err'); }
 
             _isSaving = true;
             const saveBtn = document.getElementById('btn-save-order');
