@@ -37,6 +37,7 @@
     // Used by _savePositions to send only the changed rows to the DB.
     let _originalPositions = {}; // { songId: position }
     let _hasUnsavedOrder   = false;
+    let _isSaving          = false; // previne double-save
 
     // Drag state for position reordering
     let _dragSongId = null;
@@ -3902,44 +3903,58 @@
         },
 
         _savePositions: async function () {
+            if (_isSaving) return; // já está salvando
             if (!_state.activeSetlist) return;
-            const songsWithPos = _state.songs.filter(s => s._position !== null && s._position !== undefined);
 
-            // Only persist rows whose position actually changed since the snapshot.
-            // If no snapshot exists (legacy auto-save path), update all.
-            const changed = Object.keys(_originalPositions).length > 0
-                ? songsWithPos.filter(s => _originalPositions[s.id] !== s._position)
-                : songsWithPos;
-
-            if (changed.length === 0) {
+            // Requer snapshot — sem ele não sabemos o que mudou
+            if (Object.keys(_originalPositions).length === 0) {
                 window.HMSApp.showToast('Nenhuma alteração para salvar.', 'info');
                 return;
             }
 
+            const songsWithPos = _state.songs.filter(s => s._position !== null && s._position !== undefined);
+            const changed = songsWithPos.filter(s => _originalPositions[s.id] !== s._position);
+
+            if (changed.length === 0) {
+                window.HMSApp.showToast('Nenhuma alteração para salvar.', 'info');
+                _originalPositions = {};
+                _hasUnsavedOrder   = false;
+                const sb = document.getElementById('btn-save-order');
+                if (sb) sb.style.display = 'none';
+                return;
+            }
+
+            _isSaving = true;
             const saveBtn = document.getElementById('btn-save-order');
             if (saveBtn) {
                 saveBtn.disabled = true;
                 saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Salvando…';
             }
+
             try {
-                // Use UPDATE (not upsert) to avoid RLS INSERT policy violation.
-                // Songs are already in the setlist; we only need to update their position.
-                await Promise.all(
-                    changed.map(s =>
-                        window.HMSAPI.Setlists.updateSongPosition(_state.activeSetlist, s.id, s._position)
-                    )
-                );
-                window.HMSApp.showToast(`${changed.length} posição(ões) salva(s).`, 'success');
-                // Reset snapshot — current positions are now the new baseline
+                // Salva em lotes de 10 (evita sobrecarregar a API com requests paralelas)
+                const CHUNK = 10;
+                for (let i = 0; i < changed.length; i += CHUNK) {
+                    const batch = changed.slice(i, i + CHUNK);
+                    await Promise.all(
+                        batch.map(s =>
+                            window.HMSAPI.Setlists.updateSongPosition(_state.activeSetlist, s.id, s._position)
+                        )
+                    );
+                }
+
+                window.HMSApp.showToast(`${changed.length} posição(oes) salva(s).`, 'success');
                 _originalPositions = {};
                 _hasUnsavedOrder   = false;
                 if (saveBtn) saveBtn.style.display = 'none';
             } catch (err) {
-                window.HMSApp.showToast('Erro ao salvar posições: ' + err.message, 'error');
+                window.HMSApp.showToast('Erro ao salvar: ' + err.message, 'error');
                 if (saveBtn) {
                     saveBtn.disabled = false;
                     saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Salvar Ordem';
                 }
+            } finally {
+                _isSaving = false;
             }
         },
 
