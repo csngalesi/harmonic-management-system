@@ -39,25 +39,7 @@
     let _hasUnsavedOrder   = false;
     let _isSaving          = false; // previne double-save
 
-    // ── Debug panel ───────────────────────────────────────────────
-    const _dbg = (() => {
-        const MAX = 60;
-        let logs = [];
-        function add(msg, type = 'info') {
-            const ts = new Date().toLocaleTimeString('pt-BR', { hour12: false });
-            logs.unshift({ ts, msg, type });
-            if (logs.length > MAX) logs.pop();
-            _dbg.refresh();
-        }
-        function refresh() {
-            const el = document.getElementById('hms-dbg-log');
-            if (!el) return;
-            el.innerHTML = logs.map(l =>
-                `<div class="dbg-${l.type}"><span class="dbg-ts">${l.ts}</span> ${l.msg}</div>`
-            ).join('');
-        }
-        return { add, refresh };
-    })();
+
 
     // Drag state for position reordering
     let _dragSongId = null;
@@ -77,7 +59,6 @@
             _hasUnsavedOrder    = false;
             _originalPositions  = {};
             _dragSongId         = null;
-            _dbg.add('=== render() — estado drag resetado ===', 'sep');
             content.innerHTML = `
                 <div class="page-header">
                     <div class="page-title">
@@ -391,62 +372,6 @@
                 }
             });
 
-            // ── Painel de debug flutuante ──────────────────────────
-            if (!document.getElementById('hms-dbg-panel')) {
-                const dbgPanel = document.createElement('div');
-                dbgPanel.id = 'hms-dbg-panel';
-                dbgPanel.innerHTML = `
-                    <div id="hms-dbg-header">
-                        🐛 Debug Posições
-                        <button id="hms-dbg-clear" title="Limpar">✕</button>
-                        <button id="hms-dbg-toggle" title="Minimizar">_</button>
-                    </div>
-                    <div id="hms-dbg-log"></div>`;
-                document.body.appendChild(dbgPanel);
-
-                document.getElementById('hms-dbg-clear').onclick = () => {
-                    document.getElementById('hms-dbg-log').innerHTML = '';
-                };
-                document.getElementById('hms-dbg-toggle').onclick = () => {
-                    const log = document.getElementById('hms-dbg-log');
-                    log.style.display = log.style.display === 'none' ? '' : 'none';
-                };
-
-                // CSS inline para não depender de arquivo externo
-                const style = document.createElement('style');
-                style.textContent = `
-                    #hms-dbg-panel {
-                        position: fixed; bottom: 12px; right: 12px; z-index: 9999;
-                        width: 380px; max-height: 320px;
-                        background: #0f172a; border: 1px solid #334155;
-                        border-radius: 8px; font-family: monospace; font-size: 11px;
-                        color: #94a3b8; box-shadow: 0 4px 24px rgba(0,0,0,.6);
-                        display: flex; flex-direction: column;
-                    }
-                    #hms-dbg-header {
-                        padding: 6px 10px; background: #1e293b; border-radius: 8px 8px 0 0;
-                        font-weight: bold; color: #e2e8f0; display: flex; gap: 6px; align-items: center;
-                    }
-                    #hms-dbg-header button {
-                        margin-left: auto; background: none; border: none;
-                        color: #94a3b8; cursor: pointer; font-size: 12px; padding: 0 4px;
-                    }
-                    #hms-dbg-log {
-                        overflow-y: auto; padding: 6px 8px; flex: 1; max-height: 270px;
-                    }
-                    #hms-dbg-log div { padding: 1px 0; line-height: 1.5; }
-                    .dbg-ts { color: #475569; margin-right: 4px; }
-                    .dbg-ok   { color: #4ade80; }
-                    .dbg-err  { color: #f87171; font-weight: bold; }
-                    .dbg-warn { color: #fbbf24; }
-                    .dbg-save { color: #60a5fa; }
-                    .dbg-load { color: #a78bfa; }
-                    .dbg-sep  { color: #475569; border-top: 1px solid #1e293b; margin-top: 2px; padding-top: 2px; }
-                    .dbg-info { color: #94a3b8; }
-                `;
-                document.head.appendChild(style);
-            }
-            _dbg.refresh(); // repopula com logs existentes
 
             await Promise.all([
                 RepertoireComponent._loadSetlists(),
@@ -501,7 +426,6 @@
 
         _loadSongs: async function () {
             try {
-                _dbg.add(`_loadSongs() setlist=${_state.activeSetlist || 'none'}`);
                 _state.songs = await window.HMSAPI.Songs.getAll({
                     search:     _state.searchQuery,
                     setlistId:  _state.activeSetlist,
@@ -513,21 +437,15 @@
                     const withPos = _state.songs
                         .filter(s => s._position !== null && s._position !== undefined)
                         .sort((a, b) => a._position - b._position);
-                    const preview = withPos.slice(0, 5).map(s => `#${s._position}:${s.title?.substring(0,12)}`).join(', ');
-                    _dbg.add(`DB posicoes top-5: [${preview}]`, 'load');
-
                     withPos.forEach((s, i) => { s._rank = i + 1; });
                     const needsNormalization = withPos.some((s, i) => s._position !== i + 1);
                     if (needsNormalization) {
-                        _dbg.add(`NORMALIZE: ${withPos.length} posicoes nao sequenciais — corrigindo`, 'warn');
                         withPos.forEach((s, i) => { s._position = i + 1; });
                         Promise.all(
                             withPos.map(s =>
                                 window.HMSAPI.Setlists.updateSongPosition(_state.activeSetlist, s.id, s._position)
                             )
-                        ).catch(err => { _dbg.add('normalize falhou: ' + err.message, 'err'); console.warn('[HMS] position normalize failed:', err.message); });
-                    } else {
-                        _dbg.add('Posicoes ja sequenciais, normalize nao necessario', 'ok');
+                        ).catch(err => console.warn('[HMS] position normalize failed:', err.message));
                     }
                 }
 
@@ -3989,21 +3907,17 @@
         },
 
         _savePositions: async function () {
-            if (_isSaving) { _dbg.add('_savePositions() ignorado — ja salvando', 'warn'); return; }
+            if (_isSaving) return;
             if (!_state.activeSetlist) return;
 
             // Requer snapshot — sem ele não sabemos o que mudou
             if (Object.keys(_originalPositions).length === 0) {
-                _dbg.add('_savePositions() — snapshot vazio, abortando', 'warn');
                 window.HMSApp.showToast('Nenhuma alteração para salvar.', 'info');
                 return;
             }
 
             const songsWithPos = _state.songs.filter(s => s._position !== null && s._position !== undefined);
             const changed = songsWithPos.filter(s => _originalPositions[s.id] !== s._position);
-
-            _dbg.add(`snapshot: ${Object.keys(_originalPositions).length} songs | changed: ${changed.length}`, 'info');
-            changed.forEach(s => _dbg.add(`  SALVAR ${s.title?.substring(0,20)} pos: ${_originalPositions[s.id]}→${s._position}`, 'save'));
 
             if (changed.length === 0) {
                 window.HMSApp.showToast('Nenhuma alteração para salvar.', 'info');
@@ -4013,33 +3927,6 @@
                 if (sb) sb.style.display = 'none';
                 return;
             }
-
-            // ── Teste de 1 música antes de salvar todas ─────────────
-            const firstSong = changed[0];
-            _dbg.add(`IDs: setlist="${_state.activeSetlist}" song="${firstSong.id}"`, 'warn');
-            try {
-                // 1) SELECT — verifica se linha existe
-                const { data: sel } = await window.supabaseClient
-                    .from('setlist_songs')
-                    .select('song_id, position')
-                    .eq('setlist_id', _state.activeSetlist)
-                    .eq('song_id', firstSong.id);
-                const selCount = sel ? sel.length : 0;
-                _dbg.add(`SELECT: ${selCount} linha(s)${selCount > 0 ? ' pos_banco=' + sel[0].position : ' → ID ERRADO'}`, selCount > 0 ? 'ok' : 'err');
-
-                // 2) UPDATE neutro — mesma posição, só pra ver se RLS permite
-                const { data: upd, error: updErr } = await window.supabaseClient
-                    .from('setlist_songs')
-                    .update({ position: firstSong._position })
-                    .eq('setlist_id', _state.activeSetlist)
-                    .eq('song_id', firstSong.id)
-                    .select('song_id, position');
-                if (updErr) {
-                    _dbg.add(`UPDATE teste ERRO: ${updErr.message} (${updErr.code})`, 'err');
-                } else {
-                    _dbg.add(`UPDATE teste: ${upd?.length ?? 0} row(s)${(!upd || upd.length === 0) ? ' → RLS BLOQUEANDO!' : ' → OK, RLS OK'}`, (upd && upd.length > 0) ? 'ok' : 'err');
-                }
-            } catch(diagErr) { _dbg.add('teste falhou: ' + diagErr.message, 'err'); }
 
             _isSaving = true;
             const saveBtn = document.getElementById('btn-save-order');
@@ -4057,15 +3944,16 @@
                     const results = await Promise.all(
                         batch.map(s =>
                             window.HMSAPI.Setlists.updateSongPosition(_state.activeSetlist, s.id, s._position)
-                                .then(rows => { _dbg.add(`  OK ${s.title?.substring(0,15)} pos=${s._position} rows=${rows.length}`, rows.length === 0 ? 'err' : 'ok'); return rows; })
-                                .catch(err => { _dbg.add(`  FAIL ${s.title?.substring(0,15)}: ${err.message}`, 'err'); throw err; })
                         )
                     );
                     totalSaved += results.reduce((acc, r) => acc + r.length, 0);
                 }
 
-                _dbg.add(`Save completo: ${totalSaved}/${changed.length} rows afetadas no banco`, totalSaved < changed.length ? 'err' : 'ok');
-                window.HMSApp.showToast(`${changed.length} posição(oes) salva(s)${totalSaved < changed.length ? ` (${changed.length - totalSaved} falhou no banco!)` : ''}.`, totalSaved < changed.length ? 'warning' : 'success');
+                const failed = changed.length - totalSaved;
+                window.HMSApp.showToast(
+                    `Ordem salva!${failed > 0 ? ` (${failed} falhou no banco)` : ''}`,
+                    failed > 0 ? 'warning' : 'success'
+                );
                 _originalPositions = {};
                 _hasUnsavedOrder   = false;
                 if (saveBtn) {
@@ -4074,7 +3962,7 @@
                     saveBtn.style.display = 'none';
                 }
             } catch (err) {
-                _dbg.add('Erro no save: ' + err.message, 'err');
+                console.error('[HMS] _savePositions error:', err);
                 window.HMSApp.showToast('Erro ao salvar: ' + err.message, 'error');
                 if (saveBtn) {
                     saveBtn.disabled = false;
