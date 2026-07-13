@@ -592,7 +592,7 @@
                 return;
             }
 
-            const isDragMode = _state.sortBy === 'position' && !!_state.activeSetlist;
+            const isDragMode = _state.sortBy === 'position' && !!_state.activeSetlist && !!_state.showDragMode;
 
             const cards = sorted.map(s => {
                 const hasHarmony = !!(s.harmony_str && s.harmony_str.trim());
@@ -3880,9 +3880,16 @@
                         .sort((a, b) => a._position - b._position);
                     sortedByPos.forEach((s, i) => { s._position = i + 1; });
 
+                    _hasUnsavedOrder = true;
 
-                    // Save to DB
-                    RepertoireComponent._savePositions();
+                    // Mostra o botão Salvar (sem auto-save — usuário clica quando quiser)
+                    const saveBtn = document.getElementById('btn-save-order');
+                    if (saveBtn) {
+                        saveBtn.style.display = '';
+                        saveBtn.disabled = false;
+                        saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Salvar Ordem';
+                    }
+
                     RepertoireComponent._renderSongList();
                 });
             });
