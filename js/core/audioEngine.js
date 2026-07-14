@@ -352,7 +352,11 @@
                 for (const chord of chords) {
                     if (!_isPlaying) break;
 
-                    const normalizedChord = chord.replace('m7(b5)', 'm7');
+                    const normalizedChord = chord
+                        .replace('m7(b5)', 'm7')
+                        .replace(/([A-Gb#]+)h$/, '$1m7')
+                        .replace(/([A-Gb#]+)[o°]$/, '$1dim');
+
                     const key = `${instrument}|${normalizedChord}`;
                     let player = _samplePlayers.get(key);
                     let detune = 0;
@@ -643,8 +647,14 @@
          * @returns {boolean} true se tocou (direto ou transposto), false se sem sample
          */
         playGuitarSample(chordStr, instrument = 'guitar', audioTime = undefined) {
-            // Normaliza m7(b5) → m7
-            const normalizedStr = chordStr.replace('m7(b5)', 'm7');
+            // Normaliza aliases de quality:
+            //   m7(b5) → m7   (notação alternativa para meio-diminuto)
+            //   h      → m7   (notação usada no harmony_str: Ch, F#h, etc.)
+            //   o / °  → dim  (notação usada no harmony_str: Co, Bo, etc.)
+            const normalizedStr = chordStr
+                .replace('m7(b5)', 'm7')
+                .replace(/([A-Gb#]+)h$/, '$1m7')
+                .replace(/([A-Gb#]+)[o°]$/, '$1dim');
 
             // Quando audioTime não é fornecido (clique manual), toca imediatamente
             const when = audioTime !== undefined ? audioTime : Tone.now();
