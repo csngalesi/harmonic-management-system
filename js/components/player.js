@@ -242,13 +242,18 @@
                     );
 
                     try {
-                        const onChordChange = (chordValue) => {
+                        const onChordChange = (chordIdx, chordValue) => {
                             const grid2 = document.getElementById('chord-grid');
                             if (!grid2) return;
                             grid2.querySelectorAll('.chord-cell.chord-active').forEach(c => c.classList.remove('chord-active'));
-                            grid2.querySelectorAll('.chord-cell[data-chord]').forEach(c => {
-                                if (c.dataset.chord === chordValue) c.classList.add('chord-active');
-                            });
+                            // Busca por índice exato (evita acender todos os 'Bm' ao mesmo tempo)
+                            const byIdx = grid2.querySelector(`.chord-cell[data-chord-idx="${chordIdx}"]`);
+                            if (byIdx) {
+                                byIdx.classList.add('chord-active');
+                            } else {
+                                const first = [...grid2.querySelectorAll('.chord-cell[data-chord]')].find(c => c.dataset.chord === chordValue);
+                                if (first) first.classList.add('chord-active');
+                            }
                         };
                         await window.HMSAudio.playSequence(tokens, bpm, () => {
                             // Reset button when finished naturally
@@ -382,6 +387,7 @@
             const out = [];
             const sep = `<span style="opacity:.35;font-size:.7em;margin:0 3px;">·</span>`;
             let i = 0;
+            let chordIdx = 0; // índice sequencial de cada posição de acorde
             while (i < tokens.length) {
                 const t = tokens[i];
                 if (t.type === 'STRUCT' && t.value === '[') {
@@ -393,8 +399,8 @@
                     }
                     i++; // skip ]
                     if (group.length) {
-                        // Acordes agrupados: cada span é individual com data-chord próprio
-                        const inner = group.map(g => `<span class="chord-cell" data-chord="${esc(g.value || '')}" style="display:inline-flex;align-items:center;">${esc(g.value || '')}</span>`).join(sep);
+                        // Acordes agrupados: cada span é individual com data-chord e data-chord-idx próprios
+                        const inner = group.map(g => `<span class="chord-cell" data-chord="${esc(g.value || '')}" data-chord-idx="${chordIdx++}" style="display:inline-flex;align-items:center;">${esc(g.value || '')}</span>`).join(sep);
                         out.push(`<div class="chord-group" style="display:inline-flex;align-items:center;gap:2px;border:1px solid var(--glass-border);border-radius:var(--radius-sm);padding:2px 4px;">${inner}</div>`);
                     }
                     continue;
@@ -402,11 +408,11 @@
                 if (t.type === 'LABEL')
                     out.push(`<span class="harmony-text">${esc(t.value)}</span>`);
                 else if (t.type === 'STRUCT')
-                    out.push(t.value === '/' ? `<div class="chord-cell" data-chord="/">${esc(t.value)}</div>` : `<div class="chord-cell struct">${esc(t.value)}</div>`);
+                    out.push(t.value === '/' ? `<div class="chord-cell" data-chord="/" data-chord-idx="${chordIdx++}">${esc(t.value)}</div>` : `<div class="chord-cell struct">${esc(t.value)}</div>`);
                 else if (t.type === 'MOD')
                     out.push(`<span class="harmony-mod">${esc('!' + t.value + '!')}</span>`);
                 else
-                    out.push(`<div class="chord-cell" data-chord="${esc(t.value || '')}">${esc(t.value)}</div>`);
+                    out.push(`<div class="chord-cell" data-chord="${esc(t.value || '')}" data-chord-idx="${chordIdx++}">${esc(t.value)}</div>`);
                 i++;
             }
             grid.innerHTML = out.join('');

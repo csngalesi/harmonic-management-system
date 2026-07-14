@@ -93,6 +93,8 @@
         closeModal() {
             const overlay = document.getElementById('modal-overlay');
             if (!overlay) return;
+            // Para o áudio ao fechar qualquer modal (song detail, preferences, etc.)
+            if (window.HMSAudio && window.HMSAudio.isPlaying) window.HMSAudio.stop();
             overlay.classList.add('hidden');
             overlay.removeEventListener('click', HMSApp._overlayClick);
             const container = document.getElementById('modal-container');

@@ -847,11 +847,12 @@
                 if (!toks.length) return `<span style="color:var(--text-muted);font-size:.85rem;">Sem harmonia cadastrada.</span>`;
                 const out = [];
                 let i = 0;
+                let chordIdx = 0; // índice sequencial de cada posição de acorde/barra
                 const sep = `<span style="opacity:.35;font-size:.7em;margin:0 3px;">·</span>`;
                 while (i < toks.length) {
                     const t = toks[i];
                     if (t.type === 'STRUCT' && t.value === '[') {
-                        // Collect tokens until ] → individual clickable spans
+                        // Collect tokens until ] → individual clickable spans, each with own idx
                         const group = [];
                         i++;
                         while (i < toks.length && !(toks[i].type === 'STRUCT' && toks[i].value === ']')) {
@@ -860,7 +861,7 @@
                         }
                         i++; // skip ]
                         if (group.length) {
-                            const inner = group.map(g => `<span class="sd-chord" data-chord="${esc(g.value || '')}">${esc(g.value || '')}</span>`).join(sep);
+                            const inner = group.map(g => `<span class="sd-chord" data-chord="${esc(g.value || '')}" data-chord-idx="${chordIdx++}">${esc(g.value || '')}</span>`).join(sep);
                             out.push(`<span class="sd-chord-group">${inner}</span>`);
                         }
                         continue;
@@ -868,11 +869,11 @@
                     if (t.type === 'LABEL')
                         out.push(`<span class="sd-label">${esc(t.value)}</span>`);
                     else if (t.type === 'STRUCT')
-                        out.push(t.value === '/' ? `<span class="sd-chord" data-chord="/">/</span>` : `<span class="sd-sep">${esc(t.value) || '·'}</span>`);
+                        out.push(t.value === '/' ? `<span class="sd-chord" data-chord="/" data-chord-idx="${chordIdx++}">/</span>` : `<span class="sd-sep">${esc(t.value) || '·'}</span>`);
                     else if (t.type === 'MOD')
                         out.push(`<span class="sd-mod">${esc('!' + t.value + '!')}</span>`);
                     else
-                        out.push(`<span class="sd-chord" data-chord="${esc(t.value || '')}">${esc(t.value || '')}</span>`);
+                        out.push(`<span class="sd-chord" data-chord="${esc(t.value || '')}" data-chord-idx="${chordIdx++}">${esc(t.value || '')}</span>`);
                     i++;
                 }
                 return out.join('');
@@ -1181,14 +1182,19 @@
                 const toks = window.HarmonyEngine.translate(song.harmony_str || '', root, isMinor);
                 _setPlaying(true);
 
-                // Highlight callback: marca o chip do acorde atual
-                const onChordChange = (chordValue) => {
+                // Highlight callback: marca o chip do acorde atual por índice
+                const onChordChange = (chordIdx, chordValue) => {
                     const allChips = document.querySelectorAll('#sd-chords-display .sd-chord');
                     allChips.forEach(c => c.classList.remove('chord-active'));
-                    allChips.forEach(c => {
-                        const cd = c.dataset.chord ?? c.textContent?.trim();
-                        if (cd === chordValue) c.classList.add('chord-active');
-                    });
+                    // Busca primeiro por índice exato
+                    const byIdx = document.querySelector(`#sd-chords-display .sd-chord[data-chord-idx="${chordIdx}"]`);
+                    if (byIdx) {
+                        byIdx.classList.add('chord-active');
+                    } else {
+                        // Fallback: primeiro chip com o mesmo valor
+                        const first = [...allChips].find(c => c.dataset.chord === chordValue);
+                        if (first) first.classList.add('chord-active');
+                    }
                 };
 
                 try {

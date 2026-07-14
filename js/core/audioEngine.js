@@ -350,6 +350,7 @@
                 _isPlaying = true;
 
                 // Toca cada acorde e espera terminar antes do próximo
+                let _chordIdx = 0;
                 for (const chord of chords) {
                     if (!_isPlaying) break;
 
@@ -358,10 +359,11 @@
                         .replace(/([A-Gb#]+)h$/, '$1m7')
                         .replace(/([A-Gb#]+)[o°]$/, '$1dim');
 
-                    // Notifica UI qual acorde está tocando (para highlight)
+                    // Notifica UI qual acorde está tocando (por índice e valor)
                     if (onChordChange) {
-                        try { onChordChange(chord); } catch (_) {}
+                        try { onChordChange(_chordIdx, chord); } catch (_) {}
                     }
+                    _chordIdx++;
 
                     const key = `${instrument}|${normalizedChord}`;
                     let player = _samplePlayers.get(key);
