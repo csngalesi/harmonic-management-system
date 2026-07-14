@@ -80,6 +80,10 @@
         let chordIdx = 0; // índice sequencial para highlight por posição
         return tokens.map(t => {
             if (t.type === 'LABEL')  return `<span class="harmony-text">${esc(t.value)}</span>`;
+            // '/' repete o acorde anterior → recebe idx próprio para highlight
+            if (t.type === 'STRUCT' && t.value === '/') {
+                return `<div class="chord-cell struct" data-chord="/" data-chord-idx="${chordIdx++}">/</div>`;
+            }
             if (t.type === 'STRUCT') return `<div class="chord-cell struct">${esc(t.value)}</div>`;
             const chordName = t.value || '';
             const cavacoSvg = (_state.showCavaco && window.ChordShapes)
