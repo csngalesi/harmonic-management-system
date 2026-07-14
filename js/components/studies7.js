@@ -86,7 +86,7 @@
             const violaoSvg = (_state.showViolao && window.ChordShapes)
                 ? `<div class="chord-diagram-wrap">${window.ChordShapes.renderViolao(chordName)}</div>` : '';
             return `<div class="chord-cell-wrap">
-                <div class="chord-cell" style="font-size:1.1rem;padding:10px 18px;min-width:64px;">${esc(chordName)}</div>
+                <div class="chord-cell" data-chord="${esc(chordName)}" style="font-size:1.1rem;padding:10px 18px;min-width:64px;">${esc(chordName)}</div>
                 ${cavacoSvg}${violaoSvg}
             </div>`;
         }).join('');
@@ -658,8 +658,11 @@
                     const prevId = prevKey.slice(3);
                     const btn = document.querySelector(`.rc-play-btn[data-id="${prevId}"]`);
                     if (btn) { btn.innerHTML = '<i class="fa-solid fa-play"></i>'; btn.className = 'btn btn-primary rc-play-btn'; }
+                    // Remove highlight da cadência anterior
+                    document.querySelectorAll(`#rc-card-${prevId} .chord-cell.chord-active`).forEach(c => c.classList.remove('chord-active'));
                 } else {
                     C._setPlayingUI(prevKey, false);
+                    document.querySelectorAll(`#card-${prevKey} .chord-cell.chord-active`).forEach(c => c.classList.remove('chord-active'));
                 }
                 const wasSame = prevKey === playKey;
                 _state.playing = null;
@@ -674,11 +677,23 @@
             _state.playing  = playKey;
             const playBtn   = document.querySelector(`.rc-play-btn[data-id="${id}"]`);
             if (playBtn) { playBtn.innerHTML = '<i class="fa-solid fa-stop"></i>'; playBtn.className = 'btn btn-secondary rc-play-btn'; }
+
+            // Highlight callback: marca o chord-cell do acorde atual na cadência
+            const cardEl = document.getElementById('rc-card-' + id);
+            const onChordChange = (chordValue) => {
+                if (!cardEl) return;
+                cardEl.querySelectorAll('.chord-cell.chord-active').forEach(c => c.classList.remove('chord-active'));
+                cardEl.querySelectorAll('.chord-cell[data-chord]').forEach(c => {
+                    if (c.dataset.chord === chordValue) c.classList.add('chord-active');
+                });
+            };
+
             window.HMSAudio.playSequence(tokens, cad.bpm || _state.bpm, () => {
                 _state.playing = null;
                 const btn = document.querySelector(`.rc-play-btn[data-id="${id}"]`);
                 if (btn) { btn.innerHTML = '<i class="fa-solid fa-play"></i>'; btn.className = 'btn btn-primary rc-play-btn'; }
-            }, strumMode);
+                if (cardEl) cardEl.querySelectorAll('.chord-cell.chord-active').forEach(c => c.classList.remove('chord-active'));
+            }, strumMode, onChordChange);
         },
 
         // ── Playback — Exemplos ───────────────────────────────────────
@@ -698,8 +713,10 @@
                     const prevId = prev.slice(3);
                     const btn = document.querySelector(`.rc-play-btn[data-id="${prevId}"]`);
                     if (btn) { btn.innerHTML = '<i class="fa-solid fa-play"></i>'; btn.className = 'btn btn-primary rc-play-btn'; }
+                    document.querySelectorAll(`#rc-card-${prevId} .chord-cell.chord-active`).forEach(c => c.classList.remove('chord-active'));
                 } else {
                     C._setPlayingUI(prev, false);
+                    document.querySelectorAll(`#card-${prev} .chord-cell.chord-active`).forEach(c => c.classList.remove('chord-active'));
                 }
                 const wasSame = _state.playing === cadId;
                 _state.playing = null;
@@ -711,10 +728,22 @@
                             : 'basic';
             _state.playing = cadId;
             C._setPlayingUI(cadId, true);
+
+            // Highlight callback: marca o chord-cell do acorde atual no card
+            const cardEl = document.getElementById('card-' + cadId);
+            const onChordChange = (chordValue) => {
+                if (!cardEl) return;
+                cardEl.querySelectorAll('.chord-cell.chord-active').forEach(c => c.classList.remove('chord-active'));
+                cardEl.querySelectorAll('.chord-cell[data-chord]').forEach(c => {
+                    if (c.dataset.chord === chordValue) c.classList.add('chord-active');
+                });
+            };
+
             window.HMSAudio.playSequence(tokens, _state.bpm, () => {
                 _state.playing = null;
                 C._setPlayingUI(cadId, false);
-            }, strumMode);
+                if (cardEl) cardEl.querySelectorAll('.chord-cell.chord-active').forEach(c => c.classList.remove('chord-active'));
+            }, strumMode, onChordChange);
         },
     };
 

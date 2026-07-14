@@ -480,6 +480,14 @@ tbody tr:hover td { background: var(--glass-bg); }
     border-radius: var(--radius-sm);
 }
 .chord-cell.chord-highlight { color: var(--chord-amber); border-color: var(--chord-amber); background: rgba(251,191,36,.08); }
+.chord-cell.chord-active {
+    background: rgba(74,222,128,.18);
+    border-color: var(--chord-green);
+    color: var(--chord-green);
+    transform: scale(1.06);
+    box-shadow: 0 0 12px rgba(74,222,128,.35);
+    transition: background .15s, border-color .15s, color .15s, transform .1s;
+}
 
 /* Large display mode */
 .chord-grid.size-lg .chord-cell { font-size: 2.2rem; padding: 18px 28px; min-width: 110px; }
@@ -728,6 +736,17 @@ tbody tr:hover td { background: var(--glass-bg); }
     background:var(--glass-bg); border:1px solid var(--glass-border);
     border-radius:var(--radius-sm); font-family:var(--font-mono);
     font-size:1.7rem; color:var(--chord-green);
+    transition: background .15s, border-color .15s, color .15s, transform .1s;
+}
+.sd-chord.chord-active {
+    background: rgba(74,222,128,.18);
+    border-color: var(--chord-green);
+    color: var(--chord-green);
+    transform: scale(1.08);
+    box-shadow: 0 0 12px rgba(74,222,128,.35);
+}
+.sd-chord-group {
+    display:inline-flex; align-items:center; gap:4px;
 }
 .sd-label {
     display:inline-flex; align-items:center; align-self:center;

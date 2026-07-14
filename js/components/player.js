@@ -226,6 +226,8 @@
                     playBtn.innerHTML = '<i class="fa-solid fa-play"></i> Ouvir Tática';
                     playBtn.classList.remove('btn-danger');
                     playBtn.classList.add('btn-primary');
+                    // Remove highlight
+                    document.getElementById('chord-grid')?.querySelectorAll('.chord-cell.chord-active').forEach(c => c.classList.remove('chord-active'));
                 } else {
                     const bpmInput = document.getElementById('play-bpm');
                     const bpm = bpmInput ? parseInt(bpmInput.value, 10) || 60 : 60;
@@ -240,6 +242,14 @@
                     );
 
                     try {
+                        const onChordChange = (chordValue) => {
+                            const grid2 = document.getElementById('chord-grid');
+                            if (!grid2) return;
+                            grid2.querySelectorAll('.chord-cell.chord-active').forEach(c => c.classList.remove('chord-active'));
+                            grid2.querySelectorAll('.chord-cell[data-chord]').forEach(c => {
+                                if (c.dataset.chord === chordValue) c.classList.add('chord-active');
+                            });
+                        };
                         await window.HMSAudio.playSequence(tokens, bpm, () => {
                             // Reset button when finished naturally
                             if (playBtn) {
@@ -247,7 +257,9 @@
                                 playBtn.classList.remove('btn-danger');
                                 playBtn.classList.add('btn-primary');
                             }
-                        }, strumMode);
+                            // Remove highlight
+                            document.getElementById('chord-grid')?.querySelectorAll('.chord-cell.chord-active').forEach(c => c.classList.remove('chord-active'));
+                        }, strumMode, onChordChange);
 
                         playBtn.innerHTML = '<i class="fa-solid fa-stop"></i> Parar';
                         playBtn.classList.remove('btn-primary');
@@ -381,26 +393,27 @@
                     }
                     i++; // skip ]
                     if (group.length) {
-                        const inner = group.map(g => `<span>${esc(g.value || '')}</span>`).join(sep);
-                        out.push(`<div class="chord-cell">${inner}</div>`);
+                        // Acordes agrupados: cada span é individual com data-chord próprio
+                        const inner = group.map(g => `<span class="chord-cell" data-chord="${esc(g.value || '')}" style="display:inline-flex;align-items:center;">${esc(g.value || '')}</span>`).join(sep);
+                        out.push(`<div class="chord-group" style="display:inline-flex;align-items:center;gap:2px;border:1px solid var(--glass-border);border-radius:var(--radius-sm);padding:2px 4px;">${inner}</div>`);
                     }
                     continue;
                 }
                 if (t.type === 'LABEL')
                     out.push(`<span class="harmony-text">${esc(t.value)}</span>`);
                 else if (t.type === 'STRUCT')
-                    out.push(t.value === '/' ? `<div class="chord-cell">${esc(t.value)}</div>` : `<div class="chord-cell struct">${esc(t.value)}</div>`);
+                    out.push(t.value === '/' ? `<div class="chord-cell" data-chord="/">${esc(t.value)}</div>` : `<div class="chord-cell struct">${esc(t.value)}</div>`);
                 else if (t.type === 'MOD')
                     out.push(`<span class="harmony-mod">${esc('!' + t.value + '!')}</span>`);
                 else
-                    out.push(`<div class="chord-cell">${esc(t.value)}</div>`);
+                    out.push(`<div class="chord-cell" data-chord="${esc(t.value || '')}">${esc(t.value)}</div>`);
                 i++;
             }
             grid.innerHTML = out.join('');
 
             // Clique em acorde → toca sample (ou synth)
             grid.querySelectorAll('.chord-cell').forEach(cell => {
-                const chord = cell.textContent?.trim();
+                const chord = cell.dataset.chord ?? cell.textContent?.trim();
                 if (!chord || chord === '/' || chord === '|') return;
                 cell.style.cursor = 'pointer';
                 cell.addEventListener('click', () => {

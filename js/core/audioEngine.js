@@ -284,9 +284,10 @@
          * @param {Array}    tokens
          * @param {number}   bpm
          * @param {Function} onFinished
-         * @param {string}   strumMode  'basic' | 'violao24' | 'guitar-sample' | 'cavaco-sample'
+         * @param {string}   strumMode      'basic' | 'violao24' | 'guitar-sample' | 'cavaco-sample'
+         * @param {Function} onChordChange  (chordValue: string) → called each time a new chord plays
          */
-        async playSequence(tokens, bpm = 60, onFinished, strumMode = 'basic') {
+        async playSequence(tokens, bpm = 60, onFinished, strumMode = 'basic', onChordChange = null) {
             AudioEngine.stop();
 
             // ── Violão 2/4 ───────────────────────────────────────
@@ -357,13 +358,26 @@
                         .replace(/([A-Gb#]+)h$/, '$1m7')
                         .replace(/([A-Gb#]+)[o°]$/, '$1dim');
 
+                    // Notifica UI qual acorde está tocando (para highlight)
+                    if (onChordChange) {
+                        try { onChordChange(chord); } catch (_) {}
+                    }
+
                     const key = `${instrument}|${normalizedChord}`;
                     let player = _samplePlayers.get(key);
                     let detune = 0;
 
+                    console.debug(`[AudioEngine] seq chord="${chord}" normalized="${normalizedChord}" key="${key}" found=${!!player} totalLoaded=${_samplePlayers.size}`);
+
                     if (!player) {
                         const nearest = _findNearestSample(normalizedChord, instrument);
-                        if (nearest) { player = nearest.player; detune = nearest.detuneCents; }
+                        if (nearest) {
+                            player = nearest.player;
+                            detune = nearest.detuneCents;
+                            console.debug(`[AudioEngine] pitch-shift fallback: ${detune > 0 ? '+' : ''}${nearest.semitons}st`);
+                        } else {
+                            console.warn(`[AudioEngine] sem sample para "${normalizedChord}" (${instrument})`);
+                        }
                     }
 
                     let duration = 2.0;
@@ -655,6 +669,13 @@
                 .replace('m7(b5)', 'm7')
                 .replace(/([A-Gb#]+)h$/, '$1m7')
                 .replace(/([A-Gb#]+)[o°]$/, '$1dim');
+
+            // DEBUG — remover após diagnóstico
+            const exactKey0 = `${instrument}|${normalizedStr}`;
+            console.debug(`[HMS-DBG] playGuitarSample: raw="${chordStr}" norm="${normalizedStr}" key="${exactKey0}" totalLoaded=${_samplePlayers.size} hasExact=${_samplePlayers.has(exactKey0)}`);
+            if (_samplePlayers.size > 0 && !_samplePlayers.has(exactKey0)) {
+                console.debug('[HMS-DBG] Chaves carregadas:', [..._samplePlayers.keys()].join(', '));
+            }
 
             // Quando audioTime não é fornecido (clique manual), toca imediatamente
             const when = audioTime !== undefined ? audioTime : Tone.now();

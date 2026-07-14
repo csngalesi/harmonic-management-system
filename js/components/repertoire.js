@@ -851,7 +851,7 @@
                 while (i < toks.length) {
                     const t = toks[i];
                     if (t.type === 'STRUCT' && t.value === '[') {
-                        // Collect tokens until ] → single grouped cell
+                        // Collect tokens until ] → individual clickable spans
                         const group = [];
                         i++;
                         while (i < toks.length && !(toks[i].type === 'STRUCT' && toks[i].value === ']')) {
@@ -860,19 +860,19 @@
                         }
                         i++; // skip ]
                         if (group.length) {
-                            const inner = group.map(g => `<span>${esc(g.value || '')}</span>`).join(sep);
-                            out.push(`<span class="sd-chord">${inner}</span>`);
+                            const inner = group.map(g => `<span class="sd-chord" data-chord="${esc(g.value || '')}">${esc(g.value || '')}</span>`).join(sep);
+                            out.push(`<span class="sd-chord-group">${inner}</span>`);
                         }
                         continue;
                     }
                     if (t.type === 'LABEL')
                         out.push(`<span class="sd-label">${esc(t.value)}</span>`);
                     else if (t.type === 'STRUCT')
-                        out.push(t.value === '/' ? `<span class="sd-chord">/</span>` : `<span class="sd-sep">${esc(t.value) || '·'}</span>`);
+                        out.push(t.value === '/' ? `<span class="sd-chord" data-chord="/">/</span>` : `<span class="sd-sep">${esc(t.value) || '·'}</span>`);
                     else if (t.type === 'MOD')
                         out.push(`<span class="sd-mod">${esc('!' + t.value + '!')}</span>`);
                     else
-                        out.push(`<span class="sd-chord">${esc(t.value || '')}</span>`);
+                        out.push(`<span class="sd-chord" data-chord="${esc(t.value || '')}">${esc(t.value || '')}</span>`);
                     i++;
                 }
                 return out.join('');
@@ -1007,6 +1007,9 @@
             });
 
             document.getElementById('sd-close-btn')?.addEventListener('click', () => {
+                // Para o áudio antes de fechar
+                if (window.HMSAudio && window.HMSAudio.isPlaying) window.HMSAudio.stop();
+                _setPlaying(false);
                 window.HMSApp.closeModal();
             });
 
@@ -1137,7 +1140,8 @@
 
             const _bindChordChips = () => {
                 document.querySelectorAll('#sd-chords-display .sd-chord').forEach(chip => {
-                    const chord = chip.textContent?.trim();
+                    // Usa data-chord se disponível (chips individuais); caso contrário usa textContent
+                    const chord = chip.dataset.chord ?? chip.textContent?.trim();
                     if (!chord || chord === '/' || chord === '|') return;
                     chip.style.cursor = _sdInstrument === 'synth' ? '' : 'pointer';
                     chip.onclick = _sdInstrument === 'synth' ? null : () => {
@@ -1163,6 +1167,8 @@
                 if (window.HMSAudio.isPlaying) {
                     window.HMSAudio.stop();
                     _setPlaying(false);
+                    // Remove highlight
+                    document.querySelectorAll('#sd-chords-display .sd-chord.chord-active').forEach(c => c.classList.remove('chord-active'));
                     return;
                 }
                 const keyVal    = document.getElementById('sd-key-select')?.value || origKey;
@@ -1174,8 +1180,22 @@
                                 : 'basic';
                 const toks = window.HarmonyEngine.translate(song.harmony_str || '', root, isMinor);
                 _setPlaying(true);
+
+                // Highlight callback: marca o chip do acorde atual
+                const onChordChange = (chordValue) => {
+                    const allChips = document.querySelectorAll('#sd-chords-display .sd-chord');
+                    allChips.forEach(c => c.classList.remove('chord-active'));
+                    allChips.forEach(c => {
+                        const cd = c.dataset.chord ?? c.textContent?.trim();
+                        if (cd === chordValue) c.classList.add('chord-active');
+                    });
+                };
+
                 try {
-                    await window.HMSAudio.playSequence(toks, bpm, () => _setPlaying(false), strumMode);
+                    await window.HMSAudio.playSequence(toks, bpm, () => {
+                        _setPlaying(false);
+                        document.querySelectorAll('#sd-chords-display .sd-chord.chord-active').forEach(c => c.classList.remove('chord-active'));
+                    }, strumMode, onChordChange);
                 } catch (err) {
                     _setPlaying(false);
                     console.warn('[Repertoire] playSequence erro:', err.message);
