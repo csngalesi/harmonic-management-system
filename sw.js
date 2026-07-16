@@ -21,6 +21,7 @@ const APP_SHELL = [
     '/js/core/melodyEngine.js?v=13',
     '/js/core/offlineDB.js?v=13',
     '/js/core/syncManager.js?v=13',
+    '/js/core/guitarRecorder.js?v=18',
     '/js/supabase-client.js?v=13',
     '/js/auth.js?v=13',
     '/js/api.js?v=21',
@@ -33,7 +34,8 @@ const APP_SHELL = [
     '/js/components/melodicStudies.js?v=13',
     '/js/components/harmonicMelodic.js?v=13',
     '/js/components/harmonicBass.js?v=13',
-    '/js/app.js?v=10',
+    '/js/components/guitarSampler.js?v=18',
+    '/js/app.js?v=22',
     // CDN libs
     'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',
     'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css',
