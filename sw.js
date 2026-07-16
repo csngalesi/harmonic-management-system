@@ -114,19 +114,35 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Everything else: cache-first (CSS, HTML, CDN libs)
+    // Navigation (index.html) + versioned CSS → network-first so deploys chegam imediatamente
+    const isNavigation = event.request.mode === 'navigate';
+    const isVersionedCss = url.includes('/css/') && url.includes('?v=');
+    if (isNavigation || isVersionedCss) {
+        event.respondWith(
+            fetch(event.request)
+                .then((response) => {
+                    if (response && response.status === 200) {
+                        const clone = response.clone();
+                        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+                    }
+                    return response;
+                })
+                .catch(() => caches.match(event.request) || caches.match('/index.html'))
+        );
+        return;
+    }
+
+    // Everything else: cache-first (CDN libs, fonts — stable assets)
     event.respondWith(
         caches.match(event.request).then((cached) => {
             if (cached) return cached;
             return fetch(event.request).then((response) => {
-                // Cache successful GET responses
                 if (response && response.status === 200 && event.request.method === 'GET') {
                     const clone = response.clone();
                     caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
                 }
                 return response;
             }).catch(() => {
-                // For navigation requests, return the cached index.html
                 if (event.request.mode === 'navigate') {
                     return caches.match('/index.html');
                 }
