@@ -43,21 +43,16 @@ const APP_SHELL = [
     'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap',
 ];
 
-// Install: pre-cache app shell
+// Install: pre-cache app shell (best-effort — one bad URL won't abort install)
 self.addEventListener('install', (event) => {
     event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => {
-            // Cache local assets strictly; CDN assets best-effort
-            const local  = APP_SHELL.filter(u => u.startsWith('/') || u.startsWith('https://fonts'));
-            const cdnAll = APP_SHELL.filter(u => !u.startsWith('/') && !u.startsWith('https://fonts'));
-
-            return Promise.all([
-                cache.addAll(local),
-                ...cdnAll.map(url =>
+        caches.open(CACHE_NAME).then((cache) =>
+            Promise.all(
+                APP_SHELL.map(url =>
                     cache.add(url).catch(() => console.warn('[SW] Could not cache:', url))
-                ),
-            ]);
-        }).then(() => self.skipWaiting())
+                )
+            )
+        ).then(() => self.skipWaiting())
     );
 });
 
