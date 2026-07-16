@@ -596,10 +596,15 @@
                         e.stopPropagation();
                         RepertoireComponent._handleToggleAlert(cell.dataset.id);
                     });
-                    // Click opens detail only when NOT in drag mode
+                    // Click: modo comentário → abre modal de nota; normal → abre detalhe
                     if (!isGridDrag) {
                         cell.addEventListener('click', (e) => {
                             if (e.target.closest('.show-alert-btn')) return;
+                            if (_state.commentMode) {
+                                e.stopPropagation();
+                                RepertoireComponent._openCommentModal(cell.dataset.id);
+                                return;
+                            }
                             const song = _state.songs.find(s => s.id === cell.dataset.id);
                             if (song) RepertoireComponent._openShowDetail(song);
                         });
