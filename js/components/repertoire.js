@@ -297,9 +297,6 @@
                     commentModeBtn.title = _state.commentMode
                         ? 'Modo comentário ATIVO — clique em uma música para comentar'
                         : 'Modo comentário: clique numa música para adicionar/editar nota rápida';
-                    // Visual feedback no cursor dos cards
-                    document.querySelectorAll('.song-card, .show-cell').forEach(c =>
-                        c.classList.toggle('comment-mode-cursor', _state.commentMode));
                     if (_state.commentMode) {
                         window.HMSApp.showToast('Modo comentário ativado — clique numa música', 'info');
                     }
@@ -685,18 +682,14 @@
                 });
             });
 
-            // Clique no card: modo normal → abre detalhe; modo comentário → abre modal de comentário
+            // Clique no card: apenas no modo comentário abre o modal de comentário
+            // (modo normal: nada acontece ao clicar no card diretamente)
             el.querySelectorAll('.song-card').forEach(card => {
                 card.addEventListener('click', (e) => {
-                    if (e.target.closest('[data-action]')) return;
-                    const id = card.dataset.id;
-                    if (_state.commentMode) {
-                        e.stopPropagation();
-                        RepertoireComponent._openCommentModal(id);
-                    } else {
-                        const song = _state.songs.find(s => s.id === id);
-                        if (song) RepertoireComponent._openShowDetail(song);
-                    }
+                    if (!_state.commentMode) return;          // modo normal: ignora
+                    if (e.target.closest('[data-action]')) return; // botões internos já tratados
+                    e.stopPropagation();
+                    RepertoireComponent._openCommentModal(card.dataset.id);
                 });
             });
 

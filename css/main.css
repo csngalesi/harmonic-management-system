@@ -575,8 +575,7 @@ tbody tr:hover td { background: var(--glass-bg); }
     background: rgba(248, 113, 113, 0.32);
 }
 
-/* ── Comment Mode cursor hint ───────────────────────────────── */
-.comment-mode-cursor { cursor: crosshair !important; }
+/* ── Comment Mode button active state ──────────────────────── */
 #btn-comment-mode.active {
     background: rgba(248,113,113,.15) !important;
     border-color: #f87171 !important;
