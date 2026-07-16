@@ -179,6 +179,9 @@
                         <button class="sort-btn" id="btn-save-prefs" title="Salvar vista atual como padrão de entrada" style="margin-left:2px;">
                             <i class="fa-solid fa-bookmark"></i>
                         </button>
+                        <button class="sort-btn" id="btn-comment-mode" title="Modo comentário: clique numa música para adicionar/editar nota rápida" style="margin-left:2px;">
+                            <i class="fa-solid fa-exclamation"></i>
+                        </button>
                         <button class="btn btn-primary btn-sm" id="btn-save-order"
                             style="display:${_state.showDragMode && _hasUnsavedOrder ? 'inline-flex' : 'none'};align-items:center;gap:5px;padding:3px 10px;font-size:.75rem;margin-left:4px;"
                             title="Salvar nova ordem das músicas">
@@ -286,6 +289,20 @@
                 const savePrefsBtn = e.target.closest('#btn-save-prefs');
                 if (savePrefsBtn) {
                     RepertoireComponent._savePrefs();
+                }
+                const commentModeBtn = e.target.closest('#btn-comment-mode');
+                if (commentModeBtn) {
+                    _state.commentMode = !_state.commentMode;
+                    commentModeBtn.classList.toggle('active', _state.commentMode);
+                    commentModeBtn.title = _state.commentMode
+                        ? 'Modo comentário ATIVO — clique em uma música para comentar'
+                        : 'Modo comentário: clique numa música para adicionar/editar nota rápida';
+                    // Visual feedback no cursor dos cards
+                    document.querySelectorAll('.song-card, .show-cell').forEach(c =>
+                        c.classList.toggle('comment-mode-cursor', _state.commentMode));
+                    if (_state.commentMode) {
+                        window.HMSApp.showToast('Modo comentário ativado — clique numa música', 'info');
+                    }
                 }
             });
 
@@ -601,14 +618,17 @@
 
             const isDragMode = _state.sortBy === 'position' && !!_state.activeSetlist && !!_state.showDragMode;
 
+            const _COMMENT_KEY = (id) => `hms_song_comment_${id}`;
+
             const cards = sorted.map(s => {
                 const hasHarmony = !!(s.harmony_str && s.harmony_str.trim());
                 const hasLyrics  = !!s.has_lyrics;
                 const hasAudio   = !!s.audio_url;
                 const sf         = s.status_flag || 0;
+                const hasComment = !!localStorage.getItem(_COMMENT_KEY(s.id));
                 const flagTitles = ['Marcar verde', 'Marcar amarelo', 'Marcar vermelho', 'Marcar azul', 'Remover bandeira'];
                 return `
-                <div class="song-card${sf ? ' song-flag-' + sf : ''}" data-id="${s.id}"
+                <div class="song-card${sf ? ' song-flag-' + sf : ''}${_state.commentMode ? ' comment-mode-cursor' : ''}" data-id="${s.id}"
                     ${isDragMode ? 'draggable="true"' : ''}>
                     ${isDragMode ? '<span class="drag-handle" title="Arrastar para reordenar"><i class="fa-solid fa-grip-vertical"></i></span>' : ''}
                     <div class="song-info">
@@ -623,6 +643,7 @@
                         title="${flagTitles[sf]}">
                         <i class="fa-solid fa-flag"></i>
                     </button>
+                    ${hasComment ? `<span class="song-comment-badge" title="${esc(localStorage.getItem(_COMMENT_KEY(s.id)) || '')}"><i class="fa-solid fa-exclamation"></i></span>` : ''}
                     <span class="song-key-badge">${esc(s.original_key)}</span>
                     <span class="song-harmony-flag${hasHarmony ? ' has-harmony' : ''}" title="${hasHarmony ? 'Harmonia cadastrada' : 'Sem harmonia'}">
                         <i class="fa-solid fa-music"></i>
@@ -661,6 +682,21 @@
                     if (action === 'edit')   RepertoireComponent.openSongModal(id);
                     if (action === 'delete') RepertoireComponent._handleDelete(id);
                     if (action === 'alert')  RepertoireComponent._handleToggleAlert(id);
+                });
+            });
+
+            // Clique no card: modo normal → abre detalhe; modo comentário → abre modal de comentário
+            el.querySelectorAll('.song-card').forEach(card => {
+                card.addEventListener('click', (e) => {
+                    if (e.target.closest('[data-action]')) return;
+                    const id = card.dataset.id;
+                    if (_state.commentMode) {
+                        e.stopPropagation();
+                        RepertoireComponent._openCommentModal(id);
+                    } else {
+                        const song = _state.songs.find(s => s.id === id);
+                        if (song) RepertoireComponent._openShowDetail(song);
+                    }
                 });
             });
 
@@ -3790,6 +3826,77 @@
             reader.readAsArrayBuffer(file);
         },
 
+        // ── Status flag (0=none 1=green 2=yellow 3=red) ──────────
+        _handleToggleAlert: async function (id) {
+            const song = _state.songs.find(s => s.id === id);
+            if (!song) return;
+            const newVal = ((song.status_flag || 0) + 1) % 5;
+            try {
+                await window.HMSAPI.Songs.update(id, { status_flag: newVal });
+                song.status_flag = newVal;
+                RepertoireComponent._renderSongList();
+            } catch (err) {
+                window.HMSApp.showToast('Erro ao atualizar bandeira: ' + err.message, 'error');
+            }
+        },
+
+        // ── Modal de Comentário Rápido ──────────────────────────────
+        _openCommentModal: function (id) {
+            const song = _state.songs.find(s => s.id === id);
+            if (!song) return;
+            const COMMENT_KEY = `hms_song_comment_${id}`;
+            const current = localStorage.getItem(COMMENT_KEY) || '';
+            const esc2 = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+            window.HMSApp.openModal(`
+                <div style="padding:24px;max-width:480px;width:90vw;">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
+                        <span style="width:32px;height:32px;border-radius:50%;background:rgba(248,113,113,.18);border:1.5px solid #f87171;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                            <i class="fa-solid fa-exclamation" style="color:#f87171;font-size:.9rem;"></i>
+                        </span>
+                        <div>
+                            <div style="font-size:.95rem;font-weight:700;color:var(--text-primary);">${esc2(song.title)}</div>
+                            <div style="font-size:.72rem;color:var(--text-muted);">${esc2([song.artist, song.genre].filter(Boolean).join(' · '))}</div>
+                        </div>
+                    </div>
+                    <label style="font-size:.78rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:6px;">Comentário / Nota rápida</label>
+                    <textarea id="comment-textarea"
+                        placeholder="Ex: ensaiar a ponte, corrigir tom, conferir letra…"
+                        style="width:100%;min-height:120px;resize:vertical;padding:10px 12px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-sm);color:var(--text-primary);font-family:var(--font-ui);font-size:.88rem;line-height:1.5;box-sizing:border-box;"
+                    >${esc2(current)}</textarea>
+                    <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end;">
+                        ${current ? `<button id="comment-clear-btn" class="btn btn-ghost" style="color:#f87171;border-color:rgba(248,113,113,.4);"><i class="fa-solid fa-trash fa-xs"></i> Limpar</button>` : ''}
+                        <button id="comment-cancel-btn" class="btn btn-ghost">Cancelar</button>
+                        <button id="comment-save-btn" class="btn btn-primary"><i class="fa-solid fa-floppy-disk fa-xs"></i> Salvar</button>
+                    </div>
+                </div>
+            `);
+
+            // Focus no textarea
+            setTimeout(() => document.getElementById('comment-textarea')?.focus(), 80);
+
+            document.getElementById('comment-save-btn')?.addEventListener('click', () => {
+                const text = document.getElementById('comment-textarea')?.value?.trim() || '';
+                if (text) {
+                    localStorage.setItem(COMMENT_KEY, text);
+                } else {
+                    localStorage.removeItem(COMMENT_KEY);
+                }
+                window.HMSApp.closeModal();
+                RepertoireComponent._renderSongList();
+            });
+
+            document.getElementById('comment-cancel-btn')?.addEventListener('click', () => {
+                window.HMSApp.closeModal();
+            });
+
+            document.getElementById('comment-clear-btn')?.addEventListener('click', () => {
+                localStorage.removeItem(COMMENT_KEY);
+                window.HMSApp.closeModal();
+                RepertoireComponent._renderSongList();
+            });
+        },
+
         _bindSetlistDeleteButtons: function () {
             // ── Excluir setlist ──────────────────────────────────────────
             document.querySelectorAll('.sl-delete-btn').forEach(btn => {
@@ -3842,20 +3949,6 @@
                     }
                 });
             });
-        },
-
-        // ── Status flag (0=none 1=green 2=yellow 3=red) ──────────
-        _handleToggleAlert: async function (id) {
-            const song = _state.songs.find(s => s.id === id);
-            if (!song) return;
-            const newVal = ((song.status_flag || 0) + 1) % 5;
-            try {
-                await window.HMSAPI.Songs.update(id, { status_flag: newVal });
-                song.status_flag = newVal;
-                RepertoireComponent._renderSongList();
-            } catch (err) {
-                window.HMSApp.showToast('Erro ao atualizar bandeira: ' + err.message, 'error');
-            }
         },
 
         // ── Drag & Drop (position sort) ───────────────────────────

@@ -555,6 +555,34 @@ tbody tr:hover td { background: var(--glass-bg); }
 .song-audio-flag.has-audio { color: #a78bfa; opacity: 1; }
 .song-card:hover .song-audio-flag.has-audio { color: var(--chord-green); }
 
+/* ── Comment Badge ───────────────────────────────────────────── */
+.song-comment-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: rgba(248, 113, 113, 0.18);
+    border: 1.5px solid #f87171;
+    color: #f87171; font-size: .65rem; font-weight: 800;
+    flex-shrink: 0; cursor: pointer;
+    transition: background var(--transition), box-shadow var(--transition);
+    box-shadow: 0 0 0 0 rgba(248,113,113,.4);
+    animation: comment-pulse 2.5s ease-in-out infinite;
+}
+@keyframes comment-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(248,113,113,.4); }
+    50%       { box-shadow: 0 0 0 4px rgba(248,113,113,0); }
+}
+.song-card:hover .song-comment-badge {
+    background: rgba(248, 113, 113, 0.32);
+}
+
+/* ── Comment Mode cursor hint ───────────────────────────────── */
+.comment-mode-cursor { cursor: crosshair !important; }
+#btn-comment-mode.active {
+    background: rgba(248,113,113,.15) !important;
+    border-color: #f87171 !important;
+    color: #f87171 !important;
+}
+
 /* ── Filter Bar ─────────────────────────────────────────────── */
 .filter-bar { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .filter-label {
