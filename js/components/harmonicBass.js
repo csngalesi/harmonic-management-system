@@ -763,6 +763,9 @@
         },
 
         _deleteStudy: async function (id) {
+            const study = _st.studies.find(s => s.id === id);
+            const name  = study?.title ? `"${study.title}"` : 'este estudo';
+            if (!confirm(`Excluir ${name}?\nEsta ação não pode ser desfeita.`)) return;
             try {
                 await window.HMSAPI.BassStudies.delete(id);
                 _st.studies = _st.studies.filter(s => s.id !== id);

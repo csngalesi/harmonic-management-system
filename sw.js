@@ -4,7 +4,7 @@
  * Strategy: Cache-first for static assets, network-first for API calls.
  */
 
-const CACHE_NAME = 'hms-v59';
+const CACHE_NAME = 'hms-v60';
 
 
 
