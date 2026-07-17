@@ -452,10 +452,11 @@
                     }
                 }
 
-                // Note name label when playing
-                if (isPlay) {
-                    p.push(`<text x="${noteX}" y="${H - 4}" text-anchor="middle" font-size="7.5" font-family="var(--font-mono)" fill="var(--chord-amber,#fbbf24)" font-weight="700">${esc(n.note)}</text>`);
-                }
+                // Note name — always show pitch class below staff
+                const pitchClass = n.note.replace(/\d+$/, ''); // e.g. "C4" → "C", "Bb4" → "Bb"
+                const lblFill    = isPlay ? 'var(--chord-amber,#fbbf24)' : 'var(--text-muted)';
+                const lblWeight  = isPlay ? '700' : '500';
+                p.push(`<text x="${noteX}" y="${H - 4}" text-anchor="middle" font-size="7" font-family="var(--font-mono)" fill="${lblFill}" font-weight="${lblWeight}">${esc(pitchClass)}</text>`);
 
                 absIdx++;
             });
@@ -638,6 +639,9 @@
                         <i class="fa-solid fa-${_st.playingAll ? 'stop' : 'music'}"></i>
                         ${_st.playingAll ? 'Parar' : 'Tocar Tudo'}
                     </button>
+                    <button class="btn btn-ghost" id="hm-print-all-keys" title="Gerar PDF em todas as tonalidades" style="margin-left:auto;">
+                        <i class="fa-solid fa-print"></i> PDF
+                    </button>
                 </div>
             </div>
 
@@ -762,6 +766,7 @@
 
             document.getElementById('hm-play-melody')?.addEventListener('click', () => C._togglePlayAll());
             document.getElementById('hm-play-all')?.addEventListener('click', () => C._togglePlayAllWithChords());
+            document.getElementById('hm-print-all-keys')?.addEventListener('click', () => C._printAllKeys());
 
             const grid = document.getElementById('hm-chord-grid');
 
@@ -1091,6 +1096,97 @@
                 allBtn.innerHTML = `<i class="fa-solid fa-${_st.playingAll ? 'stop' : 'music'}"></i> ${_st.playingAll ? 'Parar' : 'Tocar Tudo'}`;
                 allBtn.className = `btn ${_st.playingAll ? 'btn-secondary' : 'btn-primary'}`;
             }
+        },
+
+        // ── Print all keys ──────────────────────────────────────────────────
+        _printAllKeys: function () {
+            if (!_st.harmonyStr.trim()) {
+                window.HMSApp.showToast('Insira uma harmonia antes de imprimir.', 'warning');
+                return;
+            }
+
+            const origRoot    = _st.root;
+            const origIsMinor = _st.isMinor;
+
+            const ROOTS = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+            const LABEL_MAJ = {
+                C:'Dó maior', Db:'Réb maior', D:'Ré maior', Eb:'Mib maior',
+                E:'Mi maior', F:'Fá maior',   Gb:'Solb maior', G:'Sol maior',
+                Ab:'Láb maior', A:'Lá maior', Bb:'Sib maior', B:'Si maior'
+            };
+            const LABEL_MIN = {
+                C:'Dó menor', Db:'Réb menor', D:'Ré menor', Eb:'Mib menor',
+                E:'Mi menor', F:'Fá menor',   Gb:'Solb menor', G:'Sol menor',
+                Ab:'Láb menor', A:'Lá menor', Bb:'Sib menor', B:'Si menor'
+            };
+
+            // Generate SVG for each of the 12 keys
+            const sections = [];
+            for (const root of ROOTS) {
+                _st.root    = root;
+                _st.isMinor = origIsMinor;
+                _parseHarmony();
+                _ensureMelodies();
+                const svg   = _staffSVG(_buildFlatSeq());
+                const label = (origIsMinor ? LABEL_MIN : LABEL_MAJ)[root];
+                sections.push({ svg, label });
+            }
+
+            // Restore original state
+            _st.root    = origRoot;
+            _st.isMinor = origIsMinor;
+            _parseHarmony();
+            _ensureMelodies();
+
+            const title = (_st.savingTitle || 'Estudo Melódico').trim();
+
+            // Replace CSS variables with explicit print-safe colors
+            const SUBS = [
+                ['var(--text-primary)',        '#111'],
+                ['var(--text-secondary)',      '#555'],
+                ['var(--text-muted)',          '#777'],
+                ['var(--brand,#7c3aed)',       '#111'],
+                ['var(--chord-amber,#fbbf24)', '#000'],
+                ['var(--chord-blue,#60a5fa)',  '#333'],
+                ['var(--chord-green,#34d399)', '#444'],
+                ['var(--chord-red,#f87171)',   '#666'],
+                ['var(--font-mono)',           'monospace'],
+            ];
+
+            let body = sections.map(s => {
+                let svgHtml = s.svg;
+                for (const [from, to] of SUBS) svgHtml = svgHtml.split(from).join(to);
+                return `<div class="key-section"><h1>${esc(title)}</h1>` +
+                       `<div class="key-label">${s.label}</div>` +
+                       `<div class="staff-wrap">${svgHtml}</div></div>`;
+            }).join('');
+
+            const win = window.open('', '_blank', 'width=1100,height=750');
+            if (!win) {
+                window.HMSApp.showToast('Popup bloqueado — habilite popups e tente novamente.', 'warning');
+                return;
+            }
+            win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head>
+<meta charset="utf-8"><title>${esc(title)}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Georgia,serif;background:#fff;color:#000;padding:12mm 15mm}
+h1{font-size:18pt;text-align:center;margin-bottom:4pt;font-weight:700;letter-spacing:.02em}
+.key-label{font-size:11pt;text-align:center;color:#555;margin-bottom:12pt;font-style:italic}
+.staff-wrap{overflow:visible}
+.staff-wrap svg{width:100%;height:auto}
+.key-section{margin-bottom:8mm;page-break-after:always}
+.key-section:last-child{page-break-after:auto}
+@media print{
+  body{padding:8mm 10mm}
+  .key-section{page-break-after:always}
+  .key-section:last-child{page-break-after:auto}
+}
+</style></head>
+<body>${body}</body></html>`);
+            win.document.close();
+            win.focus();
+            setTimeout(() => { try { win.print(); } catch(_) {} }, 900);
         },
 
         // ── Studies tab ──────────────────────────────────────────────────────
