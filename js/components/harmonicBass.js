@@ -128,10 +128,10 @@
         harmonyStr:    '',
         bpm:           80,
         timeSig:       '2/4',
+        instrument:    'guitar',   // 'guitar' | 'cavaco' | 'basic'
         chords:        [],
         slots:         [],   // [{n1,n2,b1,b2}, ...] — one per chord
         playingCi:     null,
-        playingSlot:   null,   // 0/1 for T1/T2
         playingCol:    null,   // 0/1 for B1/B2
         playingDeg:    null,   // index within B col
         playing:       false,
@@ -180,24 +180,16 @@
         return `<div style="display:flex;gap:2px;justify-content:center;flex-wrap:nowrap;">${cells}</div>`;
     }
 
-    // ── Chord Card HTML ───────────────────────────────────────────────────────
+    // ── Chord Card HTML (B1/B2 only) ──────────────────────────────────────────
     function _cardHtml(chord, ci) {
-        const slot    = _st.slots[ci] || { n1:'1', n2:'5', b1:'', b2:'' };
+        const slot    = _st.slots[ci] || { b1:'', b2:'' };
         const color   = _chordColor(chord);
-        const letter1 = _degToLetter(slot.n1, chord);
-        const letter2 = _degToLetter(slot.n2, chord);
         const degs1   = _parseDegs(slot.b1);
         const degs2   = _parseDegs(slot.b2);
+        const isActive = _st.playingCi === ci;
 
-        const isPlaying1 = _st.playingCi === ci && _st.playingSlot === 0;
-        const isPlaying2 = _st.playingCi === ci && _st.playingSlot === 1;
-
-        const noteStyle = (active) =>
-            `font-size:.8rem;font-weight:800;font-family:var(--font-mono);` +
-            `color:${active ? '#fff' : 'var(--chord-blue,#60a5fa)'};` +
-            `background:${active ? 'var(--brand,#7c3aed)' : 'transparent'};` +
-            `border-radius:4px;padding:1px 4px;min-width:28px;text-align:center;` +
-            `transition:background .15s,color .15s;`;
+        const border  = isActive ? 'var(--brand,#7c3aed)' : 'var(--glass-border,rgba(255,255,255,.08))';
+        const shadow  = isActive ? '0 0 14px rgba(124,58,237,.4)' : 'none';
 
         const inputStyle =
             `width:100%;box-sizing:border-box;text-align:center;background:var(--bg-raised);` +
@@ -208,8 +200,10 @@
         return `
         <div class="hb-card" data-ci="${ci}"
             style="flex-shrink:0;min-width:100px;max-width:150px;border-radius:8px;
-            border:1px solid var(--glass-border,rgba(255,255,255,.08));
-            background:var(--bg-surface);overflow:hidden;">
+            border:2px solid ${border};
+            box-shadow:${shadow};
+            background:var(--bg-surface);overflow:hidden;
+            transition:border-color .18s,box-shadow .18s;">
 
             <!-- Header -->
             <div style="padding:4px 6px 3px;display:flex;align-items:center;gap:4px;
@@ -222,31 +216,7 @@
                 </button>
             </div>
 
-            <!-- T1 / T2 row (clássico) -->
-            <div style="display:flex;align-items:stretch;gap:0;border-bottom:1px solid var(--line-color);">
-                <div style="flex:1;display:flex;flex-direction:column;align-items:center;
-                    padding:5px 4px 5px;border-right:1px solid var(--line-color);">
-                    <input class="hb-deg-input" data-ci="${ci}" data-slot="0"
-                        value="${esc(slot.n1)}" placeholder="1"
-                        style="width:100%;box-sizing:border-box;text-align:center;background:var(--bg-raised);
-                        border:1px solid var(--glass-border);border-radius:3px;outline:none;
-                        font-family:var(--font-mono);font-size:.7rem;font-weight:600;
-                        color:var(--text-primary);padding:2px 2px;margin-bottom:4px;" />
-                    <div id="hb-letter-${ci}-0" style="${noteStyle(isPlaying1)}">${esc(letter1)||'—'}</div>
-                </div>
-                <div style="flex:1;display:flex;flex-direction:column;align-items:center;
-                    padding:5px 4px 5px;">
-                    <input class="hb-deg-input" data-ci="${ci}" data-slot="1"
-                        value="${esc(slot.n2)}" placeholder="5"
-                        style="width:100%;box-sizing:border-box;text-align:center;background:var(--bg-raised);
-                        border:1px solid var(--glass-border);border-radius:3px;outline:none;
-                        font-family:var(--font-mono);font-size:.7rem;font-weight:600;
-                        color:var(--text-primary);padding:2px 2px;margin-bottom:4px;" />
-                    <div id="hb-letter-${ci}-1" style="${noteStyle(isPlaying2)}">${esc(letter2)||'—'}</div>
-                </div>
-            </div>
-
-            <!-- B1 / B2 row (subdivisão) -->
+            <!-- B1 / B2 row -->
             <div style="display:flex;align-items:stretch;gap:0;">
                 <div style="flex:1;display:flex;flex-direction:column;align-items:center;
                     padding:4px 4px 5px;border-right:1px solid var(--line-color);">
@@ -290,7 +260,7 @@
                     <div class="page-title-icon"><i class="fa-solid fa-bass-guitar"></i></div>
                     <div>
                         <h2>Condução de Baixo</h2>
-                        <p>T1/T2 clássico · B1/B2 subdivisão (até 4 graus)</p>
+                        <p>Até 4 notas por meio compasso · Baixo de 7 cordas</p>
                     </div>
                 </div>
             </div>
@@ -323,9 +293,26 @@
                             <option value="6/8" ${_st.timeSig === '6/8' ? 'selected' : ''}>6/8</option>
                         </select>
                     </div>
+                    <!-- Instrument selector -->
+                    <div style="display:flex;gap:4px;">
+                        ${['guitar','cavaco','basic'].map(inst => {
+                            const labels = {guitar:'Violão', cavaco:'Cavaco', basic:'Synth'};
+                            const active = _st.instrument === inst;
+                            return `<button class="hb-inst-btn btn btn-ghost" data-inst="${inst}"
+                                style="padding:3px 10px;font-size:.72rem;
+                                background:${active ? 'var(--brand-dim,rgba(124,58,237,.12))' : ''};
+                                border-color:${active ? 'var(--brand,#7c3aed)' : 'var(--glass-border)'};
+                                color:${active ? 'var(--brand,#7c3aed)' : 'var(--text-secondary)'};
+                                font-weight:${active ? '700' : '400'};">${labels[inst]}</button>`;
+                        }).join('')}
+                    </div>
                     <button class="btn ${_st.playing ? 'btn-secondary' : 'btn-primary'}" id="hb-play-btn">
                         <i class="fa-solid fa-${_st.playing ? 'stop' : 'play'}"></i>
-                        ${_st.playing ? 'Parar' : 'Tocar Linha'}
+                        ${_st.playing ? 'Parar' : 'Tocar Baixo'}
+                    </button>
+                    <button class="btn btn-ghost" id="hb-guitar-btn"
+                        style="border-color:var(--chord-green,#34d399);color:var(--chord-green,#34d399);">
+                        <i class="fa-solid fa-guitar"></i> Tocar Acordes
                     </button>
                 </div>
             </div>
@@ -333,7 +320,7 @@
             <!-- Hint -->
             <div style="font-size:.7rem;color:var(--text-muted);margin-bottom:.75rem;padding:5px 10px;
                 background:var(--bg-raised);border-radius:var(--radius-sm);border-left:3px solid var(--brand);">
-                T1/T2: grau por tempo (clássico) · B1/B2: graus separados por espaço · ex: <code>1 5</code> <code>1 b3 5 1</code> ·
+                B1/B2: graus separados por espaço · ex: <code>1 5</code> <code>1 b3 5 1</code> ·
                 Use <code>-</code> para silêncio · 2=colcheias · 3=tercinas · 4=semicolcheias · Tab=próximo
             </div>
 
@@ -421,22 +408,27 @@
             });
 
             document.getElementById('hb-play-btn')?.addEventListener('click', () => C._togglePlay());
+            document.getElementById('hb-guitar-btn')?.addEventListener('click', () => C._toggleGuitarPlay());
+
+            // Instrument selector
+            document.getElementById('hb-tab-content')?.addEventListener('click', e => {
+                const instBtn = e.target.closest('.hb-inst-btn');
+                if (instBtn) {
+                    _st.instrument = instBtn.dataset.inst;
+                    document.querySelectorAll('.hb-inst-btn').forEach(b => {
+                        const on = b.dataset.inst === _st.instrument;
+                        b.style.background   = on ? 'var(--brand-dim,rgba(124,58,237,.12))' : '';
+                        b.style.borderColor  = on ? 'var(--brand,#7c3aed)' : 'var(--glass-border)';
+                        b.style.color        = on ? 'var(--brand,#7c3aed)' : 'var(--text-secondary)';
+                        b.style.fontWeight   = on ? '700' : '400';
+                    });
+                }
+            });
 
             const grid = document.getElementById('hb-chord-grid');
 
-            // T1/T2 inputs
+            // B1/B2 inputs
             grid?.addEventListener('input', e => {
-                const inp = e.target.closest('.hb-deg-input');
-                if (inp) {
-                    const ci   = +inp.dataset.ci;
-                    const slot = +inp.dataset.slot;
-                    _ensureSlots();
-                    if (slot === 0) _st.slots[ci].n1 = inp.value;
-                    else            _st.slots[ci].n2 = inp.value;
-                    C._refreshLetter(ci, slot);
-                    return;
-                }
-                // B1/B2 inputs
                 const bass = e.target.closest('.hb-bass-input');
                 if (bass) {
                     const ci  = +bass.dataset.ci;
@@ -449,25 +441,13 @@
             });
 
             grid?.addEventListener('keydown', e => {
-                const inp  = e.target.closest('.hb-deg-input');
                 const bass = e.target.closest('.hb-bass-input');
-                if (!inp && !bass) return;
-                if (e.key !== 'Tab') return;
+                if (!bass || e.key !== 'Tab') return;
                 e.preventDefault();
-
-                if (inp) {
-                    // T1/T2 row: Tab cycles only between T1 and T2 of same card
-                    const ci   = +inp.dataset.ci;
-                    const slot = +inp.dataset.slot;
-                    const next = slot === 0 ? 1 : 0;
-                    document.querySelector(`.hb-deg-input[data-ci="${ci}"][data-slot="${next}"]`)?.focus();
-                } else {
-                    // B1/B2 row: Tab cycles only between B1 and B2 of same card
-                    const ci  = +bass.dataset.ci;
-                    const col = +bass.dataset.col;
-                    const next = col === 0 ? 1 : 0;
-                    document.querySelector(`.hb-bass-input[data-ci="${ci}"][data-col="${next}"]`)?.focus();
-                }
+                const ci   = +bass.dataset.ci;
+                const col  = +bass.dataset.col;
+                const next = col === 0 ? 1 : 0;
+                document.querySelector(`.hb-bass-input[data-ci="${ci}"][data-col="${next}"]`)?.focus();
             });
 
             grid?.addEventListener('click', e => {
@@ -495,13 +475,13 @@
             if (saveBar) saveBar.style.display = hasChords ? 'flex' : 'none';
         },
 
-        _refreshLetter(ci, slotIdx) {
-            const el = document.getElementById(`hb-letter-${ci}-${slotIdx}`);
-            if (!el) return;
-            const chord = _st.chords[ci];
-            if (!chord) return;
-            const deg = slotIdx === 0 ? _st.slots[ci].n1 : _st.slots[ci].n2;
-            el.textContent = _degToLetter(deg, chord) || '—';
+        // ── Card-level glow highlight ─────────────────────────────────────────
+        _setCardActive(ci) {
+            document.querySelectorAll('.hb-card').forEach(card => {
+                const on = ci !== null && +card.dataset.ci === ci;
+                card.style.borderColor = on ? 'var(--brand,#7c3aed)' : 'var(--glass-border,rgba(255,255,255,.08))';
+                card.style.boxShadow   = on ? '0 0 14px rgba(124,58,237,.4)' : 'none';
+            });
         },
 
         _refreshNoteRow(ci, col) {
@@ -516,17 +496,9 @@
             if (row) row.outerHTML = _noteRowHtml(degs, chord, ci, col);
         },
 
-        // ── Highlight ─────────────────────────────────────────────────────────
 
-        _setPlayHighlight(ci, slotIdx, active) {
-            [0, 1].forEach(s => {
-                const el = document.getElementById(`hb-letter-${ci}-${s}`);
-                if (!el) return;
-                const on = active && s === slotIdx;
-                el.style.background = on ? 'var(--brand,#7c3aed)' : 'transparent';
-                el.style.color      = on ? '#fff' : 'var(--chord-blue,#60a5fa)';
-            });
-        },
+
+        // ── Note / Card highlight ─────────────────────────────────────────────
 
         _clearBassHighlight() {
             if (_st.playingCi !== null && _st.playingCol !== null && _st.playingDeg !== null) {
@@ -553,35 +525,26 @@
         _stopAll() {
             window.HMSAudio.stop();
             C._clearTimers();
-            if (_st.playingCi !== null) C._setPlayHighlight(_st.playingCi, _st.playingSlot, false);
             C._clearBassHighlight();
-            _st.playing     = false;
-            _st.playingCi   = null;
-            _st.playingSlot = null;
-            const btn = document.getElementById('hb-play-btn');
-            if (btn) {
-                btn.innerHTML = '<i class="fa-solid fa-play"></i> Tocar Linha';
-                btn.className = 'btn btn-primary';
-            }
+            C._setCardActive(null);
+            _st.playing   = false;
+            _st.playingCi = null;
+            const btn1 = document.getElementById('hb-play-btn');
+            if (btn1) { btn1.innerHTML = '<i class="fa-solid fa-play"></i> Tocar Baixo'; btn1.className = 'btn btn-primary'; }
+            const btn2 = document.getElementById('hb-guitar-btn');
+            if (btn2) { btn2.innerHTML = '<i class="fa-solid fa-guitar"></i> Tocar Acordes'; btn2.className = 'btn btn-ghost'; btn2.style.cssText = 'border-color:var(--chord-green,#34d399);color:var(--chord-green,#34d399);'; }
         },
 
-        // Build full playback sequence for chords [ciStart, ciEnd)
-        // Each chord: T1 → T2 (slotDur each), then B1 subdivided → B2 subdivided
+        // Build B1/B2 playback sequence for chords [ciStart, ciEnd)
         _buildSeq(ciStart, ciEnd) {
             _ensureSlots();
             const slotDur = _slotDur();
-            const seq = [];   // {type:'T'|'B', ci, slotIdx?, col?, degIdx?, note, dur, ms}
+            const seq = [];   // {type:'B', ci, col, degIdx, note, dur, ms}
 
             for (let ci = ciStart; ci < ciEnd; ci++) {
                 const chord = _st.chords[ci];
                 if (!chord) continue;
-                const slot = _st.slots[ci] || { n1:'1', n2:'5', b1:'', b2:'' };
-
-                // T1 / T2
-                [slot.n1, slot.n2].forEach((deg, slotIdx) => {
-                    const note = _degToNote(deg, chord);
-                    seq.push({ type:'T', ci, slotIdx, note, dur: slotDur, ms: _durToMs(slotDur, _st.bpm) });
-                });
+                const slot = _st.slots[ci] || { b1:'', b2:'' };
 
                 // B1 / B2
                 [slot.b1, slot.b2].forEach((str, col) => {
@@ -600,18 +563,21 @@
 
         _scheduleSeq(seq) {
             let cumMs = 0;
+            let prevCi = -1;
             seq.forEach(item => {
+                // Card glow on first note of each new chord
+                if (item.ci !== prevCi) {
+                    prevCi = item.ci;
+                    const t0 = setTimeout(() => {
+                        _st.playingCi = item.ci;
+                        C._setCardActive(item.ci);
+                    }, cumMs);
+                    _st.playTimers.push(t0);
+                }
+                // Note highlight
                 const t = setTimeout(() => {
-                    if (item.type === 'T') {
-                        if (_st.playingCi !== null) C._setPlayHighlight(_st.playingCi, _st.playingSlot, false);
-                        C._clearBassHighlight();
-                        _st.playingCi   = item.ci;
-                        _st.playingSlot = item.slotIdx;
-                        C._setPlayHighlight(item.ci, item.slotIdx, true);
-                    } else {
-                        if (item.note) C._activateBassHighlight(item.ci, item.col, item.degIdx);
-                        else           C._clearBassHighlight();
-                    }
+                    if (item.note) C._activateBassHighlight(item.ci, item.col, item.degIdx);
+                    else           C._clearBassHighlight();
                 }, cumMs);
                 cumMs += item.ms;
                 _st.playTimers.push(t);
@@ -635,6 +601,26 @@
             window.HMSAudio.playMelody(audioSeq, _st.bpm, () => C._stopAll(), _st.timeSig);
         },
 
+        _toggleGuitarPlay() {
+            if (_st.playing) { C._stopAll(); return; }
+
+            const chords = _st.chords.slice();
+            if (!chords.length) { window.HMSApp.showToast('Sem acordes para tocar.', 'warning'); return; }
+
+            const strumMode = _st.instrument === 'guitar' ? 'guitar-sample'
+                            : _st.instrument === 'cavaco'  ? 'cavaco-sample'
+                            : 'basic';
+
+            _st.playing = true;
+            const btn = document.getElementById('hb-guitar-btn');
+            if (btn) { btn.innerHTML = '<i class="fa-solid fa-stop"></i> Parar'; btn.className = 'btn btn-secondary'; btn.style.cssText = ''; }
+
+            window.HMSAudio.playSequence(null, _st.bpm, () => C._stopAll(), strumMode, (seqIdx) => {
+                _st.playingCi = seqIdx;
+                C._setCardActive(seqIdx);
+            }, chords);
+        },
+
         _playChord(ci) {
             if (_st.playing) C._stopAll();
             const chord = _st.chords[ci];
@@ -645,6 +631,7 @@
             if (!audioSeq.length) return;
 
             _st.playing = true;
+            C._setCardActive(ci);
             const totalMs = C._scheduleSeq(seq);
             _st.playTimers.push(setTimeout(() => C._stopAll(), totalMs + 100));
             window.HMSAudio.playMelody(audioSeq, _st.bpm, () => C._stopAll(), _st.timeSig);
