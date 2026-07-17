@@ -58,7 +58,7 @@
         harmonies: {},
         showCavaco: false,
         showViolao: false,
-        instrument: 'synth',   // 'synth' | 'guitar' | 'cavaco'
+        instrument: 'guitar',  // 'synth' | 'guitar' | 'cavaco'
         // Repositório
         tab:           'exemplos',
         cadences:      [],
