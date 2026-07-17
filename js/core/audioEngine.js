@@ -293,7 +293,7 @@
          * @param {string}   strumMode      'basic' | 'violao24' | 'guitar-sample' | 'cavaco-sample'
          * @param {Function} onChordChange  (chordValue: string) → called each time a new chord plays
          */
-        async playSequence(tokens, bpm = 60, onFinished, strumMode = 'basic', onChordChange = null) {
+        async playSequence(tokens, bpm = 60, onFinished, strumMode = 'basic', onChordChange = null, chordOverride = null) {
             AudioEngine.stop();
 
             // ── Violão 2/4 ───────────────────────────────────────
@@ -340,39 +340,38 @@
                 await AudioEngine.loadGuitarSamplers(instrument);
                 try { await ensureSynth(); } catch (_) {}
 
-                // Monta lista ordenada de acordes
-                const chords = [];
-                let lastChord = null;
-                // Rastreia onde começou cada "seção" para repetir quando encontrar ×N
-                let sectionStart = 0;
-                for (const token of tokens) {
-                    if (token.type === 'CHORD') {
-                        const v = token.value;
-                        // Valida que parece um acorde real (começa com nota A-G)
-                        if (!/^[A-G]/.test(v)) continue;
-                        chords.push(v);
-                        lastChord = v;
-                    } else if (token.type === 'STRUCT') {
-                        if (token.value === '/') {
-                            // Repetição do último acorde
-                            if (lastChord) chords.push(lastChord);
-                        } else if (/^×(\d+)$/.test(token.value)) {
-                            // ×N: repete a seção desde sectionStart mais (N-1) vezes
-                            const times = parseInt(token.value.slice(1), 10);
-                            const section = chords.slice(sectionStart);
-                            for (let r = 1; r < times; r++) {
-                                chords.push(...section);
+                // ── Monta lista de acordes ──────────────────────────────────
+                // Se chordOverride fornecido (do DOM), usa diretamente.
+                // Senão (fallback), monta a partir dos tokens.
+                let chords;
+                if (chordOverride && chordOverride.length > 0) {
+                    chords = chordOverride;
+                } else {
+                    chords = [];
+                    let lastChord = null;
+                    let sectionStart = 0;
+                    for (const token of (tokens || [])) {
+                        if (token.type === 'CHORD') {
+                            const v = token.value;
+                            if (!/^[A-G]/.test(v)) continue;
+                            chords.push(v);
+                            lastChord = v;
+                        } else if (token.type === 'STRUCT') {
+                            if (token.value === '/') {
+                                if (lastChord) chords.push(lastChord);
+                            } else if (/^×(\d+)$/.test(token.value)) {
+                                const times = parseInt(token.value.slice(1), 10);
+                                const section = chords.slice(sectionStart);
+                                for (let r = 1; r < times; r++) chords.push(...section);
+                                sectionStart = chords.length;
+                                if (chords.length > 0) lastChord = chords[chords.length - 1];
+                            } else {
+                                sectionStart = chords.length;
                             }
-                            // Próxima seção começa daqui
-                            sectionStart = chords.length;
-                            if (chords.length > 0) lastChord = chords[chords.length - 1];
                         } else {
-                            // Outro STRUCT ([, ], etc.) → marca início de nova seção
+                            // LABEL, MOD, etc. → não é acorde
                             sectionStart = chords.length;
                         }
-                    } else {
-                        // LABEL, MOD, etc. → não é acorde; marca início de nova seção
-                        sectionStart = chords.length;
                     }
                 }
                 if (chords.length === 0) return;

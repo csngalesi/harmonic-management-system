@@ -1309,33 +1309,50 @@
                 const strumMode = _sdInstrument === 'guitar' ? 'guitar-sample'
                                 : _sdInstrument === 'cavaco' ? 'cavaco-sample'
                                 : 'basic';
-                const toks = window.HarmonyEngine.translate(song.harmony_str || '', root, isMinor);
-                _setPlaying(true);
 
-                // Inicia painel de debug apenas para instrumentos com samples
+                // ── Monta lista de acordes direto dos chips da tela ──────────
+                // Garante que playback = exatamente o que está impresso
+                const allDisplayChips = [...document.querySelectorAll('#sd-chords-display .sd-chord[data-chord]')];
+                const playList = []; // { chord, domIdx }
+                let _lastEntry = null;
+                for (const chip of allDisplayChips) {
+                    const v   = chip.dataset.chord;
+                    const idx = parseInt(chip.dataset.chordIdx, 10);
+                    if (v === '/') {
+                        if (_lastEntry) playList.push({ chord: _lastEntry.chord, domIdx: idx });
+                    } else if (/^[A-G]/.test(v)) {
+                        const entry = { chord: v, domIdx: idx };
+                        playList.push(entry);
+                        _lastEntry = entry;
+                    }
+                }
+                const chordOverride = playList.map(e => e.chord);
+                const domIdxMap     = playList.map(e => e.domIdx);
+
+                _setPlaying(true);
                 if (strumMode !== 'basic') _startDebugPolling();
 
-                // Highlight callback: marca o chip do acorde atual por índice
-                const onChordChange = (chordIdx, chordValue) => {
-                    const allChips = document.querySelectorAll('#sd-chords-display .sd-chord');
-                    allChips.forEach(c => c.classList.remove('chord-active'));
-                    // Busca primeiro por índice exato
-                    const byIdx = document.querySelector(`#sd-chords-display .sd-chord[data-chord-idx="${chordIdx}"]`);
-                    if (byIdx) {
-                        byIdx.classList.add('chord-active');
-                    } else {
-                        // Fallback: primeiro chip com o mesmo valor
-                        const first = [...allChips].find(c => c.dataset.chord === chordValue);
-                        if (first) first.classList.add('chord-active');
+                const onChordChange = (seqIdx, chordValue) => {
+                    document.querySelectorAll('#sd-chords-display .sd-chord.chord-active')
+                        .forEach(c => c.classList.remove('chord-active'));
+                    const domIdx = domIdxMap[seqIdx];
+                    if (domIdx != null && !isNaN(domIdx)) {
+                        const chip = document.querySelector(
+                            `#sd-chords-display .sd-chord[data-chord-idx="${domIdx}"]`);
+                        if (chip) { chip.classList.add('chord-active'); return; }
                     }
+                    const first = [...document.querySelectorAll('#sd-chords-display .sd-chord')]
+                        .find(c => c.dataset.chord === chordValue);
+                    if (first) first.classList.add('chord-active');
                 };
 
                 try {
-                    await window.HMSAudio.playSequence(toks, bpm, () => {
+                    await window.HMSAudio.playSequence(null, bpm, () => {
                         _setPlaying(false);
                         _stopDebugPolling();
-                        document.querySelectorAll('#sd-chords-display .sd-chord.chord-active').forEach(c => c.classList.remove('chord-active'));
-                    }, strumMode, onChordChange);
+                        document.querySelectorAll('#sd-chords-display .sd-chord.chord-active')
+                            .forEach(c => c.classList.remove('chord-active'));
+                    }, strumMode, onChordChange, chordOverride);
                 } catch (err) {
                     _setPlaying(false);
                     _stopDebugPolling();
