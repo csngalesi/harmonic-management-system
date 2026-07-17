@@ -179,9 +179,7 @@
                         <button class="sort-btn" id="btn-save-prefs" title="Salvar vista atual como padrão de entrada" style="margin-left:2px;">
                             <i class="fa-solid fa-bookmark"></i>
                         </button>
-                        <button class="sort-btn" id="btn-comment-mode" title="Modo comentário: clique numa música para adicionar/editar nota rápida" style="margin-left:2px;">
-                            <i class="fa-solid fa-exclamation"></i>
-                        </button>
+
                         <button class="btn btn-primary btn-sm" id="btn-save-order"
                             style="display:${_state.showDragMode && _hasUnsavedOrder ? 'inline-flex' : 'none'};align-items:center;gap:5px;padding:3px 10px;font-size:.75rem;margin-left:4px;"
                             title="Salvar nova ordem das músicas">
@@ -289,17 +287,6 @@
                 const savePrefsBtn = e.target.closest('#btn-save-prefs');
                 if (savePrefsBtn) {
                     RepertoireComponent._savePrefs();
-                }
-                const commentModeBtn = e.target.closest('#btn-comment-mode');
-                if (commentModeBtn) {
-                    _state.commentMode = !_state.commentMode;
-                    commentModeBtn.classList.toggle('active', _state.commentMode);
-                    commentModeBtn.title = _state.commentMode
-                        ? 'Modo comentário ATIVO — clique em uma música para comentar'
-                        : 'Modo comentário: clique numa música para adicionar/editar nota rápida';
-                    if (_state.commentMode) {
-                        window.HMSApp.showToast('Modo comentário ativado — clique numa música', 'info');
-                    }
                 }
             });
 
@@ -596,15 +583,15 @@
                         e.stopPropagation();
                         RepertoireComponent._handleToggleAlert(cell.dataset.id);
                     });
-                    // Click: modo comentário → abre modal de nota; normal → abre detalhe
+                    // Botão de comentário na show-cell
+                    cell.querySelector('.show-comment-btn')?.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        RepertoireComponent._openCommentModal(cell.dataset.id);
+                    });
+                    // Click na célula abre detalhe (exceto nos botões internos)
                     if (!isGridDrag) {
                         cell.addEventListener('click', (e) => {
-                            if (e.target.closest('.show-alert-btn')) return;
-                            if (_state.commentMode) {
-                                e.stopPropagation();
-                                RepertoireComponent._openCommentModal(cell.dataset.id);
-                                return;
-                            }
+                            if (e.target.closest('.show-alert-btn') || e.target.closest('.show-comment-btn')) return;
                             const song = _state.songs.find(s => s.id === cell.dataset.id);
                             if (song) RepertoireComponent._openShowDetail(song);
                         });
@@ -630,7 +617,7 @@
                 const hasComment = !!localStorage.getItem(_COMMENT_KEY(s.id));
                 const flagTitles = ['Marcar verde', 'Marcar amarelo', 'Marcar vermelho', 'Marcar azul', 'Remover bandeira'];
                 return `
-                <div class="song-card${sf ? ' song-flag-' + sf : ''}${_state.commentMode ? ' comment-mode-cursor' : ''}" data-id="${s.id}"
+                <div class="song-card${sf ? ' song-flag-' + sf : ''}" data-id="${s.id}"
                     ${isDragMode ? 'draggable="true"' : ''}>
                     ${isDragMode ? '<span class="drag-handle" title="Arrastar para reordenar"><i class="fa-solid fa-grip-vertical"></i></span>' : ''}
                     <div class="song-info">
@@ -641,11 +628,14 @@
                             ${_state.activeSetlist && s._position !== null ? `<span><i class="fa-solid fa-hashtag fa-xs"></i> ${s._position}</span>` : ''}
                         </div>
                     </div>
+                    <button class="btn-icon card-comment-btn${hasComment ? ' has-comment' : ''}" data-action="comment" data-id="${s.id}"
+                        title="${hasComment ? esc(localStorage.getItem(_COMMENT_KEY(s.id)) || '') : 'Adicionar nota/comentário'}">
+                        <i class="fa-solid fa-exclamation"></i>
+                    </button>
                     <button class="btn-icon alert-flag sf-${sf}" data-action="alert" data-id="${s.id}"
                         title="${flagTitles[sf]}">
                         <i class="fa-solid fa-flag"></i>
                     </button>
-                    ${hasComment ? `<span class="song-comment-badge" title="${esc(localStorage.getItem(_COMMENT_KEY(s.id)) || '')}"><i class="fa-solid fa-exclamation"></i></span>` : ''}
                     <span class="song-key-badge">${esc(s.original_key)}</span>
                     <span class="song-harmony-flag${hasHarmony ? ' has-harmony' : ''}" title="${hasHarmony ? 'Harmonia cadastrada' : 'Sem harmonia'}">
                         <i class="fa-solid fa-music"></i>
@@ -680,23 +670,14 @@
                 btn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     const { action, id } = btn.dataset;
-                    if (action === 'play')   window.HMSApp.navigate('player', id);
-                    if (action === 'edit')   RepertoireComponent.openSongModal(id);
-                    if (action === 'delete') RepertoireComponent._handleDelete(id);
-                    if (action === 'alert')  RepertoireComponent._handleToggleAlert(id);
+                    if (action === 'play')    window.HMSApp.navigate('player', id);
+                    if (action === 'edit')    RepertoireComponent.openSongModal(id);
+                    if (action === 'delete')  RepertoireComponent._handleDelete(id);
+                    if (action === 'alert')   RepertoireComponent._handleToggleAlert(id);
+                    if (action === 'comment') RepertoireComponent._openCommentModal(id);
                 });
             });
 
-            // Clique no card: apenas no modo comentário abre o modal de comentário
-            // (modo normal: nada acontece ao clicar no card diretamente)
-            el.querySelectorAll('.song-card').forEach(card => {
-                card.addEventListener('click', (e) => {
-                    if (!_state.commentMode) return;          // modo normal: ignora
-                    if (e.target.closest('[data-action]')) return; // botões internos já tratados
-                    e.stopPropagation();
-                    RepertoireComponent._openCommentModal(card.dataset.id);
-                });
-            });
 
             // Drag & drop for position sort
             if (isDragMode) {
@@ -838,6 +819,7 @@
                 const sf         = s.status_flag || 0;
                 const rowCls     = sf ? 'status-flag-' + sf : (hasHarmony ? 'status-ok' : 'status-warn');
                 const keyCls     = (!hasHarmony && !hasLyrics) ? ' key-urgent' : '';
+                const cellComment = localStorage.getItem(`hms_song_comment_${s.id}`);
                 return `<div class="show-cell ${rowCls}${isShowDrag ? ' draggable-cell' : ''}" data-id="${s.id}"
                     ${isDragMode ? 'draggable="true"' : ''}>
                     <span class="show-key${keyCls}" data-key="${esc(s.original_key || '')}">${esc(s.original_key || '?')}</span>
@@ -845,6 +827,9 @@
                     ${isShowDrag && s._rank !== undefined
                         ? `<span class="show-pos">(${s._rank})</span>`
                         : ''}
+                    <button class="show-comment-btn${cellComment ? ' has-comment' : ''}" title="${cellComment ? esc(cellComment) : 'Adicionar nota'}" data-action="comment">
+                        <i class="fa-solid fa-exclamation"></i>
+                    </button>
                     <button class="show-alert-btn sf-${sf}" title="Ciclar bandeira">
                         <i class="fa-solid fa-flag"></i>
                     </button>

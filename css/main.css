@@ -576,6 +576,41 @@ tbody tr:hover td { background: var(--glass-bg); }
 }
 
 /* ── Comment Mode button active state ──────────────────────── */
+
+/* ── Per-card comment button ─────────────────────────────────── */
+.card-comment-btn {
+    opacity: .28;
+    color: var(--text-muted);
+    font-size: .7rem;
+    transition: opacity .18s, color .18s;
+    flex-shrink: 0;
+}
+.card-comment-btn:hover   { opacity: .75; color: #f87171; }
+.card-comment-btn.has-comment {
+    opacity: 1;
+    color: #f87171;
+    animation: comment-pulse 2.4s ease-in-out infinite;
+}
+
+/* show-cell comment button */
+.show-comment-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 5px;
+    font-size: .65rem;
+    opacity: .22;
+    color: var(--text-muted);
+    transition: opacity .18s, color .18s;
+    flex-shrink: 0;
+}
+.show-comment-btn:hover    { opacity: .7;  color: #f87171; }
+.show-comment-btn.has-comment {
+    opacity: 1;
+    color: #f87171;
+    animation: comment-pulse 2.4s ease-in-out infinite;
+}
 #btn-comment-mode.active {
     background: rgba(248,113,113,.15) !important;
     border-color: #f87171 !important;
