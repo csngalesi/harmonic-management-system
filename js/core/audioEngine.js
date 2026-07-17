@@ -386,10 +386,11 @@
                     if (player) {
                         duration = player.buffer?.duration ?? 2.0;
                         try {
-                            if (player.state === 'started') player.stop();
+                            // Sempre para antes de (re)iniciar — evita "already playing" do Tone.js
+                            try { player.stop(); } catch (_) {}
                             player.detune = detune;
                             player.start();
-                            if (detune !== 0) setTimeout(() => { try { player.detune = 0; } catch(_) {} }, duration * 1000 + 200);
+                            if (detune !== 0) setTimeout(() => { try { player.detune = 0; } catch(_) {} }, duration * 1000 + 300);
                         } catch (e) { console.warn('[AudioEngine] seq play erro:', e.message); }
                     } else if (sampler?.loaded) {
                         const notes = parseChordToNotes(chord);
