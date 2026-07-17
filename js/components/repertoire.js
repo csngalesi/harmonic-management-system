@@ -614,7 +614,14 @@
                 const hasLyrics  = !!s.has_lyrics;
                 const hasAudio   = !!s.audio_url;
                 const sf         = s.status_flag || 0;
-                const hasComment = !!localStorage.getItem(_COMMENT_KEY(s.id));
+                const hasComment   = !!localStorage.getItem(_COMMENT_KEY(s.id));
+                const cmtStatus    = localStorage.getItem(`hms_song_comment_status_${s.id}`) || '';
+                const cmtClass     = hasComment
+                    ? (cmtStatus === 'pendente-gale'  ? ' cs-gale'
+                    :  cmtStatus === 'pendente-lucas' ? ' cs-lucas'
+                    :  cmtStatus === 'resolvido'      ? ' cs-resolvido'
+                    :                                  ' has-comment')
+                    : '';
                 const flagTitles = ['Marcar verde', 'Marcar amarelo', 'Marcar vermelho', 'Marcar azul', 'Remover bandeira'];
                 return `
                 <div class="song-card${sf ? ' song-flag-' + sf : ''}" data-id="${s.id}"
@@ -628,7 +635,7 @@
                             ${_state.activeSetlist && s._position !== null ? `<span><i class="fa-solid fa-hashtag fa-xs"></i> ${s._position}</span>` : ''}
                         </div>
                     </div>
-                    <button class="btn-icon card-comment-btn${hasComment ? ' has-comment' : ''}" data-action="comment" data-id="${s.id}"
+                    <button class="btn-icon card-comment-btn${cmtClass}" data-action="comment" data-id="${s.id}"
                         title="${hasComment ? esc(localStorage.getItem(_COMMENT_KEY(s.id)) || '') : 'Adicionar nota/comentário'}">
                         <i class="fa-solid fa-exclamation"></i>
                     </button>
@@ -819,7 +826,14 @@
                 const sf         = s.status_flag || 0;
                 const rowCls     = sf ? 'status-flag-' + sf : (hasHarmony ? 'status-ok' : 'status-warn');
                 const keyCls     = (!hasHarmony && !hasLyrics) ? ' key-urgent' : '';
-                const cellComment = localStorage.getItem(`hms_song_comment_${s.id}`);
+                const cellComment  = localStorage.getItem(`hms_song_comment_${s.id}`);
+                const cellStatus   = localStorage.getItem(`hms_song_comment_status_${s.id}`) || '';
+                const cellCmtClass = cellComment
+                    ? (cellStatus === 'pendente-gale'  ? ' cs-gale'
+                    :  cellStatus === 'pendente-lucas' ? ' cs-lucas'
+                    :  cellStatus === 'resolvido'      ? ' cs-resolvido'
+                    :                                   ' has-comment')
+                    : '';
                 return `<div class="show-cell ${rowCls}${isShowDrag ? ' draggable-cell' : ''}" data-id="${s.id}"
                     ${isDragMode ? 'draggable="true"' : ''}>
                     <span class="show-key${keyCls}" data-key="${esc(s.original_key || '')}">${esc(s.original_key || '?')}</span>
@@ -827,7 +841,7 @@
                     ${isShowDrag && s._rank !== undefined
                         ? `<span class="show-pos">(${s._rank})</span>`
                         : ''}
-                    <button class="show-comment-btn${cellComment ? ' has-comment' : ''}" title="${cellComment ? esc(cellComment) : 'Adicionar nota'}" data-action="comment">
+                    <button class="show-comment-btn${cellCmtClass}" title="${cellComment ? esc(cellComment) : 'Adicionar nota'}" data-action="comment">
                         <i class="fa-solid fa-exclamation"></i>
                     </button>
                     <button class="show-alert-btn sf-${sf}" title="Ciclar bandeira">
@@ -3840,8 +3854,26 @@
             const song = _state.songs.find(s => s.id === id);
             if (!song) return;
             const COMMENT_KEY = `hms_song_comment_${id}`;
-            const current = localStorage.getItem(COMMENT_KEY) || '';
+            const STATUS_KEY  = `hms_song_comment_status_${id}`;
+            const current     = localStorage.getItem(COMMENT_KEY) || '';
+            const curStatus   = localStorage.getItem(STATUS_KEY)  || '';
             const esc2 = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+            const statuses = [
+                { value: 'pendente-gale',  label: 'Pendente Galé',  color: '#3b82f6', bg: 'rgba(59,130,246,.15)'  },
+                { value: 'pendente-lucas', label: 'Pendente Lucas', color: '#ef4444', bg: 'rgba(239,68,68,.15)'   },
+                { value: 'resolvido',      label: 'Resolvido',      color: '#22c55e', bg: 'rgba(34,197,94,.15)'   },
+            ];
+
+            const statusBtns = statuses.map(st => `
+                <button type="button" class="comment-status-btn${curStatus === st.value ? ' active' : ''}"
+                    data-status="${st.value}"
+                    style="padding:5px 12px;border-radius:20px;border:1.5px solid ${curStatus === st.value ? st.color : 'var(--glass-border)'};
+                           background:${curStatus === st.value ? st.bg : 'transparent'};
+                           color:${curStatus === st.value ? st.color : 'var(--text-muted)'};
+                           font-size:.76rem;font-weight:600;cursor:pointer;transition:all .18s;font-family:var(--font-ui);">
+                    ${st.label}
+                </button>`).join('');
 
             window.HMSApp.openModal(`
                 <div style="padding:24px;max-width:480px;width:90vw;">
@@ -3857,9 +3889,15 @@
                     <label style="font-size:.78rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:6px;">Comentário / Nota rápida</label>
                     <textarea id="comment-textarea"
                         placeholder="Ex: ensaiar a ponte, corrigir tom, conferir letra…"
-                        style="width:100%;min-height:120px;resize:vertical;padding:10px 12px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-sm);color:var(--text-primary);font-family:var(--font-ui);font-size:.88rem;line-height:1.5;box-sizing:border-box;"
+                        style="width:100%;min-height:100px;resize:vertical;padding:10px 12px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-sm);color:var(--text-primary);font-family:var(--font-ui);font-size:.88rem;line-height:1.5;box-sizing:border-box;"
                     >${esc2(current)}</textarea>
-                    <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end;">
+                    <div style="margin-top:12px;">
+                        <label style="font-size:.75rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:8px;">Status</label>
+                        <div id="comment-status-group" style="display:flex;gap:6px;flex-wrap:wrap;">
+                            ${statusBtns}
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
                         ${current ? `<button id="comment-clear-btn" class="btn btn-ghost" style="color:#f87171;border-color:rgba(248,113,113,.4);"><i class="fa-solid fa-trash fa-xs"></i> Limpar</button>` : ''}
                         <button id="comment-cancel-btn" class="btn btn-ghost">Cancelar</button>
                         <button id="comment-save-btn" class="btn btn-primary"><i class="fa-solid fa-floppy-disk fa-xs"></i> Salvar</button>
@@ -3870,12 +3908,35 @@
             // Focus no textarea
             setTimeout(() => document.getElementById('comment-textarea')?.focus(), 80);
 
+            // Status toggle (radio-style)
+            let _selectedStatus = curStatus;
+            document.getElementById('comment-status-group')?.addEventListener('click', (e) => {
+                const btn = e.target.closest('.comment-status-btn');
+                if (!btn) return;
+                const val = btn.dataset.status;
+                // toggle: click mesmo botão ativo → desmarca
+                _selectedStatus = (_selectedStatus === val) ? '' : val;
+                document.querySelectorAll('.comment-status-btn').forEach(b => {
+                    const st = statuses.find(s => s.value === b.dataset.status);
+                    const isActive = b.dataset.status === _selectedStatus;
+                    b.classList.toggle('active', isActive);
+                    b.style.border      = `1.5px solid ${isActive ? st.color : 'var(--glass-border)'}`;
+                    b.style.background  = isActive ? st.bg    : 'transparent';
+                    b.style.color       = isActive ? st.color : 'var(--text-muted)';
+                });
+            });
+
             document.getElementById('comment-save-btn')?.addEventListener('click', () => {
                 const text = document.getElementById('comment-textarea')?.value?.trim() || '';
                 if (text) {
                     localStorage.setItem(COMMENT_KEY, text);
                 } else {
                     localStorage.removeItem(COMMENT_KEY);
+                }
+                if (_selectedStatus) {
+                    localStorage.setItem(STATUS_KEY, _selectedStatus);
+                } else {
+                    localStorage.removeItem(STATUS_KEY);
                 }
                 window.HMSApp.closeModal();
                 RepertoireComponent._renderSongList();
@@ -3887,6 +3948,7 @@
 
             document.getElementById('comment-clear-btn')?.addEventListener('click', () => {
                 localStorage.removeItem(COMMENT_KEY);
+                localStorage.removeItem(STATUS_KEY);
                 window.HMSApp.closeModal();
                 RepertoireComponent._renderSongList();
             });
