@@ -55,7 +55,6 @@
 
         for (const [k, player] of _samplePlayers) {
             if (!k.startsWith(instrument + '|')) continue;
-            if (!player.buffer?.loaded) continue;  // ignora buffers não carregados
             const kChord  = k.slice(instrument.length + 1);
             const kParsed = _parseChordForPitch(kChord);
             if (!kParsed || kParsed.quality !== target.quality) continue;
@@ -384,26 +383,46 @@
                     }
 
                     let duration = 2.0;
-                    const playerReady = player && player.buffer?.loaded;
+                    let played   = false;
 
-                    if (playerReady) {
-                        duration = player.buffer.duration ?? 2.0;
+                    if (player) {
+                        const isLoaded = player.loaded ?? player.buffer?.loaded ?? true; // true se incerto
+                        duration = player.buffer?.duration ?? 2.0;
                         try {
-                            // Sempre para antes de (re)iniciar — evita "already playing" do Tone.js
-                            try { player.stop(); } catch (_) {}
+                            try { player.stop(Tone.now()); } catch (_) {}
                             player.detune = detune;
-                            player.start();
-                            if (detune !== 0) setTimeout(() => { try { player.detune = 0; } catch(_) {} }, duration * 1000 + 300);
-                        } catch (e) { console.warn('[AudioEngine] seq play erro:', chord, e.message); }
-                    } else {
-                        // Buffer não carregado ou sample ausente — fallback piano
-                        if (player && !player.buffer?.loaded) {
-                            console.warn(`[AudioEngine] buffer NÃO carregado para "${chord}" (${instrument}) — usando piano fallback`);
+                            player.start(Tone.now() + 0.05);  // offset 50ms evita race condition do Tone.js
+                            played = true;
+                            if (detune !== 0) setTimeout(() => { try { player.detune = 0; } catch(_) {} }, duration * 1000 + 400);
+                        } catch (e) {
+                            console.warn('[AudioEngine] seq sample erro:', chord, e.message);
+                            played = false;
                         }
-                        if (sampler?.loaded) {
-                            await ensureSynth();
+                    }
+
+                    if (!played) {
+                        // Fallback: usa chordShapes + PluckSynth (sempre disponível em guitar mode)
+                        console.info(`[AudioEngine] fallback pluck para "${chord}"`);
+                        const chordNotes = parseChordToNotes(chord);
+                        if (chordNotes && chordNotes.length > 0) {
+                            await ensureGuitar();
+                            const t = _gParams.synthType === 'pluck' ? 'pluck' : 'polyperc';
+                            chordNotes.forEach((note, i) => {
+                                const when = Tone.now() + 0.05 + i * 0.04;
+                                if (t === 'pluck') {
+                                    const voice = guitarPool[guitarPoolIdx % guitarPool.length];
+                                    guitarPoolIdx = (guitarPoolIdx + 1) % Math.max(guitarPool.length, 1);
+                                    try { voice.triggerAttack(note, when); } catch(_) {}
+                                } else if (guitarPolySynth) {
+                                    try { guitarPolySynth.triggerAttack(note, when); } catch(_) {}
+                                }
+                            });
+                            played = true;
+                            duration = 2.0;
+                        } else if (sampler?.loaded) {
                             const notes = parseChordToNotes(chord);
                             if (notes) notes.forEach((n, i) => sampler.triggerAttackRelease(n, '2n', Tone.now() + i * 0.04));
+                            played = true;
                         }
                     }
 
