@@ -55,6 +55,7 @@
 
         for (const [k, player] of _samplePlayers) {
             if (!k.startsWith(instrument + '|')) continue;
+            if (!player.buffer?.loaded) continue;  // ignora buffers não carregados
             const kChord  = k.slice(instrument.length + 1);
             const kParsed = _parseChordForPitch(kChord);
             if (!kParsed || kParsed.quality !== target.quality) continue;
@@ -383,18 +384,27 @@
                     }
 
                     let duration = 2.0;
-                    if (player) {
-                        duration = player.buffer?.duration ?? 2.0;
+                    const playerReady = player && player.buffer?.loaded;
+
+                    if (playerReady) {
+                        duration = player.buffer.duration ?? 2.0;
                         try {
                             // Sempre para antes de (re)iniciar — evita "already playing" do Tone.js
                             try { player.stop(); } catch (_) {}
                             player.detune = detune;
                             player.start();
                             if (detune !== 0) setTimeout(() => { try { player.detune = 0; } catch(_) {} }, duration * 1000 + 300);
-                        } catch (e) { console.warn('[AudioEngine] seq play erro:', e.message); }
-                    } else if (sampler?.loaded) {
-                        const notes = parseChordToNotes(chord);
-                        if (notes) notes.forEach((n, i) => sampler.triggerAttackRelease(n, '2n', Tone.now() + i * 0.04));
+                        } catch (e) { console.warn('[AudioEngine] seq play erro:', chord, e.message); }
+                    } else {
+                        // Buffer não carregado ou sample ausente — fallback piano
+                        if (player && !player.buffer?.loaded) {
+                            console.warn(`[AudioEngine] buffer NÃO carregado para "${chord}" (${instrument}) — usando piano fallback`);
+                        }
+                        if (sampler?.loaded) {
+                            await ensureSynth();
+                            const notes = parseChordToNotes(chord);
+                            if (notes) notes.forEach((n, i) => sampler.triggerAttackRelease(n, '2n', Tone.now() + i * 0.04));
+                        }
                     }
 
                     // Aguarda duração do sample antes do próximo (abortável)
