@@ -15,16 +15,22 @@
 (function () {
     'use strict';
 
-    let sampler         = null;   // Tone.Sampler      (piano, lazy)
-    let guitarPool      = [];     // PluckSynth[]      (pluck mode)
-    let guitarPolySynth = null;   // Tone.PolySynth    (polyperc mode)
-    let guitarPoolIdx   = 0;
+    // ── Estado Global ─────────────────────────────────────────────
+    let sampler = null;
+    let guitarPool = [], guitarPoolIdx = 0, guitarPolySynth = null;
+    let part = null, part2 = null;
+    let _isPlaying = false;
+    let _seqAbortFn = null;
     const GUITAR_POOL   = 8;
     let reverb          = null;   // Tone.Reverb       (shared)
-    let part            = null;
-    let part2           = null;
-    let _isPlaying      = false;
-    let _seqAbortFn     = null;   // cancela fila sequencial de samples
+
+    // ── Debug Log ────────────────────────────────────────────────
+    const _debugLog = [];          // array de entradas de debug
+    const MAX_LOG = 40;
+    function _dbg(entry) {
+        _debugLog.unshift({ ts: Date.now(), ...entry });
+        if (_debugLog.length > MAX_LOG) _debugLog.length = MAX_LOG;
+    }
 
     // ── Guitar Sample Players (samples reais gravados pelo usuário) ─
     // Map key: `${instrument}|${chordStr}`  e.g. 'guitar|Am'
@@ -368,17 +374,17 @@
                     const key = `${instrument}|${normalizedChord}`;
                     let player = _samplePlayers.get(key);
                     let detune = 0;
-
-                    console.debug(`[AudioEngine] seq chord="${chord}" normalized="${normalizedChord}" key="${key}" found=${!!player} totalLoaded=${_samplePlayers.size}`);
+                    let sampleInfo = { chord, key, how: 'exact', detune: 0, bufDur: null, err: null, played: false };
 
                     if (!player) {
                         const nearest = _findNearestSample(normalizedChord, instrument);
                         if (nearest) {
-                            player = nearest.player;
-                            detune = nearest.detuneCents;
-                            console.debug(`[AudioEngine] pitch-shift fallback: ${detune > 0 ? '+' : ''}${nearest.semitons}st`);
+                            player  = nearest.player;
+                            detune  = nearest.detuneCents;
+                            sampleInfo.how    = `pitch:${detune > 0 ? '+' : ''}${nearest.semitons}st`;
+                            sampleInfo.detune = detune;
                         } else {
-                            console.warn(`[AudioEngine] sem sample para "${normalizedChord}" (${instrument})`);
+                            sampleInfo.how = 'none';
                         }
                     }
 
@@ -386,23 +392,23 @@
                     let played   = false;
 
                     if (player) {
-                        const isLoaded = player.loaded ?? player.buffer?.loaded ?? true; // true se incerto
-                        duration = player.buffer?.duration ?? 2.0;
+                        sampleInfo.bufDur = player.buffer?.duration ?? null;
+                        duration = sampleInfo.bufDur ?? 2.0;
                         try {
-                            try { player.stop(Tone.now()); } catch (_) {}
+                            try { player.stop(); } catch (_) {}
                             player.detune = detune;
-                            player.start(Tone.now() + 0.05);  // offset 50ms evita race condition do Tone.js
+                            player.start();
                             played = true;
+                            sampleInfo.played = true;
                             if (detune !== 0) setTimeout(() => { try { player.detune = 0; } catch(_) {} }, duration * 1000 + 400);
                         } catch (e) {
-                            console.warn('[AudioEngine] seq sample erro:', chord, e.message);
+                            sampleInfo.err = e.message;
                             played = false;
                         }
                     }
 
                     if (!played) {
-                        // Fallback: usa chordShapes + PluckSynth (sempre disponível em guitar mode)
-                        console.info(`[AudioEngine] fallback pluck para "${chord}"`);
+                        sampleInfo.how = sampleInfo.how + (sampleInfo.err ? ' ✗err' : '') + ' →pluck';
                         const chordNotes = parseChordToNotes(chord);
                         if (chordNotes && chordNotes.length > 0) {
                             await ensureGuitar();
@@ -418,13 +424,18 @@
                                 }
                             });
                             played = true;
+                            sampleInfo.played = true;
                             duration = 2.0;
                         } else if (sampler?.loaded) {
                             const notes = parseChordToNotes(chord);
                             if (notes) notes.forEach((n, i) => sampler.triggerAttackRelease(n, '2n', Tone.now() + i * 0.04));
                             played = true;
+                            sampleInfo.played = true;
+                            sampleInfo.how += '→piano';
                         }
                     }
+
+                    _dbg(sampleInfo);
 
                     // Aguarda duração do sample antes do próximo (abortável)
                     await new Promise(resolve => {
@@ -666,8 +677,19 @@
         },
 
         /**
-         * Remove um sample player da memória.
+         * Lista os samples carregados para um instrumento.
+         * Retorna array de strings com os acordes (e.g. ['Am', 'Em', 'G', 'C']).
          */
+        getSampleList(instrument = 'guitar') {
+            const prefix = instrument + '|';
+            return [..._samplePlayers.keys()]
+                .filter(k => k.startsWith(prefix))
+                .map(k => k.slice(prefix.length));
+        },
+
+        getDebugLog() { return [..._debugLog]; },
+        clearDebugLog() { _debugLog.length = 0; },
+
         removeGuitarSample(chordStr, instrument) {
             const key = `${instrument}|${chordStr}`;
             if (_samplePlayers.has(key)) {
