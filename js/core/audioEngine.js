@@ -343,19 +343,42 @@
                 // Monta lista ordenada de acordes
                 const chords = [];
                 let lastChord = null;
+                // Rastreia onde começou cada "seção" para repetir quando encontrar ×N
+                let sectionStart = 0;
                 for (const token of tokens) {
                     if (token.type === 'CHORD') {
                         const v = token.value;
                         // Valida que parece um acorde real (começa com nota A-G)
-                        // Filtra tokens espúrios como '(4', ')', etc.
                         if (!/^[A-G]/.test(v)) continue;
                         chords.push(v);
                         lastChord = v;
-                    } else if (token.type === 'STRUCT' && token.value === '/') {
-                        if (lastChord) chords.push(lastChord);
+                    } else if (token.type === 'STRUCT') {
+                        if (token.value === '/') {
+                            // Repetição do último acorde
+                            if (lastChord) chords.push(lastChord);
+                        } else if (/^×(\d+)$/.test(token.value)) {
+                            // ×N: repete a seção desde sectionStart mais (N-1) vezes
+                            const times = parseInt(token.value.slice(1), 10);
+                            const section = chords.slice(sectionStart);
+                            for (let r = 1; r < times; r++) {
+                                chords.push(...section);
+                            }
+                            // Próxima seção começa daqui
+                            sectionStart = chords.length;
+                            if (chords.length > 0) lastChord = chords[chords.length - 1];
+                        } else {
+                            // Outro STRUCT ([, ], etc.) → marca início de nova seção
+                            sectionStart = chords.length;
+                        }
+                    } else {
+                        // LABEL, MOD, etc. → não é acorde; marca início de nova seção
+                        sectionStart = chords.length;
                     }
                 }
                 if (chords.length === 0) return;
+
+                // Registra a lista completa no debug log para diagnóstico
+                _dbg({ chord: `▶ Lista (${chords.length})`, key: chords.join(' → '), how: 'plan', bufDur: null, err: null, played: true });
 
                 _isPlaying = true;
 
