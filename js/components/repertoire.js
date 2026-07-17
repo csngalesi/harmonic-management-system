@@ -963,11 +963,11 @@
                                 </select>
                                 <div style="display:flex;border:1px solid var(--glass-border);border-radius:8px;overflow:hidden;margin-left:4px;">
                                     <button class="sd-ins-btn" data-ins="synth"
-                                        style="padding:5px 10px;border:none;font-size:.75rem;font-family:var(--font-ui);font-weight:600;cursor:pointer;transition:all .15s;background:var(--brand-dim);color:var(--brand);">
+                                        style="padding:5px 10px;border:none;font-size:.75rem;font-family:var(--font-ui);font-weight:600;cursor:pointer;transition:all .15s;background:transparent;color:var(--text-muted);">
                                         <i class="fa-solid fa-wave-square"></i> Synth
                                     </button>
                                     <button class="sd-ins-btn" data-ins="guitar"
-                                        style="padding:5px 10px;border:none;border-left:1px solid var(--glass-border);font-size:.75rem;font-family:var(--font-ui);font-weight:600;cursor:pointer;transition:all .15s;background:transparent;color:var(--text-muted);">
+                                        style="padding:5px 10px;border:none;border-left:1px solid var(--glass-border);font-size:.75rem;font-family:var(--font-ui);font-weight:600;cursor:pointer;transition:all .15s;background:var(--brand-dim);color:var(--brand);">
                                         <i class="fa-solid fa-guitar"></i> Violão
                                     </button>
                                     <button class="sd-ins-btn" data-ins="cavaco"
@@ -982,21 +982,7 @@
                                     style="height:32px;padding:0 14px;border-radius:8px;border:none;background:var(--brand);color:#fff;font-size:.8rem;font-weight:700;font-family:var(--font-ui);cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .15s;flex-shrink:0;">
                                     <i class="fa-solid fa-play"></i> Tocar
                                 </button>
-                                <button id="sd-sample-diag-btn" title="Diagnóstico de samples carregados"
-                                    style="height:32px;padding:0 10px;border-radius:8px;border:1px solid var(--glass-border);background:transparent;color:var(--text-muted);font-size:.8rem;cursor:pointer;display:flex;align-items:center;gap:4px;flex-shrink:0;transition:all .15s;"
-                                    onmouseover="this.style.color='var(--brand)'" onmouseout="this.style.color='var(--text-muted)'">
-                                    🔍
-                                </button>
-                            </div>
                             <div class="sd-chords" id="sd-chords-display">${buildChordsHtml(tokens)}</div>
-                            <!-- ── Debug Log Panel ── -->
-                            <div id="sd-debug-panel" style="display:none;margin-top:12px;border-radius:10px;border:1px solid rgba(255,165,0,.3);background:rgba(0,0,0,.55);padding:10px 12px;font-family:var(--font-mono);font-size:.72rem;max-height:160px;overflow-y:auto;">
-                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                                    <span style="color:orange;font-weight:700;font-size:.75rem;">🐛 Debug — execução de samples</span>
-                                    <button id="sd-debug-close" style="border:none;background:transparent;color:var(--text-muted);cursor:pointer;font-size:.8rem;">✕</button>
-                                </div>
-                                <div id="sd-debug-entries"></div>
-                            </div>
                         </div>
                         <div class="sd-pane${_defaultTab === 'letra' ? ' active' : ''}" id="sd-pane-letra">
                             <!-- Controls: Harm float + Reading mode -->
@@ -1182,7 +1168,7 @@
 
 
             // ── Instrumento para play de acordes ─────────────────────────
-            let _sdInstrument = 'synth'; // 'synth' | 'guitar' | 'cavaco'
+            let _sdInstrument = 'guitar'; // 'synth' | 'guitar' | 'cavaco'
 
             document.querySelectorAll('.sd-ins-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
@@ -1222,82 +1208,11 @@
                 _sdPlayBtn.style.background = on ? 'var(--danger, #e53e3e)' : 'var(--brand)';
             };
 
-            // ── Diagnóstico de Samples ────────────────────────────────────
-            document.getElementById('sd-sample-diag-btn')?.addEventListener('click', async () => {
-                const inst = _sdInstrument === 'cavaco' ? 'cavaco' : 'guitar';
-                // Força recarga dos samples antes de mostrar
-                await window.HMSAudio.loadGuitarSamplers(inst);
-                const loaded = window.HMSAudio.getSampleList(inst);
-                const total  = loaded.length;
-                const listHtml = total === 0
-                    ? `<p style="color:var(--danger,#e53e3e);margin:0;">Nenhum sample carregado para ${inst}.<br>
-                       Verifique se os WAVs foram enviados ao Supabase e se o instrumento está correto.</p>`
-                    : `<div style="display:flex;flex-wrap:wrap;gap:6px;">${
-                        loaded.sort().map(c => `<span style="padding:3px 10px;border-radius:12px;background:var(--glass-bg);border:1px solid var(--glass-border);font-size:.8rem;color:var(--brand);">${c}</span>`).join('')
-                      }</div>`;
-
-                window.HMSApp.openModal(`
-                    <div style="padding:24px;max-width:500px;width:90vw;">
-                        <div style="font-size:1rem;font-weight:700;color:var(--text-primary);margin-bottom:4px;">
-                            🔍 Diagnóstico de Samples — ${inst}
-                        </div>
-                        <div style="font-size:.8rem;color:var(--text-muted);margin-bottom:16px;">
-                            ${total} sample(s) carregado(s) em memória
-                        </div>
-                        ${listHtml}
-                        <div style="margin-top:16px;display:flex;justify-content:flex-end;">
-                            <button id="diag-close" class="btn btn-ghost">Fechar</button>
-                        </div>
-                    </div>
-                `);
-                document.getElementById('diag-close')?.addEventListener('click', () => window.HMSApp.closeModal());
-            });
-
-            // ── Painel de debug ────────────────────────────────────────────
-            const _debugPanel  = document.getElementById('sd-debug-panel');
-            const _debugEntries = document.getElementById('sd-debug-entries');
-            let _debugInterval = null;
-
-            document.getElementById('sd-debug-close')?.addEventListener('click', () => {
-                if (_debugPanel) _debugPanel.style.display = 'none';
-                if (_debugInterval) { clearInterval(_debugInterval); _debugInterval = null; }
-            });
-
-            function _renderDebug() {
-                if (!_debugEntries || !window.HMSAudio.getDebugLog) return;
-                const log = window.HMSAudio.getDebugLog();
-                if (log.length === 0) return;
-                _debugEntries.innerHTML = log.map(e => {
-                    const icon  = e.played ? '✅' : '❌';
-                    const how   = e.how || '?';
-                    const dur   = e.bufDur != null ? `${e.bufDur.toFixed(2)}s` : 'no-buf';
-                    const err   = e.err ? ` <span style="color:#ff6b6b">[${e.err}]</span>` : '';
-                    const color = e.played ? '#7ee8a2' : '#ff6b6b';
-                    return `<div style="color:${color};line-height:1.6;">${icon} <b>${e.chord}</b> &nbsp;·&nbsp; key: <span style="color:#ffd27d">${e.key}</span> &nbsp;·&nbsp; ${how} &nbsp;·&nbsp; buf: ${dur}${err}</div>`;
-                }).join('');
-            }
-
-            function _startDebugPolling() {
-                if (_debugPanel) {
-                    window.HMSAudio.clearDebugLog?.();
-                    _debugPanel.style.display = 'block';
-                    if (_debugEntries) _debugEntries.innerHTML = '<span style="color:var(--text-muted)">Aguardando acordes…</span>';
-                }
-                if (_debugInterval) clearInterval(_debugInterval);
-                _debugInterval = setInterval(_renderDebug, 300);
-            }
-
-            function _stopDebugPolling() {
-                if (_debugInterval) { clearInterval(_debugInterval); _debugInterval = null; }
-                // Última renderização ao parar
-                setTimeout(_renderDebug, 500);
-            }
 
             _sdPlayBtn?.addEventListener('click', async () => {
                 if (window.HMSAudio.isPlaying) {
                     window.HMSAudio.stop();
                     _setPlaying(false);
-                    _stopDebugPolling();
                     // Remove highlight
                     document.querySelectorAll('#sd-chords-display .sd-chord.chord-active').forEach(c => c.classList.remove('chord-active'));
                     return;
@@ -1330,7 +1245,6 @@
                 const domIdxMap     = playList.map(e => e.domIdx);
 
                 _setPlaying(true);
-                if (strumMode !== 'basic') _startDebugPolling();
 
                 const onChordChange = (seqIdx, chordValue) => {
                     document.querySelectorAll('#sd-chords-display .sd-chord.chord-active')
@@ -1349,13 +1263,11 @@
                 try {
                     await window.HMSAudio.playSequence(null, bpm, () => {
                         _setPlaying(false);
-                        _stopDebugPolling();
                         document.querySelectorAll('#sd-chords-display .sd-chord.chord-active')
                             .forEach(c => c.classList.remove('chord-active'));
                     }, strumMode, onChordChange, chordOverride);
                 } catch (err) {
                     _setPlaying(false);
-                    _stopDebugPolling();
                     console.warn('[Repertoire] playSequence erro:', err.message);
                 }
             });

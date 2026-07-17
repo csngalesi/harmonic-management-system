@@ -24,14 +24,6 @@
     const GUITAR_POOL   = 8;
     let reverb          = null;   // Tone.Reverb       (shared)
 
-    // ── Debug Log ────────────────────────────────────────────────
-    const _debugLog = [];          // array de entradas de debug
-    const MAX_LOG = 40;
-    function _dbg(entry) {
-        _debugLog.unshift({ ts: Date.now(), ...entry });
-        if (_debugLog.length > MAX_LOG) _debugLog.length = MAX_LOG;
-    }
-
     // ── Guitar Sample Players (samples reais gravados pelo usuário) ─
     // Map key: `${instrument}|${chordStr}`  e.g. 'guitar|Am'
     const _samplePlayers = new Map();
@@ -376,8 +368,6 @@
                 }
                 if (chords.length === 0) return;
 
-                // Registra a lista completa no debug log para diagnóstico
-                _dbg({ chord: `▶ Lista (${chords.length})`, key: chords.join(' → '), how: 'plan', bufDur: null, err: null, played: true });
 
                 _isPlaying = true;
 
@@ -461,7 +451,7 @@
                         }
                     }
 
-                    _dbg(sampleInfo);
+
 
                     // Aguarda duração do sample antes do próximo (abortável)
                     await new Promise(resolve => {
@@ -713,8 +703,6 @@
                 .map(k => k.slice(prefix.length));
         },
 
-        getDebugLog() { return [..._debugLog]; },
-        clearDebugLog() { _debugLog.length = 0; },
 
         removeGuitarSample(chordStr, instrument) {
             const key = `${instrument}|${chordStr}`;

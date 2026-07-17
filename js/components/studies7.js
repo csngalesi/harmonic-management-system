@@ -683,26 +683,36 @@
             const playBtn   = document.querySelector(`.rc-play-btn[data-id="${id}"]`);
             if (playBtn) { playBtn.innerHTML = '<i class="fa-solid fa-stop"></i>'; playBtn.className = 'btn btn-secondary rc-play-btn'; }
 
-            // Highlight callback: marca o chord-cell do acorde atual na cadência por índice
+            // Lê os chips do DOM do card — mesma fonte que a tela
             const cardEl = document.getElementById('rc-card-' + id);
-            const onChordChange = (chordIdx, chordValue) => {
+            const _rcChips = cardEl ? [...cardEl.querySelectorAll('.chord-cell[data-chord]')] : [];
+            const _rcList = []; let _rcLast = null;
+            for (const ch of _rcChips) {
+                const v = ch.dataset.chord; const di = parseInt(ch.dataset.chordIdx, 10);
+                if (v === '/') { if (_rcLast) _rcList.push({ chord: _rcLast.chord, domIdx: di }); }
+                else if (/^[A-G]/.test(v)) { const e = { chord: v, domIdx: di }; _rcList.push(e); _rcLast = e; }
+            }
+            const _rcOverride = _rcList.map(e => e.chord);
+            const _rcDomMap   = _rcList.map(e => e.domIdx);
+
+            const onChordChange = (seqIdx, chordValue) => {
                 if (!cardEl) return;
                 cardEl.querySelectorAll('.chord-cell.chord-active').forEach(c => c.classList.remove('chord-active'));
-                const byIdx = cardEl.querySelector(`.chord-cell[data-chord-idx="${chordIdx}"]`);
-                if (byIdx) {
-                    byIdx.classList.add('chord-active');
-                } else {
-                    const first = [...cardEl.querySelectorAll('.chord-cell[data-chord]')].find(c => c.dataset.chord === chordValue);
-                    if (first) first.classList.add('chord-active');
+                const domIdx = _rcDomMap[seqIdx];
+                if (domIdx != null && !isNaN(domIdx)) {
+                    const chip = cardEl.querySelector(`.chord-cell[data-chord-idx="${domIdx}"]`);
+                    if (chip) { chip.classList.add('chord-active'); return; }
                 }
+                const first = [...cardEl.querySelectorAll('.chord-cell[data-chord]')].find(c => c.dataset.chord === chordValue);
+                if (first) first.classList.add('chord-active');
             };
 
-            window.HMSAudio.playSequence(tokens, cad.bpm || _state.bpm, () => {
+            window.HMSAudio.playSequence(null, cad.bpm || _state.bpm, () => {
                 _state.playing = null;
                 const btn = document.querySelector(`.rc-play-btn[data-id="${id}"]`);
                 if (btn) { btn.innerHTML = '<i class="fa-solid fa-play"></i>'; btn.className = 'btn btn-primary rc-play-btn'; }
                 if (cardEl) cardEl.querySelectorAll('.chord-cell.chord-active').forEach(c => c.classList.remove('chord-active'));
-            }, strumMode, onChordChange);
+            }, strumMode, onChordChange, _rcOverride);
         },
 
         // ── Playback — Exemplos ───────────────────────────────────────
@@ -738,25 +748,35 @@
             _state.playing = cadId;
             C._setPlayingUI(cadId, true);
 
-            // Highlight callback: marca o chord-cell do acorde atual no card por índice
+            // Lê os chips do DOM do card — mesma fonte que a tela
             const cardEl = document.getElementById('card-' + cadId);
-            const onChordChange = (chordIdx, chordValue) => {
+            const _s7Chips = cardEl ? [...cardEl.querySelectorAll('.chord-cell[data-chord]')] : [];
+            const _s7List = []; let _s7Last = null;
+            for (const ch of _s7Chips) {
+                const v = ch.dataset.chord; const di = parseInt(ch.dataset.chordIdx, 10);
+                if (v === '/') { if (_s7Last) _s7List.push({ chord: _s7Last.chord, domIdx: di }); }
+                else if (/^[A-G]/.test(v)) { const e = { chord: v, domIdx: di }; _s7List.push(e); _s7Last = e; }
+            }
+            const _s7Override = _s7List.map(e => e.chord);
+            const _s7DomMap   = _s7List.map(e => e.domIdx);
+
+            const onChordChange = (seqIdx, chordValue) => {
                 if (!cardEl) return;
                 cardEl.querySelectorAll('.chord-cell.chord-active').forEach(c => c.classList.remove('chord-active'));
-                const byIdx = cardEl.querySelector(`.chord-cell[data-chord-idx="${chordIdx}"]`);
-                if (byIdx) {
-                    byIdx.classList.add('chord-active');
-                } else {
-                    const first = [...cardEl.querySelectorAll('.chord-cell[data-chord]')].find(c => c.dataset.chord === chordValue);
-                    if (first) first.classList.add('chord-active');
+                const domIdx = _s7DomMap[seqIdx];
+                if (domIdx != null && !isNaN(domIdx)) {
+                    const chip = cardEl.querySelector(`.chord-cell[data-chord-idx="${domIdx}"]`);
+                    if (chip) { chip.classList.add('chord-active'); return; }
                 }
+                const first = [...cardEl.querySelectorAll('.chord-cell[data-chord]')].find(c => c.dataset.chord === chordValue);
+                if (first) first.classList.add('chord-active');
             };
 
-            window.HMSAudio.playSequence(tokens, _state.bpm, () => {
+            window.HMSAudio.playSequence(null, _state.bpm, () => {
                 _state.playing = null;
                 C._setPlayingUI(cadId, false);
                 if (cardEl) cardEl.querySelectorAll('.chord-cell.chord-active').forEach(c => c.classList.remove('chord-active'));
-            }, strumMode, onChordChange);
+            }, strumMode, onChordChange, _s7Override);
         },
     };
 
