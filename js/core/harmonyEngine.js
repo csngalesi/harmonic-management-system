@@ -321,10 +321,11 @@
                 continue;
             }
 
-            // Safety net: any token containing harmonic punctuation is never plain text.
-            // Rule: ( ) / [ ] " { } together signal harmonic notation, not free text.
-            if (/[()\/"\[\]{}]/.test(raw)) {
-                tokens.push({ type: 'CHORD', value: raw });
+            // Safety net: tokens with punctuation that didn't match any specific pattern.
+            // Treat as STRUCT (structural/annotation) so they are NOT played as chords.
+            // This prevents stray tokens like '(4', ')', '(2x)' from polluting the chord list.
+            if (/[()\"\[\]{}]/.test(raw)) {
+                tokens.push({ type: 'STRUCT', value: raw });
                 continue;
             }
 

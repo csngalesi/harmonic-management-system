@@ -345,8 +345,12 @@
                 let lastChord = null;
                 for (const token of tokens) {
                     if (token.type === 'CHORD') {
-                        chords.push(token.value);
-                        lastChord = token.value;
+                        const v = token.value;
+                        // Valida que parece um acorde real (começa com nota A-G)
+                        // Filtra tokens espúrios como '(4', ')', etc.
+                        if (!/^[A-G]/.test(v)) continue;
+                        chords.push(v);
+                        lastChord = v;
                     } else if (token.type === 'STRUCT' && token.value === '/') {
                         if (lastChord) chords.push(lastChord);
                     }
