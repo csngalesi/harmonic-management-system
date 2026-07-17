@@ -923,6 +923,11 @@
                             <button id="sd-edit-btn" class="btn-icon edit" title="Editar música" style="width:28px;height:28px;">
                                 <i class="fa-solid fa-pen-to-square"></i>
                             </button>
+                            <button id="sd-comment-btn" title="${(() => { const c = localStorage.getItem('hms_song_comment_' + song.id); return c ? esc(c) : 'Adicionar nota/comentário'; })()}"
+                                style="width:28px;height:28px;background:none;border:1px solid ${localStorage.getItem('hms_song_comment_' + song.id) ? 'rgba(248,113,113,.5)' : 'var(--glass-border)'};border-radius:8px;cursor:pointer;flex-shrink:0;transition:all .15s;color:${localStorage.getItem('hms_song_comment_' + song.id) ? '#f87171' : 'var(--text-muted)'};font-size:.8rem;"
+                                onmouseenter="this.style.opacity='.7'" onmouseleave="this.style.opacity='1'">
+                                <i class="fa-solid fa-exclamation"></i>
+                            </button>
                             <button class="modal-close" id="sd-close-btn"><i class="fa-solid fa-xmark"></i></button>
                         </div>
                     </div>
@@ -1031,6 +1036,13 @@
                 if (window.HMSAudio && window.HMSAudio.isPlaying) window.HMSAudio.stop();
                 _setPlaying(false);
                 window.HMSApp.closeModal();
+            });
+
+            document.getElementById('sd-comment-btn')?.addEventListener('click', () => {
+                if (window.HMSAudio && window.HMSAudio.isPlaying) window.HMSAudio.stop();
+                _setPlaying(false);
+                window.HMSApp.closeModal();
+                RepertoireComponent._openCommentModal(song.id);
             });
 
             // ── Audio: proactive resolution ─────────────────────────────

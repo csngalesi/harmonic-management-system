@@ -594,16 +594,19 @@ tbody tr:hover td { background: var(--glass-bg); }
 
 /* show-cell comment button */
 .show-comment-btn {
+    position: absolute;
+    top: 4px;
+    right: 22px;   /* fica à esquerda da bandeira (right:4px) */
     background: none;
     border: none;
     cursor: pointer;
-    padding: 2px 4px;
-    border-radius: 5px;
-    font-size: .65rem;
-    opacity: .22;
+    padding: 1px 3px;
+    border-radius: 4px;
+    font-size: .7rem;
+    opacity: .18;
     color: var(--text-muted);
     transition: opacity .18s, color .18s;
-    flex-shrink: 0;
+    z-index: 1;
 }
 .show-comment-btn:hover    { opacity: .7;  color: #f87171; }
 .show-comment-btn.has-comment {
@@ -677,10 +680,11 @@ tbody tr:hover td { background: var(--glass-bg); }
     gap: 2px;
 }
 .show-cell {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 5px 10px;
+    padding: 5px 48px 5px 10px;
     gap: 8px;
     cursor: pointer;
     border-radius: 3px;
