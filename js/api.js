@@ -393,10 +393,12 @@
             if (error) throw error;
         },
         async update(id, payload) {
+            const user = await window.HMSAuth.currentUser();
             const { error } = await db()
                 .from('harmonic_melodic_studies')
                 .update(payload)
-                .eq('id', id);
+                .eq('id', id)
+                .eq('user_id', user.id);
             if (error) throw error;
         },
     };
