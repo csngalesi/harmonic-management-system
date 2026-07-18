@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#080a10" />
-    <title>HMS â€” Harmonic Management System</title>
+    <title>HMS — Harmonic Management System</title>
     <link rel="manifest" href="manifest.json" />
 
     <!-- Google Fonts -->
@@ -24,22 +24,22 @@
 
 <body>
 
-    <!-- â”€â”€â”€ Global Loader â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <!-- ─── Global Loader ──────────────────────────────────────── -->
     <div id="global-loader" class="global-loader hidden">
         <div class="loader-pulse"></div>
     </div>
 
-    <!-- â”€â”€â”€ Toast Container â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <!-- ─── Toast Container ───────────────────────────────────── -->
     <div id="toast-container" class="toast-container"></div>
 
-    <!-- â”€â”€â”€ Modal Overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <!-- ─── Modal Overlay ─────────────────────────────────────── -->
     <div id="modal-overlay" class="modal-overlay hidden">
         <div id="modal-container" class="modal-container"></div>
     </div>
 
-    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    <!-- ══════════════════════════════════════════════════════════
      LOGIN SCREEN
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+══════════════════════════════════════════════════════════════ -->
     <div id="login-screen" class="login-screen">
         <div class="login-card glass-panel">
             <div class="login-brand">
@@ -58,7 +58,7 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Senha</label>
-                    <input type="password" id="login-password" class="form-input" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                    <input type="password" id="login-password" class="form-input" placeholder="••••••••"
                         autocomplete="current-password" />
                 </div>
                 <div id="login-error" class="login-error hidden"></div>
@@ -75,15 +75,15 @@
         </div>
     </div>
 
-    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    <!-- ══════════════════════════════════════════════════════════
      APP SCREEN (SPA Shell)
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+══════════════════════════════════════════════════════════════ -->
     <div id="app-screen" class="app-screen hidden">
 
         <!-- Sidebar backdrop (mobile) -->
         <div id="sidebar-backdrop" class="sidebar-backdrop hidden"></div>
 
-        <!-- â”€â”€â”€ Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+        <!-- ─── Sidebar ─────────────────────────────────────────── -->
         <aside id="sidebar" class="sidebar">
             <div class="sidebar-header">
                 <div class="sidebar-brand">
@@ -99,10 +99,10 @@
                 <div class="nav-section-label">Biblioteca</div>
                 <a href="#" class="nav-link" data-route="repertoire">
                     <i class="fa-solid fa-list-music"></i>
-                    <span>RepertÃ³rio</span>
+                    <span>Repertório</span>
                 </a>
 
-                <div class="nav-section-label">MÃ³dulos</div>
+                <div class="nav-section-label">Módulos</div>
                 <a href="#" class="nav-link" data-route="player">
                     <i class="fa-solid fa-play-circle"></i>
                     <span>Player / Transpositor</span>
@@ -113,7 +113,7 @@
                 </a>
                 <a href="#" class="nav-link" data-route="extractor">
                     <i class="fa-solid fa-microphone-lines"></i>
-                    <span>Extrator de Ãudio</span>
+                    <span>Extrator de Áudio</span>
                 </a>
                 <a href="#" class="nav-link" data-route="guitarSampler">
                     <i class="fa-solid fa-microphone"></i>
@@ -123,17 +123,17 @@
                 <div class="nav-section-label">Estudos</div>
                 <a href="#" class="nav-link" data-route="studies7">
                     <i class="fa-solid fa-ear-listen"></i>
-                    <span>Estudos CadÃªncias</span>
+                    <span>Estudos Cadências</span>
                 </a>
                 <a href="#" class="nav-link" data-route="fretboard7">
                     <i class="fa-solid fa-guitar"></i>
-                    <span>BraÃ§o 7 Cordas</span>
+                    <span>Braço 7 Cordas</span>
                 </a>
 
 
                 <a href="#" class="nav-link" data-route="harmonicBass">
                     <i class="fa-solid fa-guitar"></i>
-                    <span>ConduÃ§Ã£o de Baixo</span>
+                    <span>Condução de Baixo</span>
                 </a>
             </nav>
 
@@ -141,8 +141,8 @@
                 <div class="user-info">
                     <div class="user-avatar"><i class="fa-solid fa-user"></i></div>
                     <div class="user-details">
-                        <div id="user-name" class="user-name">MÃºsico</div>
-                        <div id="user-email" class="user-email">â€”</div>
+                        <div id="user-name" class="user-name">Músico</div>
+                        <div id="user-email" class="user-email">—</div>
                     </div>
                 </div>
                 <button id="logout-btn" class="btn-icon-sm" title="Sair">
@@ -150,7 +150,7 @@
                 </button>
             </div>
             <div style="padding:0 8px 12px;">
-                <button id="refresh-btn" title="Buscar atualizaÃ§Ãµes" style="
+                <button id="refresh-btn" title="Buscar atualizações" style="
                     width:100%;display:flex;align-items:center;gap:10px;
                     padding:9px 12px;border-radius:10px;border:none;cursor:pointer;
                     background:transparent;color:var(--text-muted);
@@ -164,7 +164,7 @@
             </div>
         </aside>
 
-        <!-- â”€â”€â”€ Main Area â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+        <!-- ─── Main Area ────────────────────────────────────────── -->
         <div class="main-wrapper">
 
             <!-- Topbar (mobile) -->
@@ -192,13 +192,13 @@
 
     </div>
 
-    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    <!-- ══════════════════════════════════════════════════════════
      SCRIPTS (order matters)
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+══════════════════════════════════════════════════════════════ -->
     <!-- Supabase SDK (UMD) -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <!-- SheetJS â€” Excel (.xlsx) parser -->
+    <!-- SheetJS — Excel (.xlsx) parser -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
     <!-- HMS Core Engine -->
@@ -240,9 +240,9 @@
             });
         }
 
-        // â”€â”€ Refresh button: desregistra SW, limpa cache e recarrega â”€â”€
-        // Nota: este script roda no fim do <body>, entÃ£o o DOM jÃ¡ estÃ¡ pronto â€”
-        // nÃ£o usar DOMContentLoaded (jÃ¡ disparou).
+        // ── Refresh button: desregistra SW, limpa cache e recarrega ──
+        // Nota: este script roda no fim do <body>, então o DOM já está pronto —
+        // não usar DOMContentLoaded (já disparou).
         (async function setupRefreshBtn() {
             const btn = document.getElementById('refresh-btn');
             if (!btn) return;
