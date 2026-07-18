@@ -347,7 +347,13 @@
     // ── Component ─────────────────────────────────────────────────────────────
     const C = {
 
+        // Chamado pelo SPA ao navegar para este módulo — sempre abre em Estudos Salvos
         render() {
+            _st.tab = 'studies';
+            C._render();
+        },
+
+        _render() {
             const content = document.getElementById('main-content');
             const ts = (active) =>
                 `padding:7px 18px;border-radius:var(--radius-sm,6px);font-size:.85rem;cursor:pointer;` +
@@ -369,7 +375,7 @@
             `;
 
             document.querySelectorAll('.hb-tab').forEach(btn => {
-                btn.addEventListener('click', e => { _st.tab = e.currentTarget.dataset.tab; C.render(); });
+                btn.addEventListener('click', e => { _st.tab = e.currentTarget.dataset.tab; C._render(); });
             });
 
             if (_st.tab === 'editor') C._renderEditor();
@@ -733,7 +739,7 @@
             _parseHarmony();
             _ensureSlots();
             _st.tab = 'editor';
-            C.render();
+            C._render();
             window.HMSApp.showToast(`"${study.title}" carregado.`, 'success');
         },
 
