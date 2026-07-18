@@ -380,13 +380,10 @@
         },
         async create(payload) {
             const user = await window.HMSAuth.currentUser();
-            const { data, error } = await db()
+            const { error } = await db()
                 .from('harmonic_melodic_studies')
-                .insert({ ...payload, user_id: user.id })
-                .select()
-                .single();
+                .insert({ ...payload, user_id: user.id });
             if (error) throw error;
-            return data;
         },
         async delete(id) {
             const { error } = await db()
