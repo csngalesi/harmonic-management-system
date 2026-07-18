@@ -752,6 +752,10 @@
                 slots:    _st.slots.map(s => `${s.n1 || '1'} ${s.n2 || '5'}|${s.b1 || ''}|${s.b2 || ''}`),
             };
             try {
+                // Ensure studies are loaded before checking for duplicates
+                if (!_st.studies.length) {
+                    _st.studies = await window.HMSAPI.BassStudies.getAll();
+                }
                 // Check if a study with the same title already exists
                 const existing = _st.studies.find(s => s.title.trim().toLowerCase() === title.toLowerCase());
                 if (existing) {
