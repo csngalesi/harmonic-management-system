@@ -737,6 +737,20 @@
             window.HMSApp.showToast(`"${study.title}" carregado.`, 'success');
         },
 
+        _showDebug: function (info) {
+            let panel = document.getElementById('hb-debug-panel');
+            if (!panel) {
+                panel = document.createElement('div');
+                panel.id = 'hb-debug-panel';
+                panel.style.cssText = 'margin-top:16px;background:#0a1628;border:1px solid #f59e0b;border-radius:10px;padding:14px 16px;font-family:monospace;font-size:.75rem;color:#fbbf24;white-space:pre-wrap;word-break:break-all;max-height:320px;overflow-y:auto;';
+                const container = document.getElementById('hb-save-section') || document.querySelector('.hb-editor');
+                if (container) container.appendChild(panel);
+                else document.getElementById('hb-root')?.appendChild(panel);
+            }
+            const ts = new Date().toLocaleTimeString('pt-BR');
+            panel.textContent = `[${ts}] DEBUG SAVE\n${JSON.stringify(info, null, 2)}`;
+        },
+
         _saveStudy: async function () {
             const title = (_st.savingTitle || '').trim();
             if (!title)                 { window.HMSApp.showToast('Informe um título.', 'warning'); return; }
@@ -751,29 +765,43 @@
                 note_dur: 'bass',
                 slots:    _st.slots.map(s => `${s.n1 || '1'} ${s.n2 || '5'}|${s.b1 || ''}|${s.b2 || ''}`),
             };
+            const debugInfo = { title, payload, operation: null, existingId: null, userId: null, response: null, error: null };
             try {
-                // Ensure studies are loaded before checking for duplicates
-                if (!_st.studies.length) {
-                    _st.studies = await window.HMSAPI.BassStudies.getAll();
-                }
-                // Check if a study with the same title already exists
+                // Ensure studies are loaded
+                _st.studies = await window.HMSAPI.BassStudies.getAll();
+
+                const user = await window.HMSAuth.currentUser();
+                debugInfo.userId = user?.id || 'NULL';
+
                 const existing = _st.studies.find(s => s.title.trim().toLowerCase() === title.toLowerCase());
+
                 if (existing) {
-                    await window.HMSAPI.BassStudies.update(existing.id, payload);
-                    window.HMSApp.showToast('Estudo atualizado!', 'success');
+                    debugInfo.operation  = 'UPDATE';
+                    debugInfo.existingId = existing.id;
+                    debugInfo.existingUserId = existing.user_id;
+                    const result = await window.HMSAPI.BassStudies.updateDebug(existing.id, payload, user.id);
+                    debugInfo.response = result;
+                    if (result.rowCount === 0) {
+                        window.HMSApp.showToast('⚠️ Update executado mas 0 linhas afetadas!', 'warning');
+                    } else {
+                        window.HMSApp.showToast('Estudo atualizado!', 'success');
+                    }
                 } else {
+                    debugInfo.operation = 'INSERT';
                     await window.HMSAPI.BassStudies.create(payload);
+                    debugInfo.response = { ok: true };
                     window.HMSApp.showToast('Estudo salvo!', 'success');
                 }
                 _st.savingTitle = '';
                 const el = document.getElementById('hb-save-title');
                 if (el) el.value = '';
-                // Refresh studies list
                 _st.studies = await window.HMSAPI.BassStudies.getAll();
             } catch (err) {
+                debugInfo.error = { message: err.message, code: err.code, details: err.details, hint: err.hint };
                 console.error('[HarmonicBass] Save error:', err);
-                window.HMSApp.showToast('Erro ao salvar.', 'error');
+                window.HMSApp.showToast('Erro ao salvar. Ver painel debug.', 'error');
             }
+            C._showDebug(debugInfo);
         },
 
         _deleteStudy: async function (id) {

@@ -401,6 +401,21 @@
                 .eq('user_id', user.id);
             if (error) throw error;
         },
+        async updateDebug(id, payload, userId) {
+            const { data, error, status, statusText } = await db()
+                .from('harmonic_melodic_studies')
+                .update(payload)
+                .eq('id', id)
+                .eq('user_id', userId)
+                .select();
+            return {
+                rowCount:   (data || []).length,
+                status,
+                statusText,
+                error:      error ? { message: error.message, code: error.code, details: error.details } : null,
+                updatedIds: (data || []).map(r => r.id),
+            };
+        },
     };
 
     // ── Guitar Samples ───────────────────────────────────────────
