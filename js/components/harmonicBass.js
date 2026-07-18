@@ -136,7 +136,7 @@
         playingDeg:    null,   // index within B col
         playing:       false,
         playTimers:    [],
-        tab:           'editor',
+        tab:           'studies',
         studies:       [],
         currentUserId: null,
         savingTitle:   '',
@@ -742,20 +742,30 @@
             if (!title)                 { window.HMSApp.showToast('Informe um título.', 'warning'); return; }
             if (!_st.harmonyStr.trim()) { window.HMSApp.showToast('Harmonia vazia.', 'warning');   return; }
             _ensureSlots();
+            const payload = {
+                title,
+                root:     _st.root,
+                is_minor: _st.isMinor,
+                harmony:  _st.harmonyStr,
+                bpm:      _st.bpm,
+                note_dur: 'bass',
+                slots:    _st.slots.map(s => `${s.n1 || '1'} ${s.n2 || '5'}|${s.b1 || ''}|${s.b2 || ''}`),
+            };
             try {
-                await window.HMSAPI.BassStudies.create({
-                    title,
-                    root:     _st.root,
-                    is_minor: _st.isMinor,
-                    harmony:  _st.harmonyStr,
-                    bpm:      _st.bpm,
-                    note_dur: 'bass',
-                    slots:    _st.slots.map(s => `${s.n1 || '1'} ${s.n2 || '5'}|${s.b1 || ''}|${s.b2 || ''}`),
-                });
-                window.HMSApp.showToast('Estudo salvo!', 'success');
+                // Check if a study with the same title already exists
+                const existing = _st.studies.find(s => s.title.trim().toLowerCase() === title.toLowerCase());
+                if (existing) {
+                    await window.HMSAPI.BassStudies.update(existing.id, payload);
+                    window.HMSApp.showToast('Estudo atualizado!', 'success');
+                } else {
+                    await window.HMSAPI.BassStudies.create(payload);
+                    window.HMSApp.showToast('Estudo salvo!', 'success');
+                }
                 _st.savingTitle = '';
                 const el = document.getElementById('hb-save-title');
                 if (el) el.value = '';
+                // Refresh studies list
+                _st.studies = await window.HMSAPI.BassStudies.getAll();
             } catch (err) {
                 console.error('[HarmonicBass] Save error:', err);
                 window.HMSApp.showToast('Erro ao salvar.', 'error');

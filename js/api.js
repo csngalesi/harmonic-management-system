@@ -395,6 +395,16 @@
                 .eq('id', id);
             if (error) throw error;
         },
+        async update(id, payload) {
+            const { data, error } = await db()
+                .from('harmonic_melodic_studies')
+                .update(payload)
+                .eq('id', id)
+                .select()
+                .single();
+            if (error) throw error;
+            return data;
+        },
     };
 
     // ── Guitar Samples ───────────────────────────────────────────

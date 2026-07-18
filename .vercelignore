@@ -1,0 +1,7 @@
+# Exclude large audio sample files from deployment
+chords guitar/
+node_modules/
+.git/
+*.wav
+*.mp3
+*.aiff
