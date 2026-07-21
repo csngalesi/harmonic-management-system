@@ -434,10 +434,12 @@
             return data || [];
         },
 
-        /** Retorna URL pública de um storage_path */
+        /** Retorna URL pública de um storage_path, garantindo que # seja codificado */
         getPublicUrl(storagePath) {
             const { data } = db().storage.from(GUITAR_BUCKET).getPublicUrl(storagePath);
-            return data?.publicUrl || null;
+            if (!data?.publicUrl) return null;
+            // Garante que # no nome do arquivo seja %23 na URL (não fragmento)
+            return data.publicUrl.replace(/#/g, '%23');
         },
 
         /**
