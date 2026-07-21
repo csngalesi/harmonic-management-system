@@ -439,15 +439,6 @@
                         .filter(s => s._position !== null && s._position !== undefined)
                         .sort((a, b) => a._position - b._position);
                     withPos.forEach((s, i) => { s._rank = i + 1; });
-                    const needsNormalization = withPos.some((s, i) => s._position !== i + 1);
-                    if (needsNormalization) {
-                        withPos.forEach((s, i) => { s._position = i + 1; });
-                        Promise.all(
-                            withPos.map(s =>
-                                window.HMSAPI.Setlists.updateSongPosition(_state.activeSetlist, s.id, s._position)
-                            )
-                        ).catch(err => console.warn('[HMS] position normalize failed:', err.message));
-                    }
                 }
 
                 RepertoireComponent._renderSortToolbar();
