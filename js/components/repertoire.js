@@ -866,7 +866,8 @@
                 return window.HarmonyEngine.renderFuncHtml(str, esc);
             }
 
-            // Harm Acor: render translated tokens as chips
+            // DUPLICATA — ver também buildChordsHtml() no editor H (~linha 1759) e _renderChords() em player.js
+            // Unificar futuramente em HarmonyEngine.renderChordsHtml()
             function buildChordsHtml(toks) {
                 if (!toks.length) return `<span style="color:var(--text-muted);font-size:.85rem;">Sem harmonia cadastrada.</span>`;
                 const out = [];
@@ -1756,6 +1757,8 @@
                 return window.HarmonyEngine.renderFuncHtml(str, esc);
             }
 
+            // DUPLICATA — ver também buildChordsHtml() em _openShowDetail (~linha 870) e _renderChords() em player.js
+            // Unificar futuramente em HarmonyEngine.renderChordsHtml()
             function buildChordsHtml(toks) {
                 if (!toks || !toks.length) return `<span style="color:var(--text-muted);font-size:.85rem;">Sem harmonia.</span>`;
                 const out = []; let i = 0;

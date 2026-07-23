@@ -369,6 +369,8 @@
             btn.disabled = false;
         },
 
+        // DUPLICATA — ver também buildChordsHtml() em repertoire.js (_openShowDetail ~linha 870 e editor H ~linha 1761)
+        // Unificar futuramente em HarmonyEngine.renderChordsHtml()
         _renderChords: function () {
             const grid = document.getElementById('chord-grid');
             if (!grid || !_state.song) return;
