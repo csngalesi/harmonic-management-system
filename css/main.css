@@ -984,6 +984,7 @@ tbody tr:hover td { background: var(--glass-bg); }
 .show-cell.status-flag-2 { background: #2a2200 !important; border: 1px solid #f59e0b !important; }
 .show-cell.status-flag-3 { background: #2a0000 !important; border: 1px solid #ef4444 !important; }
 .show-cell.status-flag-4 { background: #001530 !important; border: 1px solid #3b82f6 !important; }
+.show-cell.status-flag-5 { background: #1a0030 !important; border: 1px solid #a855f7 !important; }
 
 /* ── Show Detail Modal — flag border ──────────────────────────── */
 .sd-modal.song-flag-1 { border: 2px solid #22c55e; }
