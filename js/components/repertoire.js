@@ -26,7 +26,7 @@
         showDragMode:    false,        // true = grid arrastável para reordenar posições
         headerCollapsed: false,
         // Client-side filters (null = sem filtro)
-        filterFlag:  null,   // null | 0 | 1 | 2 | 3 | 4 | 5
+        filterFlag:  new Set(), // Set<number>; vazio = todas as flags visíveis
         filterHarm:  null,   // null | true | false
         filterLetra: null,   // null | true | false
         filterLink:  null,   // null | true | false
@@ -124,14 +124,14 @@
 
                 <!-- Filter bar -->
                 <div class="filter-bar mb-2" id="filter-bar">
-                    <span class="filter-label">Flag:</span>
-                    <button class="filter-pill${_state.filterFlag === null ? ' active' : ''}" data-filter="flag" data-val="null" title="Todas">·</button>
-                    <button class="filter-pill sf-1${_state.filterFlag === 1 ? ' active' : ''}" data-filter="flag" data-val="1" title="Verde"><i class="fa-solid fa-flag"></i></button>
-                    <button class="filter-pill sf-2${_state.filterFlag === 2 ? ' active' : ''}" data-filter="flag" data-val="2" title="Amarela"><i class="fa-solid fa-flag"></i></button>
-                    <button class="filter-pill sf-3${_state.filterFlag === 3 ? ' active' : ''}" data-filter="flag" data-val="3" title="Vermelha"><i class="fa-solid fa-flag"></i></button>
-                    <button class="filter-pill sf-4${_state.filterFlag === 4 ? ' active' : ''}" data-filter="flag" data-val="4" title="Azul"><i class="fa-solid fa-flag"></i></button>
-                    <button class="filter-pill sf-5${_state.filterFlag === 5 ? ' active' : ''}" data-filter="flag" data-val="5" title="Roxa"><i class="fa-solid fa-flag"></i></button>
-                    <button class="filter-pill${_state.filterFlag === 0 ? ' active' : ''}" data-filter="flag" data-val="0" title="Sem bandeira"><i class="fa-solid fa-flag" style="opacity:.25;"></i></button>
+                    <span class="filter-label">FLAG:</span>
+                    <button class="filter-pill${_state.filterFlag.size === 0 ? ' active' : ''}" data-filter="flag" data-val="null" title="Todas">·</button>
+                    <button class="filter-pill sf-1${_state.filterFlag.has(1) ? ' active' : ''}" data-filter="flag" data-val="1" title="Verde"><i class="fa-solid fa-flag"></i></button>
+                    <button class="filter-pill sf-2${_state.filterFlag.has(2) ? ' active' : ''}" data-filter="flag" data-val="2" title="Amarela"><i class="fa-solid fa-flag"></i></button>
+                    <button class="filter-pill sf-3${_state.filterFlag.has(3) ? ' active' : ''}" data-filter="flag" data-val="3" title="Vermelha"><i class="fa-solid fa-flag"></i></button>
+                    <button class="filter-pill sf-4${_state.filterFlag.has(4) ? ' active' : ''}" data-filter="flag" data-val="4" title="Azul"><i class="fa-solid fa-flag"></i></button>
+                    <button class="filter-pill sf-5${_state.filterFlag.has(5) ? ' active' : ''}" data-filter="flag" data-val="5" title="Roxa"><i class="fa-solid fa-flag"></i></button>
+                    <button class="filter-pill${_state.filterFlag.has(0) ? ' active' : ''}" data-filter="flag" data-val="0" title="Sem bandeira"><i class="fa-solid fa-flag" style="opacity:.25;"></i></button>
                     <span class="filter-sep">|</span>
                     <span class="filter-label">Harm:</span>
                     <button class="filter-pill${_state.filterHarm === null  ? ' active' : ''}" data-filter="harm" data-val="null">·</button>
@@ -341,7 +341,17 @@
                 const filter = pill.dataset.filter;
                 const raw    = pill.dataset.val;
                 const val    = raw === 'null' ? null : raw === 'true' ? true : raw === 'false' ? false : parseInt(raw, 10);
-                if (filter === 'flag')  _state.filterFlag  = val;
+                if (filter === 'flag') {
+                    if (val === null) {
+                        _state.filterFlag.clear(); // · remove todas as seleções
+                    } else {
+                        if (_state.filterFlag.has(val)) {
+                            _state.filterFlag.delete(val); // desmarca se já estava selecionado
+                        } else {
+                            _state.filterFlag.add(val);    // seleciona
+                        }
+                    }
+                }
                 if (filter === 'harm')  _state.filterHarm  = val;
                 if (filter === 'letra') _state.filterLetra = val;
                 if (filter === 'link')  _state.filterLink  = val;
@@ -456,8 +466,17 @@
                 const filter = pill.dataset.filter;
                 const raw    = pill.dataset.val;
                 const val    = raw === 'null' ? null : raw === 'true' ? true : raw === 'false' ? false : parseInt(raw, 10);
-                const cur = _state['filter' + filter.charAt(0).toUpperCase() + filter.slice(1)];
-                pill.classList.toggle('active', cur === val);
+                if (filter === 'flag') {
+                    // flag usa multi-select (Set)
+                    if (val === null) {
+                        pill.classList.toggle('active', _state.filterFlag.size === 0);
+                    } else {
+                        pill.classList.toggle('active', _state.filterFlag.has(val));
+                    }
+                } else {
+                    const cur = _state['filter' + filter.charAt(0).toUpperCase() + filter.slice(1)];
+                    pill.classList.toggle('active', cur === val);
+                }
             });
         },
 
@@ -521,7 +540,7 @@
 
             // Client-side filter
             const filtered = _state.songs.filter(s => {
-                if (_state.filterFlag  !== null && (s.status_flag || 0) !== _state.filterFlag) return false;
+                if (_state.filterFlag.size > 0 && !_state.filterFlag.has(s.status_flag || 0)) return false;
                 if (_state.filterHarm  !== null && !!(s.harmony_str && s.harmony_str.trim()) !== _state.filterHarm) return false;
                 if (_state.filterLetra !== null && !!s.has_lyrics !== _state.filterLetra) return false;
                 if (_state.filterLink  !== null && !!s.audio_url  !== _state.filterLink)  return false;
