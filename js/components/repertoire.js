@@ -26,7 +26,7 @@
         showDragMode:    false,        // true = grid arrastável para reordenar posições
         headerCollapsed: false,
         // Client-side filters (null = sem filtro)
-        filterFlag:  null,   // null | 0 | 1 | 2 | 3
+        filterFlag:  null,   // null | 0 | 1 | 2 | 3 | 4 | 5
         filterHarm:  null,   // null | true | false
         filterLetra: null,   // null | true | false
         filterLink:  null,   // null | true | false
@@ -130,6 +130,7 @@
                     <button class="filter-pill sf-2${_state.filterFlag === 2 ? ' active' : ''}" data-filter="flag" data-val="2" title="Amarela"><i class="fa-solid fa-flag"></i></button>
                     <button class="filter-pill sf-3${_state.filterFlag === 3 ? ' active' : ''}" data-filter="flag" data-val="3" title="Vermelha"><i class="fa-solid fa-flag"></i></button>
                     <button class="filter-pill sf-4${_state.filterFlag === 4 ? ' active' : ''}" data-filter="flag" data-val="4" title="Azul"><i class="fa-solid fa-flag"></i></button>
+                    <button class="filter-pill sf-5${_state.filterFlag === 5 ? ' active' : ''}" data-filter="flag" data-val="5" title="Roxa"><i class="fa-solid fa-flag"></i></button>
                     <button class="filter-pill${_state.filterFlag === 0 ? ' active' : ''}" data-filter="flag" data-val="0" title="Sem bandeira"><i class="fa-solid fa-flag" style="opacity:.25;"></i></button>
                     <span class="filter-sep">|</span>
                     <span class="filter-label">Harm:</span>
@@ -613,7 +614,7 @@
                     :  cmtStatus === 'resolvido'      ? ' cs-resolvido'
                     :                                  ' has-comment')
                     : '';
-                const flagTitles = ['Marcar verde', 'Marcar amarelo', 'Marcar vermelho', 'Marcar azul', 'Remover bandeira'];
+                const flagTitles = ['Marcar verde', 'Marcar amarelo', 'Marcar vermelho', 'Marcar azul', 'Marcar roxo', 'Remover bandeira'];
                 return `
                 <div class="song-card${sf ? ' song-flag-' + sf : ''}" data-id="${s.id}"
                     ${isDragMode ? 'draggable="true"' : ''}>
@@ -3852,7 +3853,7 @@
         _handleToggleAlert: async function (id) {
             const song = _state.songs.find(s => s.id === id);
             if (!song) return;
-            const newVal = ((song.status_flag || 0) + 1) % 5;
+            const newVal = ((song.status_flag || 0) + 1) % 6;
             try {
                 await window.HMSAPI.Songs.update(id, { status_flag: newVal });
                 song.status_flag = newVal;

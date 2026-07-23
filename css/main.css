@@ -651,6 +651,8 @@ tbody tr:hover td { background: var(--glass-bg); }
 .filter-pill.sf-3.active { background: #2a0000; border-color: #ef4444; color: #ef4444; }
 .filter-pill.sf-4 { color: #3b82f6; }
 .filter-pill.sf-4.active { background: #001530; border-color: #3b82f6; color: #3b82f6; }
+.filter-pill.sf-5 { color: #a855f7; }
+.filter-pill.sf-5.active { background: #1a0030; border-color: #a855f7; color: #a855f7; }
 
 /* ── Search Block (type pills + input) ─────────────────────── */
 .search-block { display: flex; flex-direction: column; gap: 8px; }
@@ -976,6 +978,7 @@ tbody tr:hover td { background: var(--glass-bg); }
 .song-card.song-flag-2 { background: #2a2200; border-color: #f59e0b !important; }
 .song-card.song-flag-3 { background: #2a0000; border-color: #ef4444 !important; }
 .song-card.song-flag-4 { background: #001530; border-color: #3b82f6 !important; }
+.song-card.song-flag-5 { background: #1a0030; border-color: #a855f7 !important; }
 
 .show-cell.status-flag-1 { background: #002200 !important; border: 1px solid #22c55e !important; }
 .show-cell.status-flag-2 { background: #2a2200 !important; border: 1px solid #f59e0b !important; }
@@ -987,12 +990,14 @@ tbody tr:hover td { background: var(--glass-bg); }
 .sd-modal.song-flag-2 { border: 2px solid #f59e0b; }
 .sd-modal.song-flag-3 { border: 2px solid #ef4444; }
 .sd-modal.song-flag-4 { border: 2px solid #3b82f6; }
+.sd-modal.song-flag-5 { border: 2px solid #a855f7; }
 
 .alert-flag { background: none; border: none; cursor: pointer; font-size: .95rem; opacity: .25; padding: 0 3px; transition: color .15s, opacity .15s; color: var(--text-muted); }
 .alert-flag.sf-1 { opacity: 1; color: #22c55e; }
 .alert-flag.sf-2 { opacity: 1; color: #f59e0b; }
 .alert-flag.sf-3 { opacity: 1; color: #ef4444; }
 .alert-flag.sf-4 { opacity: 1; color: #3b82f6; }
+.alert-flag.sf-5 { opacity: 1; color: #a855f7; }
 .alert-flag:hover { opacity: .7; }
 
 .show-alert-btn { position: absolute; top: 4px; right: 4px; background: none; border: none; cursor: pointer; font-size: .85rem; opacity: .25; padding: 0; transition: color .15s, opacity .15s; color: var(--text-muted); }
@@ -1000,6 +1005,7 @@ tbody tr:hover td { background: var(--glass-bg); }
 .show-alert-btn.sf-2 { opacity: 1; color: #f59e0b; }
 .show-alert-btn.sf-3 { opacity: 1; color: #ef4444; }
 .show-alert-btn.sf-4 { opacity: 1; color: #3b82f6; }
+.show-alert-btn.sf-5 { opacity: 1; color: #a855f7; }
 .show-alert-btn:hover { opacity: .7; }
 
 /* ── Repertoire — Drag & Drop ──────────────────────────────── */
