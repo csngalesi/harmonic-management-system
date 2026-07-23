@@ -885,8 +885,8 @@
                         }
                         i++; // skip ]
                         if (group.length) {
-                            const inner = group.map(g => `<span class="sd-chord" data-chord="${esc(g.value || '')}" data-chord-idx="${chordIdx++}">${esc(g.value || '')}</span>`).join(sep);
-                            out.push(`<span class="sd-chord-group">${inner}</span>`);
+                            const inner = group.map(g => `<span class="sd-chord" data-chord="${esc(g.value || '')}" data-chord-idx="${chordIdx++}" style="background:transparent;border:none;padding:0;box-shadow:none;">${esc(g.value || '')}</span>`).join(sep);
+                            out.push(`<span class="sd-chord-group" style="display:inline-flex;align-items:center;border:1px solid var(--glass-border);border-radius:var(--radius-sm,6px);padding:3px 8px;background:var(--glass-bg);">${inner}</span>`);
                         }
                         continue;
                     }
