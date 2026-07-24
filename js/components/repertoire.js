@@ -1694,7 +1694,7 @@
                 window.HMSAPI.Songs.getById(song.id).then(full => {
                     const el = document.getElementById('sd-lyrics-content');
                     if (!el) return;
-                    if (full.lyrics) {
+                    if (full && full.lyrics) {
                         // ── Build viewport + pre for 2-col paging ──
                         // Larger on tablet for better readability
                         const isTablet = window.innerWidth >= 600;
@@ -1745,9 +1745,12 @@
                             });
                         });
                     } else {
-                        el.innerHTML = `<p style="color:var(--text-muted);font-size:.85rem;">Letra n\u00e3o encontrada.</p>`;
+                        el.innerHTML = `<p style="color:var(--text-muted);font-size:.85rem;">Letra não encontrada no banco de dados.</p>`;
                     }
-                }).catch(() => {});
+                }).catch(err => {
+                    const el = document.getElementById('sd-lyrics-content');
+                    if (el) el.innerHTML = `<p style="color:var(--accent-red,#ef4444);font-size:.85rem;">Erro ao carregar letra: ${String(err?.message || err || 'erro desconhecido')}</p>`;
+                });
             }
         },
 
