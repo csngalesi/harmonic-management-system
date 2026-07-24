@@ -995,6 +995,7 @@
                                     <i class="fa-solid fa-play"></i> Tocar
                                 </button>
                             <div class="sd-chords" id="sd-chords-display">${buildChordsHtml(tokens)}</div>
+                        </div><!-- /sd-pane-acor -->
                         </div>
                         <div class="sd-pane${_defaultTab === 'letra' ? ' active' : ''}" id="sd-pane-letra">
                             <!-- Controls: Harm float + Reading mode -->
