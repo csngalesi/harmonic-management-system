@@ -32,6 +32,7 @@
         filterLetra: null,   // null | true | false
         filterLink:  null,   // null | true | false
         filterKey:   null,   // null | 'C' | 'G' | ...
+        filterStar:  false,  // true = exibir apenas músicas com estrela
     };
 
     // Snapshot of positions before any drag in the current drag session.
@@ -526,10 +527,20 @@
 
             const headerKeyEl = document.getElementById('key-filter-header');
             if (headerKeyEl) {
-                headerKeyEl.innerHTML = uniqueKeys.map(k => {
+                const keyBtns = uniqueKeys.map(k => {
                     const isActive = _state.filterKey === k;
                     return `<button class="sort-btn key-filter-btn${isActive ? ' active' : ''}" data-key="${k}" style="padding: 3px 8px; font-size: 0.72rem; min-width: 28px; text-align: center; justify-content: center;">${k}</button>`;
                 }).join('');
+                // Botão estrela de filtro — ao lado do último tom
+                const starActive = _state.filterStar;
+                const starBtn = `<button id="btn-filter-star" class="sort-btn key-filter-btn${starActive ? ' active' : ''}" title="Filtrar músicas com estrela" style="padding: 3px 7px; font-size: 0.68rem; min-width: 24px; text-align: center; justify-content: center; color: ${starActive ? '#facc15' : 'var(--text-muted)'}; margin-left: 4px;"><i class="fa-solid fa-star"></i></button>`;
+                headerKeyEl.innerHTML = keyBtns + starBtn;
+                // Listener do botão estrela-filtro
+                document.getElementById('btn-filter-star')?.addEventListener('click', () => {
+                    _state.filterStar = !_state.filterStar;
+                    RepertoireComponent._renderSortToolbar();
+                    RepertoireComponent._renderSongList();
+                });
             }
         },
 
@@ -549,6 +560,7 @@
                 if (_state.filterLetra !== null && !!s.has_lyrics !== _state.filterLetra) return false;
                 if (_state.filterLink  !== null && !!s.audio_url  !== _state.filterLink)  return false;
                 if (_state.filterKey   !== null && s.original_key !== _state.filterKey) return false;
+                if (_state.filterStar  && !localStorage.getItem(`hms_song_star_${s.id}`)) return false;
                 return true;
             });
 
