@@ -1121,11 +1121,11 @@ tbody tr:hover td { background: var(--glass-bg); }
 .gs-btn-del:hover  { background: rgba(239,68,68,.15);  border-color: #ef4444;  color: #ef4444; }
 
 /* ── Star Mode ────────────────────────────────────────── */
-/* Estrela: absoluta, entre o ! (right:22px) e a bandeira (right:4px) */
+/* Estrela: mesma posição do ! (right:22px) — fica atrás quando há comentário */
 .show-star-badge {
     position: absolute;
     top: 50%;
-    right: 36px;
+    right: 22px;
     transform: translateY(-50%);
     font-size: .55rem;
     color: #facc15;
@@ -1135,6 +1135,7 @@ tbody tr:hover td { background: var(--glass-bg); }
     align-items: center;
     justify-content: center;
     width: 10px;
+    z-index: 0;
 }
 .show-star-badge.show-star-empty {
     visibility: hidden;
