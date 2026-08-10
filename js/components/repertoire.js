@@ -24,6 +24,7 @@
         showColumns:     'N',         // 'S'=1col | 'N'=responsive | '2'-'5'
         showFlow:        'row',        // 'row' = leitura linha a linha | 'col' = leitura por coluna
         showDragMode:    false,        // true = grid arrastável para reordenar posições
+        starMode:        false,        // true = clique na célula marca/desmarca estrela
         headerCollapsed: false,
         // Client-side filters (null = sem filtro)
         filterFlag:  new Set(), // Set<number>; vazio = todas as flags visíveis
@@ -179,6 +180,9 @@
                         </button>
                         <button class="sort-btn" id="btn-save-prefs" title="Salvar vista atual como padrão de entrada" style="margin-left:2px;">
                             <i class="fa-solid fa-bookmark"></i>
+                        </button>
+                        <button class="sort-btn${_state.starMode ? ' active' : ''}" id="btn-star-mode" title="Modo Estrela — clique na música para marcar/desmarcar" style="margin-left:2px;color:${_state.starMode ? '#facc15' : 'var(--text-muted)'};">
+                            <i class="fa-solid fa-star" style="font-size:.78rem;"></i>
                         </button>
 
                         <button class="btn btn-primary btn-sm" id="btn-save-order"
@@ -599,15 +603,45 @@
                         e.stopPropagation();
                         RepertoireComponent._openCommentModal(cell.dataset.id);
                     });
-                    // Click na célula abre detalhe (exceto nos botões internos)
+                    // Click na célula: modo estrela → toggle estrela; modo normal → abre detalhe
                     if (!isGridDrag) {
                         cell.addEventListener('click', (e) => {
                             if (e.target.closest('.show-alert-btn') || e.target.closest('.show-comment-btn')) return;
+                            if (_state.starMode) {
+                                // Toggle estrela via localStorage
+                                const sid  = cell.dataset.id;
+                                const key  = `hms_song_star_${sid}`;
+                                const isOn = !!localStorage.getItem(key);
+                                if (isOn) {
+                                    localStorage.removeItem(key);
+                                } else {
+                                    localStorage.setItem(key, '1');
+                                }
+                                // Atualiza a célula sem re-renderizar tudo
+                                cell.classList.toggle('cell-starred', !isOn);
+                                const badge = cell.querySelector('.show-star-badge');
+                                if (badge) {
+                                    badge.innerHTML = !isOn ? '<i class="fa-solid fa-star"></i>' : '';
+                                    badge.classList.toggle('show-star-empty', isOn);
+                                }
+                                return;
+                            }
                             const song = _state.songs.find(s => s.id === cell.dataset.id);
                             if (song) RepertoireComponent._openShowDetail(song);
                         });
                     }
                 });
+
+                // Listener do botão estrela (precisa ser registrado após render)
+                document.getElementById('btn-star-mode')?.addEventListener('click', () => {
+                    _state.starMode = !_state.starMode;
+                    const btn = document.getElementById('btn-star-mode');
+                    if (btn) {
+                        btn.classList.toggle('active', _state.starMode);
+                        btn.style.color = _state.starMode ? '#facc15' : 'var(--text-muted)';
+                    }
+                });
+
                 if (isGridDrag) {
                     RepertoireComponent._bindShowGridDrag(el);
                 } else if (_state.sortBy === 'position' && !!_state.activeSetlist) {
@@ -845,7 +879,8 @@
                     :  cellStatus === 'resolvido'      ? ' cs-resolvido'
                     :                                   ' has-comment')
                     : '';
-                return `<div class="show-cell ${rowCls}${isShowDrag ? ' draggable-cell' : ''}" data-id="${s.id}"
+                const isStarred = !!localStorage.getItem(`hms_song_star_${s.id}`);
+                return `<div class="show-cell ${rowCls}${isShowDrag ? ' draggable-cell' : ''}${isStarred ? ' cell-starred' : ''}" data-id="${s.id}"
                     ${isDragMode ? 'draggable="true"' : ''}>
                     <span class="show-key${keyCls}" data-key="${esc(s.original_key || '')}">${esc(s.original_key || '?')}</span>
                     <span class="show-title">${esc(s.title)}</span>
@@ -855,6 +890,7 @@
                     <button class="show-comment-btn${cellCmtClass}" title="${cellComment ? esc(cellComment) : 'Adicionar nota'}" data-action="comment">
                         <i class="fa-solid fa-exclamation"></i>
                     </button>
+                    ${isStarred ? '<span class="show-star-badge" title="Marcada com estrela"><i class="fa-solid fa-star"></i></span>' : '<span class="show-star-badge show-star-empty"></span>'}
                     <button class="show-alert-btn sf-${sf}" title="Ciclar bandeira">
                         <i class="fa-solid fa-flag"></i>
                     </button>
