@@ -164,7 +164,12 @@
             window.HMSOffline.init();
             window.HMSReadOnly.init();
             try {
-                const session = await window.HMSAuth.getSession();
+                // Timeout de 4s: evita que o app fique pendurado em modo avião
+                // enquanto o Supabase tenta renovar o token
+                const sessionPromise = window.HMSAuth.getSession();
+                const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 4000));
+                const session = await Promise.race([sessionPromise, timeoutPromise]);
+
                 if (session) {
                     // Salva usuário em cache para uso offline futuro
                     localStorage.setItem('hms-cached-user', JSON.stringify({
@@ -174,10 +179,10 @@
                     }));
                     App._showApp(session.user);
                 } else {
-                    // Sem sessão — tenta cache offline
+                    // Sem sessão (expirada, offline ou timeout) — usa cache se disponível
                     const cached = App._getCachedUser();
-                    if (cached && !navigator.onLine) {
-                        console.info('[HMS] Offline: usando usuário em cache', cached.email);
+                    if (cached) {
+                        console.info('[HMS] Sessão indisponível — usando usuário em cache:', cached.email);
                         App._showApp(cached);
                     } else {
                         App._showLogin();
@@ -185,10 +190,10 @@
                 }
             } catch (err) {
                 console.error('[HMS] Session check failed:', err);
-                // Se offline, tenta cache mesmo com erro
+                // Qualquer erro: tenta cache antes de forçar login
                 const cached = App._getCachedUser();
-                if (cached && !navigator.onLine) {
-                    console.info('[HMS] Offline fallback:', cached.email);
+                if (cached) {
+                    console.info('[HMS] Erro de sessão — fallback para cache:', cached.email);
                     App._showApp(cached);
                 } else {
                     App._showLogin();
