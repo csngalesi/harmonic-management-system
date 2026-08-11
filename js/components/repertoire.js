@@ -89,8 +89,8 @@
                         </button>
                         <!-- hidden file input for CSV import (triggered from funções modal) -->
                         <input type="file" id="input-import-csv" accept=".csv,.txt" style="display:none;" />
-                        <button class="btn btn-primary${window.HMSOffline && window.HMSOffline.isOffline() ? ' disabled' : ''}" id="btn-new-song"
-                            ${window.HMSOffline && window.HMSOffline.isOffline() ? 'disabled title="Sem conexão — edições indisponíveis"' : ''}>
+                        <button class="btn btn-primary${(window.HMSReadOnly && window.HMSReadOnly.isActive()) || (window.HMSOffline && window.HMSOffline.isOffline()) ? ' disabled' : ''}" id="btn-new-song"
+                            ${(window.HMSReadOnly && window.HMSReadOnly.isActive()) || (window.HMSOffline && window.HMSOffline.isOffline()) ? 'disabled title="Somente leitura — edições indisponíveis"' : ''}>
                             <i class="fa-solid fa-plus"></i> Nova Música
                         </button>
                     </div>
@@ -999,12 +999,12 @@
                         </div>
                         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
                             <span class="song-key-badge" style="font-size:.85rem;">${esc(origKey)}</span>
-                            <button id="sd-harmony-btn" title="${window.HMSOffline && window.HMSOffline.isOffline() ? 'Somente leitura — edições indisponíveis' : 'Editor de Harmonia'}"
-                                style="width:28px;height:28px;background:var(--brand);color:#fff;border-radius:8px;font-weight:800;font-size:.78rem;border:none;flex-shrink:0;transition:opacity .15s;${window.HMSOffline && window.HMSOffline.isOffline() ? 'opacity:.3;cursor:not-allowed;' : 'cursor:pointer;'}"
-                                ${window.HMSOffline && window.HMSOffline.isOffline() ? 'disabled' : ''}
+                            <button id="sd-harmony-btn" title="${(window.HMSReadOnly && window.HMSReadOnly.isActive()) || (window.HMSOffline && window.HMSOffline.isOffline()) ? 'Somente leitura — edições indisponíveis' : 'Editor de Harmonia'}"
+                                style="width:28px;height:28px;background:var(--brand);color:#fff;border-radius:8px;font-weight:800;font-size:.78rem;border:none;flex-shrink:0;transition:opacity .15s;${(window.HMSReadOnly && window.HMSReadOnly.isActive()) || (window.HMSOffline && window.HMSOffline.isOffline()) ? 'opacity:.3;cursor:not-allowed;' : 'cursor:pointer;'}"
+                                ${(window.HMSReadOnly && window.HMSReadOnly.isActive()) || (window.HMSOffline && window.HMSOffline.isOffline()) ? 'disabled' : ''}
                                 onmouseenter="if(!this.disabled)this.style.opacity='.8'" onmouseleave="if(!this.disabled)this.style.opacity='1'">H</button>
-                            <button id="sd-edit-btn" class="btn-icon edit" title="${window.HMSOffline && window.HMSOffline.isOffline() ? 'Somente leitura — edições indisponíveis' : 'Editar música'}" style="width:28px;height:28px;${window.HMSOffline && window.HMSOffline.isOffline() ? 'opacity:.3;cursor:not-allowed;' : ''}"
-                                ${window.HMSOffline && window.HMSOffline.isOffline() ? 'disabled' : ''}>
+                            <button id="sd-edit-btn" class="btn-icon edit" title="${(window.HMSReadOnly && window.HMSReadOnly.isActive()) || (window.HMSOffline && window.HMSOffline.isOffline()) ? 'Somente leitura — edições indisponíveis' : 'Editar música'}" style="width:28px;height:28px;${(window.HMSReadOnly && window.HMSReadOnly.isActive()) || (window.HMSOffline && window.HMSOffline.isOffline()) ? 'opacity:.3;cursor:not-allowed;' : ''}"
+                                ${(window.HMSReadOnly && window.HMSReadOnly.isActive()) || (window.HMSOffline && window.HMSOffline.isOffline()) ? 'disabled' : ''}>
                                 <i class="fa-solid fa-pen-to-square"></i>
                             </button>
                             <button id="sd-comment-btn" title="${(() => { const c = localStorage.getItem('hms_song_comment_' + song.id); return c ? esc(c) : 'Adicionar nota/comentário'; })()}"

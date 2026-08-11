@@ -7,10 +7,13 @@
 
     const db = () => window.supabaseClient;
 
-    // ── Offline guard for write operations ───────────────────────
+    // ── Guard for write operations ────────────────────────────────
     function requireOnline(op) {
         if (window.HMSOffline && window.HMSOffline.isOffline()) {
             throw new Error(`Sem conexão — "${op}" indisponível offline`);
+        }
+        if (window.HMSReadOnly && window.HMSReadOnly.isActive()) {
+            throw new Error(`Modo somente leitura — "${op}" desabilitado`);
         }
     }
 

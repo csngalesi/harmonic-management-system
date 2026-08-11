@@ -13,7 +13,6 @@
 
         setForce(val) {
             this._forceOffline = val;
-            localStorage.setItem('hms_readonly_mode', val ? '1' : '0');
             this._update();
             // Re-render current view if repertoire is active
             if (window.RepertoireComponent && document.getElementById('song-list')) {
@@ -22,8 +21,6 @@
         },
 
         init() {
-            // Restaura flag salvo
-            this._forceOffline = localStorage.getItem('hms_readonly_mode') === '1';
             window.addEventListener('online',  () => HMSOffline._update());
             window.addEventListener('offline', () => HMSOffline._update());
             HMSOffline._update();
@@ -35,9 +32,9 @@
             const badge = document.getElementById('offline-badge');
             if (badge) {
                 badge.classList.toggle('hidden', !offline);
-                badge.title = this._forceOffline ? 'Modo somente leitura ativo' : 'Sem conexão';
+                badge.title = this._forceOffline ? 'Modo offline simulado (teste)' : 'Sem conexão';
                 badge.innerHTML = `<i class="fa-solid fa-wifi-slash" style="font-size:.65rem;"></i>
-                    ${this._forceOffline ? 'SOMENTE LEITURA' : 'OFFLINE'}`;
+                    ${this._forceOffline ? 'OFFLINE (teste)' : 'OFFLINE'}`;
             }
             // Logout button
             const logoutBtn = document.getElementById('logout-btn');
@@ -47,8 +44,35 @@
                 logoutBtn.style.opacity = offline ? '0.3' : '';
             }
             if (offline) {
-                console.info('[HMS] Offline mode active — reading from IndexedDB', this._forceOffline ? '(FORCED/READONLY)' : '');
+                console.info('[HMS] Offline mode active — reading from IndexedDB', this._forceOffline ? '(FORCED)' : '');
             }
+        },
+    };
+
+    // ── Read-Only Mode (online, but editing disabled) ─────────────
+    // Completely separate from HMSOffline: data is still fetched from
+    // Supabase; only the write/edit buttons are disabled.
+    window.HMSReadOnly = {
+        isActive() {
+            return localStorage.getItem('hms_readonly_mode') === '1';
+        },
+
+        set(val) {
+            localStorage.setItem('hms_readonly_mode', val ? '1' : '0');
+            this._updateBadge();
+            // Re-render the song list so chip buttons (H, edit) reflect the new state
+            if (window.RepertoireComponent && document.getElementById('song-list')) {
+                RepertoireComponent._renderSongList();
+            }
+        },
+
+        _updateBadge() {
+            const badge = document.getElementById('readonly-badge');
+            if (badge) badge.classList.toggle('hidden', !this.isActive());
+        },
+
+        init() {
+            this._updateBadge();
         },
     };
 
@@ -138,6 +162,7 @@
         init: async function () {
             window.HMSApp.showLoading();
             window.HMSOffline.init();
+            window.HMSReadOnly.init();
             try {
                 const session = await window.HMSAuth.getSession();
                 if (session) {
@@ -344,7 +369,7 @@
             document.getElementById('sidebar-backdrop')?.classList.add('hidden');
         },
 
-        // ── Navigation ───────────────────────────────────────────
+        // ── Navigation ───────────────────────────────────────────────
         navigate: function (route, payload, _skipPush) {
             if (!ROUTES[route]) {
                 console.warn('[HMS] Unknown route:', route);
@@ -365,11 +390,11 @@
             ROUTES[route].render(payload);
         },
 
-        // ── Preferências do Usuário ────────────────────────────────
+        // ── Preferências do Usuário ────────────────────────────────────
         _openUserPrefs: function () {
-            const email   = document.getElementById('user-email')?.textContent || '';
-            const current = localStorage.getItem('hms_show_pref') || 'acor';
-            const readOnly = window.HMSOffline._forceOffline;
+            const email    = document.getElementById('user-email')?.textContent || '';
+            const current  = localStorage.getItem('hms_show_pref') || 'acor';
+            const readOnly = window.HMSReadOnly.isActive();
 
             const opts = [
                 { key: 'func',         icon: 'fa-music',  label: 'Harm Func',   desc: 'Funções harmônicas' },
@@ -425,7 +450,7 @@
                                 <i class="fa-solid fa-lock" style="font-size:1.1rem;flex-shrink:0;"></i>
                                 <div style="flex:1;">
                                     <div style="font-size:.82rem;font-weight:700;">Somente Leitura</div>
-                                    <div style="font-size:.68rem;opacity:.75;margin-top:2px;">Desativa edições — igual ao modo offline</div>
+                                    <div style="font-size:.68rem;opacity:.75;margin-top:2px;">Desativa botões de edição — dados continuam online</div>
                                 </div>
                                 <div id="pref-readonly-pill" style="
                                     padding:3px 10px;border-radius:99px;font-size:.68rem;font-weight:700;
@@ -460,8 +485,8 @@
 
             // Read-only toggle
             document.getElementById('pref-readonly-toggle')?.addEventListener('click', () => {
-                const newVal = !window.HMSOffline._forceOffline;
-                window.HMSOffline.setForce(newVal);
+                const newVal = !window.HMSReadOnly.isActive();
+                window.HMSReadOnly.set(newVal);
 
                 // Update button visual in-place
                 const toggleBtn = document.getElementById('pref-readonly-toggle');
@@ -477,7 +502,7 @@
                     pill.style.color        = newVal ? '#000' : 'var(--text-muted)';
                 }
                 window.HMSApp.showToast(
-                    newVal ? '🔒 Modo Somente Leitura ativado' : '🔓 Modo Somente Leitura desativado',
+                    newVal ? '🔒 Somente Leitura ativado' : '🔓 Somente Leitura desativado',
                     newVal ? 'warning' : 'success'
                 );
             });
