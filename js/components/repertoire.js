@@ -560,7 +560,7 @@
                 if (_state.filterLetra !== null && !!s.has_lyrics !== _state.filterLetra) return false;
                 if (_state.filterLink  !== null && !!s.audio_url  !== _state.filterLink)  return false;
                 if (_state.filterKey   !== null && s.original_key !== _state.filterKey) return false;
-                if (_state.filterStar  && !localStorage.getItem(`hms_song_star_${s.id}`)) return false;
+                if (_state.filterStar  && !s.starred) return false;
                 return true;
             });
 
@@ -620,22 +620,30 @@
                         cell.addEventListener('click', (e) => {
                             if (e.target.closest('.show-alert-btn') || e.target.closest('.show-comment-btn')) return;
                             if (_state.starMode) {
-                                // Toggle estrela via localStorage
+                                // Toggle estrela via banco de dados (otimista)
                                 const sid  = cell.dataset.id;
-                                const key  = `hms_song_star_${sid}`;
-                                const isOn = !!localStorage.getItem(key);
-                                if (isOn) {
-                                    localStorage.removeItem(key);
-                                } else {
-                                    localStorage.setItem(key, '1');
-                                }
-                                // Atualiza a célula sem re-renderizar tudo
-                                cell.classList.toggle('cell-starred', !isOn);
+                                const song = _state.songs.find(s => s.id === sid);
+                                if (!song) return;
+                                const newVal = !song.starred;
+                                // Atualiza estado local imediatamente (UX otimista)
+                                song.starred = newVal;
+                                cell.classList.toggle('cell-starred', newVal);
                                 const badge = cell.querySelector('.show-star-badge');
                                 if (badge) {
-                                    badge.innerHTML = !isOn ? '<i class="fa-solid fa-star"></i>' : '';
-                                    badge.classList.toggle('show-star-empty', isOn);
+                                    badge.innerHTML = newVal ? '<i class="fa-solid fa-star"></i>' : '';
+                                    badge.classList.toggle('show-star-empty', !newVal);
                                 }
+                                // Persiste no banco em background
+                                window.HMSAPI.Songs.toggleStar(sid, newVal).catch(err => {
+                                    // Reverte se falhar
+                                    song.starred = !newVal;
+                                    cell.classList.toggle('cell-starred', !newVal);
+                                    if (badge) {
+                                        badge.innerHTML = !newVal ? '<i class="fa-solid fa-star"></i>' : '';
+                                        badge.classList.toggle('show-star-empty', newVal);
+                                    }
+                                    window.HMSApp.showToast('Erro ao salvar estrela: ' + err.message, 'error');
+                                });
                                 return;
                             }
                             const song = _state.songs.find(s => s.id === cell.dataset.id);
@@ -891,7 +899,7 @@
                     :  cellStatus === 'resolvido'      ? ' cs-resolvido'
                     :                                   ' has-comment')
                     : '';
-                const isStarred = !!localStorage.getItem(`hms_song_star_${s.id}`);
+                const isStarred = !!s.starred;
                 return `<div class="show-cell ${rowCls}${isShowDrag ? ' draggable-cell' : ''}${isStarred ? ' cell-starred' : ''}" data-id="${s.id}"
                     ${isDragMode ? 'draggable="true"' : ''}>
                     <span class="show-key${keyCls}" data-key="${esc(s.original_key || '')}">${esc(s.original_key || '?')}</span>

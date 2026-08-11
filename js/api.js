@@ -54,7 +54,7 @@
             // ── Online: Supabase ──────────────────────────────────
             let query = db()
                 .from('songs')
-                .select('id, title, artist, composer, genre, original_key, harmony_str, has_lyrics, is_alert, status_flag, audio_url, created_at')
+                .select('id, title, artist, composer, genre, original_key, harmony_str, has_lyrics, is_alert, status_flag, starred, audio_url, created_at')
                 .order('title', { ascending: true });
 
             if (search) {
@@ -147,6 +147,19 @@
                 .select('id, title, artist');
             if (error) throw error;
             return data || [];
+        },
+
+        async toggleStar(id, starred) {
+            requireOnline('marcar estrela');
+            const { data, error } = await db()
+                .from('songs')
+                .update({ starred })
+                .eq('id', id)
+                .select('id');
+            if (error) throw error;
+            if (!data || data.length === 0) {
+                throw new Error('Sem permissão para editar esta música.');
+            }
         },
     };
 
