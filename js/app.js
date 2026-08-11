@@ -13,6 +13,7 @@
 
         setForce(val) {
             this._forceOffline = val;
+            localStorage.setItem('hms_readonly_mode', val ? '1' : '0');
             this._update();
             // Re-render current view if repertoire is active
             if (window.RepertoireComponent && document.getElementById('song-list')) {
@@ -21,6 +22,8 @@
         },
 
         init() {
+            // Restaura flag salvo
+            this._forceOffline = localStorage.getItem('hms_readonly_mode') === '1';
             window.addEventListener('online',  () => HMSOffline._update());
             window.addEventListener('offline', () => HMSOffline._update());
             HMSOffline._update();
@@ -32,9 +35,9 @@
             const badge = document.getElementById('offline-badge');
             if (badge) {
                 badge.classList.toggle('hidden', !offline);
-                badge.title = this._forceOffline ? 'Modo offline simulado (teste)' : 'Sem conexão';
+                badge.title = this._forceOffline ? 'Modo somente leitura ativo' : 'Sem conexão';
                 badge.innerHTML = `<i class="fa-solid fa-wifi-slash" style="font-size:.65rem;"></i>
-                    ${this._forceOffline ? 'OFFLINE (teste)' : 'OFFLINE'}`;
+                    ${this._forceOffline ? 'SOMENTE LEITURA' : 'OFFLINE'}`;
             }
             // Logout button
             const logoutBtn = document.getElementById('logout-btn');
@@ -44,7 +47,7 @@
                 logoutBtn.style.opacity = offline ? '0.3' : '';
             }
             if (offline) {
-                console.info('[HMS] Offline mode active — reading from IndexedDB', this._forceOffline ? '(FORCED)' : '');
+                console.info('[HMS] Offline mode active — reading from IndexedDB', this._forceOffline ? '(FORCED/READONLY)' : '');
             }
         },
     };
@@ -366,6 +369,7 @@
         _openUserPrefs: function () {
             const email   = document.getElementById('user-email')?.textContent || '';
             const current = localStorage.getItem('hms_show_pref') || 'acor';
+            const readOnly = window.HMSOffline._forceOffline;
 
             const opts = [
                 { key: 'func',         icon: 'fa-music',  label: 'Harm Func',   desc: 'Funções harmônicas' },
@@ -405,6 +409,32 @@
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
                             ${optsHtml}
                         </div>
+
+                        <!-- Somente Leitura toggle -->
+                        <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--glass-border);">
+                            <div style="font-size:.68rem;font-weight:700;color:var(--text-muted);letter-spacing:.08em;margin-bottom:12px;">MODO DE ACESSO</div>
+                            <button id="pref-readonly-toggle" style="
+                                width:100%;display:flex;align-items:center;gap:12px;
+                                padding:12px 16px;border-radius:14px;cursor:pointer;transition:all .2s;
+                                font-family:var(--font-ui);
+                                border:2px solid ${readOnly ? '#f59e0b' : 'var(--glass-border)'};
+                                background:${readOnly ? 'rgba(245,158,11,.12)' : 'var(--glass-bg)'};
+                                color:${readOnly ? '#f59e0b' : 'var(--text-muted)'};
+                                text-align:left;
+                            ">
+                                <i class="fa-solid fa-lock" style="font-size:1.1rem;flex-shrink:0;"></i>
+                                <div style="flex:1;">
+                                    <div style="font-size:.82rem;font-weight:700;">Somente Leitura</div>
+                                    <div style="font-size:.68rem;opacity:.75;margin-top:2px;">Desativa edições — igual ao modo offline</div>
+                                </div>
+                                <div id="pref-readonly-pill" style="
+                                    padding:3px 10px;border-radius:99px;font-size:.68rem;font-weight:700;
+                                    background:${readOnly ? '#f59e0b' : 'rgba(255,255,255,.08)'};
+                                    color:${readOnly ? '#000' : 'var(--text-muted)'};
+                                    transition:all .2s;
+                                ">${readOnly ? 'ATIVO' : 'INATIVO'}</div>
+                            </button>
+                        </div>
                     </div>
                 </div>
             `);
@@ -426,6 +456,30 @@
                     window.HMSApp.showToast(`Padrão: ${label}`, 'success');
                     setTimeout(() => window.HMSApp.closeModal(), 700);
                 });
+            });
+
+            // Read-only toggle
+            document.getElementById('pref-readonly-toggle')?.addEventListener('click', () => {
+                const newVal = !window.HMSOffline._forceOffline;
+                window.HMSOffline.setForce(newVal);
+
+                // Update button visual in-place
+                const toggleBtn = document.getElementById('pref-readonly-toggle');
+                const pill      = document.getElementById('pref-readonly-pill');
+                if (toggleBtn) {
+                    toggleBtn.style.borderColor = newVal ? '#f59e0b' : 'var(--glass-border)';
+                    toggleBtn.style.background  = newVal ? 'rgba(245,158,11,.12)' : 'var(--glass-bg)';
+                    toggleBtn.style.color       = newVal ? '#f59e0b' : 'var(--text-muted)';
+                }
+                if (pill) {
+                    pill.textContent        = newVal ? 'ATIVO' : 'INATIVO';
+                    pill.style.background   = newVal ? '#f59e0b' : 'rgba(255,255,255,.08)';
+                    pill.style.color        = newVal ? '#000' : 'var(--text-muted)';
+                }
+                window.HMSApp.showToast(
+                    newVal ? '🔒 Modo Somente Leitura ativado' : '🔓 Modo Somente Leitura desativado',
+                    newVal ? 'warning' : 'success'
+                );
             });
         },
 
