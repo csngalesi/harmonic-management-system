@@ -4,7 +4,7 @@
  * Strategy: Cache-first for static assets, network-first for API calls.
  */
 
-const CACHE_NAME = 'hms-v60';
+const CACHE_NAME = 'hms-v64';
 
 
 
@@ -14,7 +14,7 @@ const CACHE_NAME = 'hms-v60';
 const APP_SHELL = [
     '/',
     '/index.html',
-    '/css/main.css?v=18',
+    '/css/main.css?v=25',
     '/js/core/harmonyEngine.js?v=14',
     '/js/core/chordShapes.js?v=13',
     '/js/core/audioEngine.js?v=30',
@@ -24,18 +24,18 @@ const APP_SHELL = [
     '/js/core/guitarRecorder.js?v=18',
     '/js/supabase-client.js?v=13',
     '/js/auth.js?v=13',
-    '/js/api.js?v=21',
-    '/js/components/repertoire.js?v=16',
+    '/js/api.js?v=23',
+    '/js/components/repertoire.js?v=27',
     '/js/components/player.js?v=15',
     '/js/components/analyzer.js?v=13',
     '/js/components/extractor.js?v=13',
-    '/js/components/studies7.js?v=16',
+    '/js/components/studies7.js?v=9',
     '/js/components/fretboard7.js?v=13',
     '/js/components/melodicStudies.js?v=13',
-    '/js/components/harmonicMelodic.js?v=13',
+    '/js/components/harmonicMelodic.js?v=14',
     '/js/components/harmonicBass.js?v=13',
     '/js/components/guitarSampler.js?v=18',
-    '/js/app.js?v=22',
+    '/js/app.js?v=26',
     // CDN libs
     'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',
     'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css',
