@@ -171,7 +171,7 @@
                 const session = await Promise.race([sessionPromise, timeoutPromise]);
 
                 if (session) {
-                    // Salva usuário em cache para uso offline futuro
+                    App._enteredViaCache = false;
                     localStorage.setItem('hms-cached-user', JSON.stringify({
                         id:    session.user.id,
                         email: session.user.email,
@@ -182,7 +182,8 @@
                     // Sem sessão (expirada, offline ou timeout) — usa cache se disponível
                     const cached = App._getCachedUser();
                     if (cached) {
-                        console.info('[HMS] Sessão indisponível — usando usuário em cache:', cached.email);
+                        console.info('[HMS] Sessão indisponível — abrindo via cache:', cached.email);
+                        App._enteredViaCache = true;
                         App._showApp(cached);
                     } else {
                         App._showLogin();
@@ -190,10 +191,10 @@
                 }
             } catch (err) {
                 console.error('[HMS] Session check failed:', err);
-                // Qualquer erro: tenta cache antes de forçar login
                 const cached = App._getCachedUser();
                 if (cached) {
-                    console.info('[HMS] Erro de sessão — fallback para cache:', cached.email);
+                    console.info('[HMS] Erro de sessão — abrindo via cache:', cached.email);
+                    App._enteredViaCache = true;
                     App._showApp(cached);
                 } else {
                     App._showLogin();
@@ -204,7 +205,8 @@
 
             window.HMSAuth.onAuthStateChange((event, session) => {
                 if (event === 'SIGNED_IN' && session) {
-                    // Atualiza cache a cada login bem-sucedido
+                    // Login real — sai do modo cache
+                    App._enteredViaCache = false;
                     localStorage.setItem('hms-cached-user', JSON.stringify({
                         id:    session.user.id,
                         email: session.user.email,
@@ -212,13 +214,13 @@
                     }));
                     App._showApp(session.user);
                 } else if (event === 'SIGNED_OUT') {
-                    // Se offline, SIGNED_OUT é falso alarme (token refresh falhou)
-                    // Só desloga de verdade se o usuário clicou em logout (online)
-                    if (!navigator.onLine && App._getCachedUser()) {
-                        console.info('[HMS] Offline SIGNED_OUT ignorado — mantendo sessão em cache');
+                    // Se entramos via cache, SIGNED_OUT é falso alarme do SDK
+                    // (token refresh falhou em modo avião). Ignoramos.
+                    if (App._enteredViaCache) {
+                        console.info('[HMS] SIGNED_OUT ignorado — app em modo cache offline');
                         return;
                     }
-                    // Limpa cache só no logout real (online)
+                    // Logout real (usuário clicou em Sair)
                     localStorage.removeItem('hms-cached-user');
                     App._showLogin();
                 }
