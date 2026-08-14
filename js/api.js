@@ -57,7 +57,7 @@
             // ── Online: Supabase ──────────────────────────────────
             let query = db()
                 .from('songs')
-                .select('id, title, artist, composer, genre, original_key, harmony_str, has_lyrics, is_alert, status_flag, starred, audio_url, created_at')
+                .select('id, title, artist, composer, genre, original_key, harmony_str, has_lyrics, is_alert, status_flag, stage, audio_url, created_at')
                 .order('title', { ascending: true });
 
             if (search) {
@@ -152,11 +152,11 @@
             return data || [];
         },
 
-        async toggleStar(id, starred) {
-            requireOnline('marcar estrela');
+        async setStage(id, stage) {
+            requireOnline('marcar estágio');
             const { data, error } = await db()
                 .from('songs')
-                .update({ starred })
+                .update({ stage })
                 .eq('id', id)
                 .select('id');
             if (error) throw error;

@@ -24,7 +24,7 @@
         showColumns:     'N',         // 'S'=1col | 'N'=responsive | '2'-'5'
         showFlow:        'row',        // 'row' = leitura linha a linha | 'col' = leitura por coluna
         showDragMode:    false,        // true = grid arrastável para reordenar posições
-        starMode:        false,        // true = clique na célula marca/desmarca estrela
+        stageMode:       false,        // true = clique na célula cicla estágio N→L→B→null
         headerCollapsed: false,
         // Client-side filters (null = sem filtro)
         filterFlag:  new Set(), // Set<number>; vazio = todas as flags visíveis
@@ -32,7 +32,7 @@
         filterLetra: null,   // null | true | false
         filterLink:  null,   // null | true | false
         filterKey:   null,   // null | 'C' | 'G' | ...
-        filterStar:  false,  // true = exibir apenas músicas com estrela
+        filterStage: null,   // null = todas | 'N' | 'L' | 'B'
     };
 
     // Snapshot of positions before any drag in the current drag session.
@@ -182,7 +182,7 @@
                         <button class="sort-btn" id="btn-save-prefs" title="Salvar vista atual como padrão de entrada" style="margin-left:2px;">
                             <i class="fa-solid fa-bookmark"></i>
                         </button>
-                        <button class="sort-btn${_state.starMode ? ' active' : ''}" id="btn-star-mode" title="Modo Estrela — clique na música para marcar/desmarcar" style="margin-left:2px;color:${_state.starMode ? '#facc15' : 'var(--text-muted)'};">
+                        <button class="sort-btn${_state.stageMode ? ' active' : ''}" id="btn-star-mode" title="Modo Estágio — clique na música para ciclar N → L → B → sem estágio" style="margin-left:2px;color:${_state.stageMode ? '#facc15' : 'var(--text-muted)'};">
                             <i class="fa-solid fa-star" style="font-size:.78rem;"></i>
                         </button>
 
@@ -531,15 +531,24 @@
                     const isActive = _state.filterKey === k;
                     return `<button class="sort-btn key-filter-btn${isActive ? ' active' : ''}" data-key="${k}" style="padding: 3px 8px; font-size: 0.72rem; min-width: 28px; text-align: center; justify-content: center;">${k}</button>`;
                 }).join('');
-                // Botão estrela de filtro — ao lado do último tom
-                const starActive = _state.filterStar;
-                const starBtn = `<button id="btn-filter-star" class="sort-btn key-filter-btn${starActive ? ' active' : ''}" title="Filtrar músicas com estrela" style="padding: 3px 7px; font-size: 0.68rem; min-width: 24px; text-align: center; justify-content: center; color: ${starActive ? '#facc15' : 'var(--text-muted)'}; margin-left: 4px;"><i class="fa-solid fa-star"></i></button>`;
-                headerKeyEl.innerHTML = keyBtns + starBtn;
-                // Listener do botão estrela-filtro
-                document.getElementById('btn-filter-star')?.addEventListener('click', () => {
-                    _state.filterStar = !_state.filterStar;
-                    RepertoireComponent._renderSortToolbar();
-                    RepertoireComponent._renderSongList();
+                // Botões de filtro por estágio — ao lado dos tons
+                const stageOptions = [null, 'N', 'L', 'B'];
+                const stageLabels  = { null: '·', N: 'N', L: 'L', B: 'B' };
+                const stageBtns = stageOptions.map(sv => {
+                    const isAct = _state.filterStage === sv;
+                    const stageColorMap = { N: '#60a5fa', L: '#a78bfa', B: '#34d399' };
+                    const col = sv && isAct ? stageColorMap[sv] : isAct ? 'var(--text)' : 'var(--text-muted)';
+                    return `<button class="sort-btn key-filter-btn stage-filter-btn${isAct ? ' active' : ''}" data-stage="${sv === null ? 'null' : sv}" title="Estágio: ${sv || 'Todas'}" style="padding: 3px 8px; font-size: 0.72rem; min-width: 24px; text-align: center; justify-content: center; color: ${col}; margin-left: 2px;">${sv || '·'}</button>`;
+                }).join('');
+                headerKeyEl.innerHTML = keyBtns + `<span style="display:inline-flex;align-items:center;gap:0;margin-left:6px;border-left:1px solid var(--glass-border);padding-left:6px;">${stageBtns}</span>`;
+                // Listener dos botões de estágio
+                headerKeyEl.querySelectorAll('.stage-filter-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const raw = btn.dataset.stage;
+                        _state.filterStage = raw === 'null' ? null : raw;
+                        RepertoireComponent._renderSortToolbar();
+                        RepertoireComponent._renderSongList();
+                    });
                 });
             }
         },
@@ -560,7 +569,7 @@
                 if (_state.filterLetra !== null && !!s.has_lyrics !== _state.filterLetra) return false;
                 if (_state.filterLink  !== null && !!s.audio_url  !== _state.filterLink)  return false;
                 if (_state.filterKey   !== null && s.original_key !== _state.filterKey) return false;
-                if (_state.filterStar  && !s.starred) return false;
+                if (_state.filterStage !== null && s.stage !== _state.filterStage) return false;
                 return true;
             });
 
@@ -615,34 +624,28 @@
                         e.stopPropagation();
                         RepertoireComponent._openCommentModal(cell.dataset.id);
                     });
-                    // Click na célula: modo estrela → toggle estrela; modo normal → abre detalhe
+                    // Click na célula: modo estágio → cicla N→L→B→null; modo normal → abre detalhe
                     if (!isGridDrag) {
                         cell.addEventListener('click', (e) => {
                             if (e.target.closest('.show-alert-btn') || e.target.closest('.show-comment-btn')) return;
-                            if (_state.starMode) {
-                                // Toggle estrela via banco de dados (otimista)
+                            if (_state.stageMode) {
+                                // Cicla estágio: null→N→L→B→null
                                 const sid  = cell.dataset.id;
                                 const song = _state.songs.find(s => s.id === sid);
                                 if (!song) return;
-                                const newVal = !song.starred;
+                                const stageSeq = [null, 'N', 'L', 'B'];
+                                const curIdx   = stageSeq.indexOf(song.stage || null);
+                                const newStage = stageSeq[(curIdx + 1) % stageSeq.length];
+                                const prevStage = song.stage;
                                 // Atualiza estado local imediatamente (UX otimista)
-                                song.starred = newVal;
-                                cell.classList.toggle('cell-starred', newVal);
-                                const badge = cell.querySelector('.show-star-badge');
-                                if (badge) {
-                                    badge.innerHTML = newVal ? '<i class="fa-solid fa-star"></i>' : '';
-                                    badge.classList.toggle('show-star-empty', !newVal);
-                                }
+                                song.stage = newStage;
+                                _updateStageBadge(cell, newStage);
                                 // Persiste no banco em background
-                                window.HMSAPI.Songs.toggleStar(sid, newVal).catch(err => {
+                                window.HMSAPI.Songs.setStage(sid, newStage).catch(err => {
                                     // Reverte se falhar
-                                    song.starred = !newVal;
-                                    cell.classList.toggle('cell-starred', !newVal);
-                                    if (badge) {
-                                        badge.innerHTML = !newVal ? '<i class="fa-solid fa-star"></i>' : '';
-                                        badge.classList.toggle('show-star-empty', newVal);
-                                    }
-                                    window.HMSApp.showToast('Erro ao salvar estrela: ' + err.message, 'error');
+                                    song.stage = prevStage;
+                                    _updateStageBadge(cell, prevStage);
+                                    window.HMSApp.showToast('Erro ao salvar estágio: ' + err.message, 'error');
                                 });
                                 return;
                             }
@@ -652,13 +655,13 @@
                     }
                 });
 
-                // Listener do botão estrela (precisa ser registrado após render)
+                // Listener do botão estágio (precisa ser registrado após render)
                 document.getElementById('btn-star-mode')?.addEventListener('click', () => {
-                    _state.starMode = !_state.starMode;
+                    _state.stageMode = !_state.stageMode;
                     const btn = document.getElementById('btn-star-mode');
                     if (btn) {
-                        btn.classList.toggle('active', _state.starMode);
-                        btn.style.color = _state.starMode ? '#facc15' : 'var(--text-muted)';
+                        btn.classList.toggle('active', _state.stageMode);
+                        btn.style.color = _state.stageMode ? '#facc15' : 'var(--text-muted)';
                     }
                 });
 
@@ -837,6 +840,22 @@
             });
         },
 
+        // Helper: atualiza badge de estágio em uma show-cell sem re-render total
+
+        _updateStageBadge: function (cell, stage) {
+            const stageClasses = ['cell-stage-n', 'cell-stage-l', 'cell-stage-b'];
+            cell.classList.remove(...stageClasses);
+            if (stage) cell.classList.add('cell-stage-' + stage.toLowerCase());
+            const badge = cell.querySelector('.show-stage-badge');
+            if (badge) {
+                badge.textContent = stage || '';
+                badge.className = stage
+                    ? `show-stage-badge show-stage-${stage.toLowerCase()}`
+                    : 'show-stage-badge show-stage-empty';
+                badge.title = stage ? `Estágio ${stage}` : '';
+            }
+        },
+
         // ── Show Grid ─────────────────────────────────────────────
         // sorted:     songs in current display order (may be alphabetical, key, etc.)
         // byPosition: songs sorted strictly by _position (used only for badge index)
@@ -899,8 +918,9 @@
                     :  cellStatus === 'resolvido'      ? ' cs-resolvido'
                     :                                   ' has-comment')
                     : '';
-                const isStarred = !!s.starred;
-                return `<div class="show-cell ${rowCls}${isShowDrag ? ' draggable-cell' : ''}${isStarred ? ' cell-starred' : ''}" data-id="${s.id}"
+                const cellStage = s.stage || null;
+                const stageCls  = cellStage ? ' cell-stage-' + cellStage.toLowerCase() : '';
+                return `<div class="show-cell ${rowCls}${isShowDrag ? ' draggable-cell' : ''}${stageCls}" data-id="${s.id}"
                     ${isDragMode ? 'draggable="true"' : ''}>
                     <span class="show-key${keyCls}" data-key="${esc(s.original_key || '')}">${esc(s.original_key || '?')}</span>
                     <span class="show-title">${esc(s.title)}</span>
@@ -910,14 +930,16 @@
                     <button class="show-comment-btn${cellCmtClass}" title="${cellComment ? esc(cellComment) : 'Adicionar nota'}" data-action="comment">
                         <i class="fa-solid fa-exclamation"></i>
                     </button>
-                    ${isStarred ? '<span class="show-star-badge" title="Marcada com estrela"><i class="fa-solid fa-star"></i></span>' : '<span class="show-star-badge show-star-empty"></span>'}
+                    ${cellStage ? `<span class="show-stage-badge show-stage-${cellStage.toLowerCase()}" title="Estágio ${cellStage}">${cellStage}</span>` : '<span class="show-stage-badge show-stage-empty"></span>'}
                     <button class="show-alert-btn sf-${sf}" title="Ciclar bandeira">
                         <i class="fa-solid fa-flag"></i>
                     </button>
                 </div>`;
             }).join('');
             const colClass = _state.showColumns !== 'N' ? ` cols-${_state.showColumns}` : '';
-            return `<div class="show-grid${colClass}">${cells}</div>`;
+            const stageModeClass = _state.stageMode ? ' stage-mode-active' : '';
+            return `<div class="show-grid${colClass}${stageModeClass}">${cells}</div>`;
+
         },
 
         _openShowDetail: function (song) {

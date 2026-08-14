@@ -1120,35 +1120,48 @@ tbody tr:hover td { background: var(--glass-bg); }
 .gs-btn-play:hover { background: rgba(16,185,129,.15); border-color: #10b981; color: #10b981; }
 .gs-btn-del:hover  { background: rgba(239,68,68,.15);  border-color: #ef4444;  color: #ef4444; }
 
-/* ── Star Mode ────────────────────────────────────────── */
-/* Estrela: mesma posição do ! (right:22px) — fica atrás quando há comentário */
-.show-star-badge {
+/* ── Stage Mode ────────────────────────────────────────── */
+/* Badge de estágio (N / L / B) — mesma posição do ícone estrela anterior */
+.show-stage-badge {
     position: absolute;
     top: 50%;
     right: 22px;
     transform: translateY(-50%);
-    font-size: .55rem;
-    color: #facc15;
+    font-size: .58rem;
+    font-weight: 800;
+    font-family: var(--font-mono);
     line-height: 1;
     pointer-events: none;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 10px;
+    width: 12px;
     z-index: 0;
+    letter-spacing: 0;
 }
-.show-star-badge.show-star-empty {
+.show-stage-badge.show-stage-empty {
     visibility: hidden;
 }
+.show-stage-badge.show-stage-n { color: #60a5fa; }   /* N = azul */
+.show-stage-badge.show-stage-l { color: #a78bfa; }   /* L = roxo */
+.show-stage-badge.show-stage-b { color: #34d399; }   /* B = verde */
 
-/* Célula marcada com estrela — leve brilho dourado */
-.show-cell.cell-starred {
-    outline: 1px solid rgba(250, 204, 21, 0.45);
-    background: rgba(250, 204, 21, 0.06);
+/* Células marcadas com estágio — destaque de borda e fundo */
+.show-cell.cell-stage-n {
+    outline: 1px solid rgba(96, 165, 250, 0.45);
+    background: rgba(96, 165, 250, 0.05);
+}
+.show-cell.cell-stage-l {
+    outline: 1px solid rgba(167, 139, 250, 0.45);
+    background: rgba(167, 139, 250, 0.05);
+}
+.show-cell.cell-stage-b {
+    outline: 1px solid rgba(52, 211, 153, 0.45);
+    background: rgba(52, 211, 153, 0.05);
 }
 
-/* Cursor diferente no modo estrela */
-.star-mode-active .show-cell {
+/* Cursor diferente no modo estágio */
+.stage-mode-active .show-cell {
     cursor: cell;
 }
 

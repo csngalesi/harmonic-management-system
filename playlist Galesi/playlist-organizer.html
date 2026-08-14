@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Playlist Organizer — Galesi</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d0f14;
+      --surface:   #161921;
+      --card:      #1e2230;
+      --card-alt:  #252a3a;
+      --border:    #2e3348;
+      --accent:    #7c6ff7;
+      --accent2:   #5eead4;
+      --text:      #e4e8f4;
+      --muted:     #8892aa;
+      --danger:    #f87171;
+      --success:   #34d399;
+      --radius:    12px;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+    }
+
+    /* ──── layout ──── */
+    body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    header {
+      padding: 14px 32px;
+      background: linear-gradient(135deg, #1a1d2e 0%, #13162a 100%);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .logo-icon {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+      box-shadow: 0 4px 18px rgba(124, 111, 247, 0.4);
+    }
+
+    .header-text h1 { font-size: 15px; font-weight: 700; letter-spacing: -0.5px; }
+    .header-text p  { color: var(--muted); font-size: 10px; margin-top: 1px; }
+
+    .header-badges {
+      margin-left: auto;
+      display: flex; gap: 10px; align-items: center;
+    }
+
+    .badge {
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+    }
+
+    .badge-count {
+      background: rgba(124,111,247,0.15);
+      color: var(--accent);
+      border: 1px solid rgba(124,111,247,0.3);
+    }
+
+    main {
+      flex: 1;
+      padding: 10px 24px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-width: 1600px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    /* ──── info bar ──── */
+    .info-bar {
+      background: rgba(94, 234, 212, 0.06);
+      border: 1px solid rgba(94, 234, 212, 0.2);
+      border-radius: 8px;
+      padding: 7px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--accent2);
+      font-size: 10px;
+    }
+
+    .info-bar svg { flex-shrink: 0; }
+
+    /* ──── controls ──── */
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 600;
+      transition: all 0.18s ease;
+      letter-spacing: 0.2px;
+    }
+
+    .btn:active { transform: scale(0.97); }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #6058e8);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(124,111,247,0.35);
+    }
+    .btn-primary:hover { box-shadow: 0 6px 20px rgba(124,111,247,0.5); filter: brightness(1.08); }
+
+    .btn-secondary {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { background: var(--card-alt); border-color: var(--accent); }
+
+    .btn-danger {
+      background: rgba(248,113,113,0.12);
+      color: var(--danger);
+      border: 1px solid rgba(248,113,113,0.25);
+    }
+    .btn-danger:hover { background: rgba(248,113,113,0.2); }
+
+    .spacer { flex: 1; }
+
+    /* ──── search ──── */
+    .search-wrap {
+      position: relative;
+    }
+    .search-wrap svg {
+      position: absolute;
+      left: 12px; top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+      pointer-events: none;
+    }
+    .search-wrap input {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 11px;
+      padding: 8px 12px 8px 34px;
+      width: 200px;
+      outline: none;
+      transition: border-color 0.18s;
+    }
+    .search-wrap input:focus { border-color: var(--accent); }
+    .search-wrap input::placeholder { color: var(--muted); }
+
+    /* ──── list header hidden in grid mode ──── */
+    .list-header { display: none; }
+
+    #playlist {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 5px;
+      min-height: 60px;
+    }
+
+    .track {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 8px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      cursor: grab;
+      transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+      user-select: none;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    .track:hover {
+      background: var(--card-alt);
+      border-color: rgba(124,111,247,0.35);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+    }
+
+    .track.dragging {
+      opacity: 0.4;
+      cursor: grabbing;
+    }
+
+    .track.drag-over {
+      border-color: var(--accent);
+      background: rgba(124,111,247,0.1);
+      box-shadow: 0 0 0 2px rgba(124,111,247,0.25);
+      transform: scale(1.01);
+    }
+
+    .track-num { display: none; }
+
+    .num-badge {
+      width: 20px; height: 18px;
+      border-radius: 4px;
+      background: rgba(124,111,247,0.15);
+      border: 1px solid rgba(124,111,247,0.2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+    .track:hover .num-badge {
+      background: rgba(124,111,247,0.3);
+      border-color: var(--accent);
+    }
+
+    .drag-handle {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      justify-content: center;
+      align-items: center;
+      opacity: 0.3;
+      transition: opacity 0.15s;
+    }
+    .track:hover .drag-handle { opacity: 0.7; }
+    .drag-handle span {
+      display: block; width: 14px; height: 2px;
+      background: var(--muted); border-radius: 2px;
+    }
+
+    .track-info { display: contents; }
+
+    .music-icon { display: none; }
+
+    .track-texts { overflow: hidden; flex: 1; min-width: 0; }
+    .track-name {
+      font-weight: 500;
+      font-size: 9.5px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text);
+      line-height: 1;
+    }
+    .track-original { display: none; }
+    .track-size { display: none; }
+
+    /* ──── drop placeholder ──── */
+    .drop-placeholder {
+      height: 50px;
+      border: 2px dashed var(--accent);
+      border-radius: var(--radius);
+      background: rgba(124,111,247,0.05);
+      display: none;
+    }
+
+    /* ──── output modal ──── */
+    .modal-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px 30px;
+      max-width: 680px;
+      width: 90%;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+    }
+
+    .modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .modal-header h2 { font-size: 17px; font-weight: 700; }
+    .modal-close {
+      background: none; border: none; color: var(--muted);
+      cursor: pointer; font-size: 22px; line-height: 1; padding: 2px 6px;
+      border-radius: 6px; transition: background 0.15s, color 0.15s;
+    }
+    .modal-close:hover { background: var(--card); color: var(--text); }
+
+    .modal-desc {
+      background: rgba(94,234,212,0.05);
+      border: 1px solid rgba(94,234,212,0.15);
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: var(--accent2);
+      font-size: 12.5px;
+      line-height: 1.6;
+    }
+
+    .script-box {
+      flex: 1;
+      overflow-y: auto;
+      background: #0a0c12;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      line-height: 1.7;
+      color: #a5f3fc;
+      white-space: pre;
+      max-height: 340px;
+    }
+
+    .modal-footer { display: flex; gap: 10px; justify-content: flex-end; }
+
+    /* ──── toast ──── */
+    #toast {
+      position: fixed;
+      bottom: 28px; left: 50%;
+      transform: translateX(-50%) translateY(60px);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 12px 24px;
+      font-size: 13px;
+      font-weight: 500;
+      display: flex; align-items: center; gap: 10px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      transition: transform 0.3s cubic-bezier(.34,1.56,.64,1), opacity 0.3s;
+      opacity: 0;
+      z-index: 200;
+      pointer-events: none;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+    /* ──── empty state ──── */
+    .empty-msg {
+      text-align: center; color: var(--muted); padding: 30px;
+      font-size: 13px; display: none;
+    }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-icon">🎵</div>
+  <div class="header-text">
+    <h1>Playlist Organizer</h1>
+    <p>Galesi — Arraste para reordenar e gere o script de renomeação</p>
+  </div>
+  <div class="header-badges">
+    <span class="badge badge-count" id="countBadge">47 faixas</span>
+  </div>
+</header>
+
+<main>
+  <div class="info-bar">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <span>Arraste as faixas para definir a ordem desejada. Clique em <strong>"Gerar Script"</strong> para obter o script PowerShell que renomeia os arquivos na pasta.</span>
+  </div>
+
+  <div class="controls">
+    <div class="search-wrap">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="searchInput" placeholder="Buscar faixa…" />
+    </div>
+    <button class="btn btn-secondary" id="btnSortDefault" title="Restaurar ordem original">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/></svg>
+      Ordem Original
+    </button>
+    <div class="spacer"></div>
+    <button class="btn btn-primary" id="btnGenerate">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+      Gerar Script PowerShell
+    </button>
+  </div>
+
+  <div class="list-header">
+    <span>#</span>
+    <span>Faixa</span>
+    <span style="text-align:right">Tamanho</span>
+  </div>
+
+  <div id="playlist"></div>
+  <div class="empty-msg" id="emptyMsg">Nenhuma faixa encontrada para a busca.</div>
+</main>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>🖥️ Script PowerShell</h2>
+      <button class="modal-close" id="modalClose">×</button>
+    </div>
+    <div class="modal-desc">
+      Copie o script abaixo e execute no <strong>PowerShell</strong> para renomear os arquivos na pasta.<br/>
+      Os arquivos receberão um número sequencial no início do nome (ex: <code>01 - Nome.mp3</code>).
+    </div>
+    <div class="script-box" id="scriptBox"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="modalClose2">Fechar</button>
+      <button class="btn btn-primary" id="btnCopy">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copiar Script
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast">
+  <span id="toastIcon">✅</span>
+  <span id="toastMsg">Copiado!</span>
+</div>
+
+<script>
+  // ─── DATA ───────────────────────────────────────────────────────────────────
+  const FOLDER = String.raw`C:\Users\csnga\.gemini\antigravity\scratch\harmonic-management-system\playlist Galesi`;
+
+  const originalFiles = [
+    "BCHCI2100003 - BRASIL 451.mp3",
+    "BCHCI2100004 - MATE DA VIDA.mp3",
+    "BCHCI2100005 - A ARTE DE SABER PARAR.mp3",
+    "BCHCI2100008 - A PARTE DOS ANIMAIS.mp3",
+    "BCHCI2100009 - CARA OU COROA.mp3",
+    "BCHCI2100011 - OBRIGADO MESTRE.mp3",
+    "BCHCI2100012 - RESPIRACAO.mp3",
+    "BCHCI2100013 - SO UMA.mp3",
+    "BCHCI2100014 - SOBRE AMANHA.mp3",
+    "BCHCI2100015 - UBUNTU.mp3",
+    "BCHCI2100016 - SUA TRILHA.mp3",
+    "BCHCI2100018 - COM VIDA.mp3",
+    "BCHCI2100019 - PLANETA CRIACAO.mp3",
+    "BCHCI2100020 - CARA OU COROA.mp3",
+    "BCHCI2100021 - SO UMA.mp3",
+    "BCHCI2300022 - CEDO DEMAIS.mp3",
+    "BCHCI2300023 - EXATAMENTE ASSIM.mp3",
+    "BCHCI2300024 - MAIS UM ABRACO.mp3",
+    "BCHCI2300025 - ATRIZ PRINCIPAL.mp3",
+    "BCHCI2300026 - PARE DE PASSAR.mp3",
+    "BCHCI2300027 - PARCERIA.mp3",
+    "BCHCI2300028 - PERCA.mp3",
+    "BCHCI2300029 MAHALO.mp3",
+    "BCHCI2300030 BICHO DE ESTIMACAO.mp3",
+    "BCHCI2300031 PERDEU A FE.mp3",
+    "BCHCI2300032 VOCE MEU AMIGO.mp3",
+    "BCHCI2300033 COMPARCA.mp3",
+    "BCHCI2300034 HERANCA.mp3",
+    "BCHCI2300035 IMPERFEITA.mp3",
+    "BCHCI2300036 DOUTORES DA ALEGRIA.mp3",
+    "BCHCI2300037 SUA VISAO.mp3",
+    "BCHCI2300038 VERGONHA NACIONAL.mp3",
+    "BCHCI2300039 COPO CHEIO.mp3",
+    "BCHCI2300040 MA INTENCAO.mp3",
+    "BCHCI2300041 CONCEITO PREVIO.mp3",
+    "BCHCI2300042 LIBERDADE E RESPEITO.mp3",
+    "BCHCI2300043 ESCORPIAO.mp3",
+    "BCHCI2500001 SIGO VIVENDO.mp3",
+    "BCHCI2500002 G01 Galesi - Guerra_G.mp3",
+    "BCHCI2500003 01 Galesi - A você, menina_G.mp3",
+    "BCHCI2500004 05 Galesi - Olimpo_G.mp3",
+    "BCHCI2500005 07 Galesi - Seu Sorriso_G.mp3",
+    "BCHCI2500006 06 Galesi - Pinheiro_G.mp3",
+    "BCHCI2500007 08 Galesi - SQCP_Nina_G.mp3",
+    "BCHCI2500008 04 Galesi - Raiz de Jequitibá_G.mp3",
+    "BCHCI2500009 03 Galesi - Faltava Você_G.mp3",
+    "BCHCI2500010 02 Galesi - O Samba escolheu_G.mp3"
+  ];
+
+  const sizes = {
+    "BCHCI2100003 - BRASIL 451.mp3": "6.1 MB",
+    "BCHCI2100004 - MATE DA VIDA.mp3": "6.0 MB",
+    "BCHCI2100005 - A ARTE DE SABER PARAR.mp3": "5.8 MB",
+    "BCHCI2100008 - A PARTE DOS ANIMAIS.mp3": "4.1 MB",
+    "BCHCI2100009 - CARA OU COROA.mp3": "7.7 MB",
+    "BCHCI2100011 - OBRIGADO MESTRE.mp3": "8.4 MB",
+    "BCHCI2100012 - RESPIRACAO.mp3": "7.0 MB",
+    "BCHCI2100013 - SO UMA.mp3": "9.3 MB",
+    "BCHCI2100014 - SOBRE AMANHA.mp3": "7.6 MB",
+    "BCHCI2100015 - UBUNTU.mp3": "5.6 MB",
+    "BCHCI2100016 - SUA TRILHA.mp3": "7.7 MB",
+    "BCHCI2100018 - COM VIDA.mp3": "4.6 MB",
+    "BCHCI2100019 - PLANETA CRIACAO.mp3": "5.8 MB",
+    "BCHCI2100020 - CARA OU COROA.mp3": "7.7 MB",
+    "BCHCI2100021 - SO UMA.mp3": "7.6 MB",
+    "BCHCI2300022 - CEDO DEMAIS.mp3": "5.1 MB",
+    "BCHCI2300023 - EXATAMENTE ASSIM.mp3": "5.0 MB",
+    "BCHCI2300024 - MAIS UM ABRACO.mp3": "5.0 MB",
+    "BCHCI2300025 - ATRIZ PRINCIPAL.mp3": "5.4 MB",
+    "BCHCI2300026 - PARE DE PASSAR.mp3": "4.2 MB",
+    "BCHCI2300027 - PARCERIA.mp3": "7.5 MB",
+    "BCHCI2300028 - PERCA.mp3": "4.6 MB",
+    "BCHCI2300029 MAHALO.mp3": "5.2 MB",
+    "BCHCI2300030 BICHO DE ESTIMACAO.mp3": "4.4 MB",
+    "BCHCI2300031 PERDEU A FE.mp3": "4.5 MB",
+    "BCHCI2300032 VOCE MEU AMIGO.mp3": "5.2 MB",
+    "BCHCI2300033 COMPARCA.mp3": "5.7 MB",
+    "BCHCI2300034 HERANCA.mp3": "4.6 MB",
+    "BCHCI2300035 IMPERFEITA.mp3": "4.3 MB",
+    "BCHCI2300036 DOUTORES DA ALEGRIA.mp3": "7.6 MB",
+    "BCHCI2300037 SUA VISAO.mp3": "4.7 MB",
+    "BCHCI2300038 VERGONHA NACIONAL.mp3": "5.7 MB",
+    "BCHCI2300039 COPO CHEIO.mp3": "5.2 MB",
+    "BCHCI2300040 MA INTENCAO.mp3": "3.8 MB",
+    "BCHCI2300041 CONCEITO PREVIO.mp3": "4.9 MB",
+    "BCHCI2300042 LIBERDADE E RESPEITO.mp3": "4.5 MB",
+    "BCHCI2300043 ESCORPIAO.mp3": "3.8 MB",
+    "BCHCI2500001 SIGO VIVENDO.mp3": "3.4 MB",
+    "BCHCI2500002 G01 Galesi - Guerra_G.mp3": "2.8 MB",
+    "BCHCI2500003 01 Galesi - A você, menina_G.mp3": "3.6 MB",
+    "BCHCI2500004 05 Galesi - Olimpo_G.mp3": "3.0 MB",
+    "BCHCI2500005 07 Galesi - Seu Sorriso_G.mp3": "2.7 MB",
+    "BCHCI2500006 06 Galesi - Pinheiro_G.mp3": "2.7 MB",
+    "BCHCI2500007 08 Galesi - SQCP_Nina_G.mp3": "2.9 MB",
+    "BCHCI2500008 04 Galesi - Raiz de Jequitibá_G.mp3": "2.9 MB",
+    "BCHCI2500009 03 Galesi - Faltava Você_G.mp3": "2.8 MB",
+    "BCHCI2500010 02 Galesi - O Samba escolheu_G.mp3": "3.8 MB"
+  };
+
+  // Music note icons cycling
+  const icons = ['🎵','🎶','🎸','🎹','🎷','🥁','🎺','🎻'];
+
+  // ─── STATE ───────────────────────────────────────────────────────────────────
+  let orderedFiles = [...originalFiles];
+  let dragSrcIdx = null;
+  let searchQuery = '';
+
+  // ─── RENDER ──────────────────────────────────────────────────────────────────
+  function friendlyName(filename) {
+    return filename.replace(/\.mp3$/i, '');
+  }
+
+  function render() {
+    const list = document.getElementById('playlist');
+    const emptyMsg = document.getElementById('emptyMsg');
+    list.innerHTML = '';
+
+    const filtered = orderedFiles.filter(f =>
+      f.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    emptyMsg.style.display = filtered.length === 0 ? 'block' : 'none';
+
+    filtered.forEach((file, visualIdx) => {
+      const realIdx = orderedFiles.indexOf(file);
+      const el = document.createElement('div');
+      el.className = 'track';
+      el.draggable = true;
+      el.dataset.idx = realIdx;
+
+      const num = realIdx + 1;
+      const icon = icons[realIdx % icons.length];
+
+      el.innerHTML = `
+        <div class="num-badge">${num}</div>
+        <div class="track-texts">
+          <div class="track-name">${friendlyName(file)}</div>
+        </div>
+      `;
+
+      // Drag events
+      el.addEventListener('dragstart', onDragStart);
+      el.addEventListener('dragend',   onDragEnd);
+      el.addEventListener('dragover',  onDragOver);
+      el.addEventListener('dragleave', onDragLeave);
+      el.addEventListener('drop',      onDrop);
+
+      list.appendChild(el);
+    });
+
+    document.getElementById('countBadge').textContent = `${orderedFiles.length} faixas`;
+  }
+
+  // ─── DRAG & DROP ─────────────────────────────────────────────────────────────
+  function onDragStart(e) {
+    dragSrcIdx = parseInt(this.dataset.idx);
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  }
+
+  function onDragEnd(e) {
+    this.classList.remove('dragging');
+    document.querySelectorAll('.track').forEach(t => t.classList.remove('drag-over'));
+  }
+
+  function onDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    document.querySelectorAll('.track').forEach(t => t.classList.remove('drag-over'));
+    this.classList.add('drag-over');
+  }
+
+  function onDragLeave(e) {
+    this.classList.remove('drag-over');
+  }
+
+  function onDrop(e) {
+    e.preventDefault();
+    const targetIdx = parseInt(this.dataset.idx);
+    if (dragSrcIdx === null || dragSrcIdx === targetIdx) return;
+
+    // Reorder
+    const moved = orderedFiles.splice(dragSrcIdx, 1)[0];
+    orderedFiles.splice(targetIdx, 0, moved);
+
+    dragSrcIdx = null;
+    render();
+    showToast('↕️', 'Ordem atualizada!');
+  }
+
+  // ─── SEARCH ──────────────────────────────────────────────────────────────────
+  document.getElementById('searchInput').addEventListener('input', function() {
+    searchQuery = this.value;
+    render();
+  });
+
+  // ─── RESET ───────────────────────────────────────────────────────────────────
+  document.getElementById('btnSortDefault').addEventListener('click', () => {
+    orderedFiles = [...originalFiles];
+    searchQuery = '';
+    document.getElementById('searchInput').value = '';
+    render();
+    showToast('🔄', 'Ordem original restaurada!');
+  });
+
+  // ─── GENERATE SCRIPT ─────────────────────────────────────────────────────────
+  document.getElementById('btnGenerate').addEventListener('click', () => {
+    const total = orderedFiles.length;
+    const pad = total >= 100 ? 3 : 2;
+
+    let lines = [];
+    lines.push(`# Script gerado pelo Playlist Organizer — Galesi`);
+    lines.push(`# ${new Date().toLocaleString('pt-BR')}`);
+    lines.push(`# Total de faixas: ${total}`);
+    lines.push(``);
+    lines.push(`$folder = "${FOLDER}"`);
+    lines.push(``);
+    lines.push(`# Mapa de renomeação: nome original → nome novo`);
+    lines.push(`$renames = @(`);
+
+    orderedFiles.forEach((file, idx) => {
+      const num = String(idx + 1).padStart(pad, '0');
+      const newName = `${num} - ${file}`;
+      lines.push(`  @{ Old = "${file}"; New = "${newName}" }`);
+    });
+
+    lines.push(`)`);
+    lines.push(``);
+    lines.push(`# Executar renomeações`);
+    lines.push(`foreach ($item in $renames) {`);
+    lines.push(`  $oldPath = Join-Path $folder $item.Old`);
+    lines.push(`  $newPath = Join-Path $folder $item.New`);
+    lines.push(`  if (Test-Path $oldPath) {`);
+    lines.push(`    Rename-Item -Path $oldPath -NewName $item.New`);
+    lines.push(`    Write-Host "✅ $($item.Old) → $($item.New)"`);
+    lines.push(`  } else {`);
+    lines.push(`    Write-Host "⚠️  Não encontrado: $($item.Old)" -ForegroundColor Yellow`);
+    lines.push(`  }`);
+    lines.push(`}`);
+    lines.push(``);
+    lines.push(`Write-Host ""`);
+    lines.push(`Write-Host "✔ Concluído! $($renames.Count) faixa(s) processada(s)." -ForegroundColor Green`);
+
+    document.getElementById('scriptBox').textContent = lines.join('\n');
+    document.getElementById('modalOverlay').classList.add('open');
+  });
+
+  // ─── MODAL ───────────────────────────────────────────────────────────────────
+  function closeModal() {
+    document.getElementById('modalOverlay').classList.remove('open');
+  }
+  document.getElementById('modalClose').addEventListener('click', closeModal);
+  document.getElementById('modalClose2').addEventListener('click', closeModal);
+  document.getElementById('modalOverlay').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('modalOverlay')) closeModal();
+  });
+
+  // ─── COPY ────────────────────────────────────────────────────────────────────
+  document.getElementById('btnCopy').addEventListener('click', () => {
+    const text = document.getElementById('scriptBox').textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      showToast('📋', 'Script copiado para a área de transferência!');
+    }).catch(() => {
+      // fallback
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast('📋', 'Script copiado!');
+    });
+  });
+
+  // ─── TOAST ───────────────────────────────────────────────────────────────────
+  let toastTimeout;
+  function showToast(icon, msg) {
+    clearTimeout(toastTimeout);
+    const toast = document.getElementById('toast');
+    document.getElementById('toastIcon').textContent = icon;
+    document.getElementById('toastMsg').textContent = msg;
+    toast.classList.add('show');
+    toastTimeout = setTimeout(() => toast.classList.remove('show'), 2800);
+  }
+
+  // ─── INIT ────────────────────────────────────────────────────────────────────
+  render();
+</script>
+</body>
+</html>
