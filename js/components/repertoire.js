@@ -639,18 +639,19 @@
                                 const prevStage = song.stage;
                                 // Atualiza estado local imediatamente (UX otimista)
                                 song.stage = newStage;
-                                _updateStageBadge(cell, newStage);
+                                RepertoireComponent._updateStageBadge(cell, newStage);
                                 // Persiste no banco em background
                                 window.HMSAPI.Songs.setStage(sid, newStage).catch(err => {
                                     // Reverte se falhar
                                     song.stage = prevStage;
-                                    _updateStageBadge(cell, prevStage);
+                                    RepertoireComponent._updateStageBadge(cell, prevStage);
                                     window.HMSApp.showToast('Erro ao salvar estágio: ' + err.message, 'error');
                                 });
                                 return;
                             }
-                            const song = _state.songs.find(s => s.id === cell.dataset.id);
-                            if (song) RepertoireComponent._openShowDetail(song);
+                            const songDetail = _state.songs.find(s => s.id === cell.dataset.id);
+                            if (songDetail) RepertoireComponent._openShowDetail(songDetail);
+
                         });
                     }
                 });
