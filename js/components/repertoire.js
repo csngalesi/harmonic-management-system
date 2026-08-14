@@ -31,7 +31,7 @@
         filterHarm:  null,   // null | true | false
         filterLetra: null,   // null | true | false
         filterLink:  null,   // null | true | false
-        filterKey:   null,   // null | 'C' | 'G' | ...
+        filterKey:   new Set(), // Set<string>; vazio = todos os tons visíveis
         filterStage: null,   // null = todas | 'N' | 'L' | 'B'
     };
 
@@ -232,7 +232,13 @@
                 const keyBtn = e.target.closest('.key-filter-btn[data-key]');
                 if (!keyBtn) return;
                 const key = keyBtn.dataset.key;
-                _state.filterKey = _state.filterKey === key ? null : key;
+                if (key === '__all__') {
+                    _state.filterKey.clear();
+                } else if (_state.filterKey.has(key)) {
+                    _state.filterKey.delete(key);
+                } else {
+                    _state.filterKey.add(key);
+                }
                 RepertoireComponent._renderSortToolbar();
                 RepertoireComponent._renderSongList();
             });
@@ -383,7 +389,13 @@
                 const keyBtn = e.target.closest('.key-filter-btn[data-key]');
                 if (keyBtn) {
                     const key = keyBtn.dataset.key;
-                    _state.filterKey = _state.filterKey === key ? null : key;
+                    if (key === '__all__') {
+                        _state.filterKey.clear();
+                    } else if (_state.filterKey.has(key)) {
+                        _state.filterKey.delete(key);
+                    } else {
+                        _state.filterKey.add(key);
+                    }
                     RepertoireComponent._renderSortToolbar();
                     RepertoireComponent._renderSongList();
                 }
@@ -509,10 +521,11 @@
             // Dynamic Key Filters — header slot only (sort-toolbar no longer has them)
             const uniqueKeys = [...new Set(_state.songs.map(s => s.original_key).filter(Boolean))];
             if (uniqueKeys.length === 0) {
-                _state.filterKey = null;
+                _state.filterKey.clear();
             } else {
-                if (_state.filterKey !== null && !uniqueKeys.includes(_state.filterKey)) {
-                    _state.filterKey = null;
+                // Remove keys that no longer exist in the song list
+                for (const k of _state.filterKey) {
+                    if (!uniqueKeys.includes(k)) _state.filterKey.delete(k);
                 }
                 const standardOrder = ['A', 'Bb', 'B', 'C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'Am', 'Bbm', 'Bm', 'Cm', 'C#m', 'Dm', 'Ebm', 'Em', 'Fm', 'F#m', 'Gm', 'G#m'];
                 uniqueKeys.sort((a, b) => {
@@ -527,8 +540,10 @@
 
             const headerKeyEl = document.getElementById('key-filter-header');
             if (headerKeyEl) {
-                const keyBtns = uniqueKeys.map(k => {
-                    const isActive = _state.filterKey === k;
+                const allKeysInactive = _state.filterKey.size === 0;
+                const dotBtn = `<button class="sort-btn key-filter-btn${allKeysInactive ? ' active' : ''}" data-key="__all__" style="padding: 3px 8px; font-size: 0.72rem; min-width: 24px; text-align: center; justify-content: center;">·</button>`;
+                const keyBtns = dotBtn + uniqueKeys.map(k => {
+                    const isActive = _state.filterKey.has(k);
                     return `<button class="sort-btn key-filter-btn${isActive ? ' active' : ''}" data-key="${k}" style="padding: 3px 8px; font-size: 0.72rem; min-width: 28px; text-align: center; justify-content: center;">${k}</button>`;
                 }).join('');
                 // Botões de filtro por estágio — ao lado dos tons
@@ -568,7 +583,7 @@
                 if (_state.filterHarm  !== null && !!(s.harmony_str && s.harmony_str.trim()) !== _state.filterHarm) return false;
                 if (_state.filterLetra !== null && !!s.has_lyrics !== _state.filterLetra) return false;
                 if (_state.filterLink  !== null && !!s.audio_url  !== _state.filterLink)  return false;
-                if (_state.filterKey   !== null && s.original_key !== _state.filterKey) return false;
+                if (_state.filterKey.size > 0 && !_state.filterKey.has(s.original_key || '')) return false;
                 if (_state.filterStage !== null && s.stage !== _state.filterStage) return false;
                 return true;
             });
