@@ -552,18 +552,19 @@
                 const stageBtns = [
                     // botão · (limpar tudo)
                     `<button class="sort-btn key-filter-btn stage-filter-btn${allStagesInactive ? ' active' : ''}" data-stage="__all__" title="Todos os estágios" style="padding: 3px 8px; font-size: 0.72rem; min-width: 24px; text-align: center; justify-content: center; margin-left: 2px;">·</button>`,
-                    // botão □ (sem estágio)
-                    (() => {
-                        const isAct = _state.filterStage.has('__none__');
-                        return `<button class="sort-btn key-filter-btn stage-filter-btn${isAct ? ' active' : ''}" data-stage="__none__" title="Sem estágio" style="padding: 3px 8px; font-size: 0.72rem; min-width: 24px; text-align: center; justify-content: center; margin-left: 2px;">□</button>`;
-                    })(),
                     // botões N, L, B
                     ...['N', 'L', 'B'].map(sv => {
                         const isAct = _state.filterStage.has(sv);
                         const col = isAct ? stageColorMap[sv] : 'var(--text-muted)';
                         return `<button class="sort-btn key-filter-btn stage-filter-btn${isAct ? ' active' : ''}" data-stage="${sv}" title="Estágio: ${sv}" style="padding: 3px 8px; font-size: 0.72rem; min-width: 24px; text-align: center; justify-content: center; color: ${col}; margin-left: 2px;">${sv}</button>`;
                     }),
+                    // botão □ (sem estágio) — por último
+                    (() => {
+                        const isAct = _state.filterStage.has('__none__');
+                        return `<button class="sort-btn key-filter-btn stage-filter-btn${isAct ? ' active' : ''}" data-stage="__none__" title="Sem estágio" style="padding: 3px 8px; font-size: 0.72rem; min-width: 24px; text-align: center; justify-content: center; margin-left: 2px;">□</button>`;
+                    })(),
                 ].join('');
+
                 headerKeyEl.innerHTML = keyBtns + `<span style="display:inline-flex;align-items:center;gap:0;margin-left:6px;border-left:1px solid var(--glass-border);padding-left:6px;">${stageBtns}</span>`;
                 // Listener dos botões de estágio
                 headerKeyEl.querySelectorAll('.stage-filter-btn').forEach(btn => {
