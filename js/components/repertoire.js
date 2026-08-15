@@ -550,8 +550,13 @@
                 const stageColorMap = { N: '#60a5fa', L: '#a78bfa', B: '#34d399' };
                 const allStagesInactive = _state.filterStage.size === 0;
                 const stageBtns = [
-                    // botão · (todas)
+                    // botão · (limpar tudo)
                     `<button class="sort-btn key-filter-btn stage-filter-btn${allStagesInactive ? ' active' : ''}" data-stage="__all__" title="Todos os estágios" style="padding: 3px 8px; font-size: 0.72rem; min-width: 24px; text-align: center; justify-content: center; margin-left: 2px;">·</button>`,
+                    // botão □ (sem estágio)
+                    (() => {
+                        const isAct = _state.filterStage.has('__none__');
+                        return `<button class="sort-btn key-filter-btn stage-filter-btn${isAct ? ' active' : ''}" data-stage="__none__" title="Sem estágio" style="padding: 3px 8px; font-size: 0.72rem; min-width: 24px; text-align: center; justify-content: center; margin-left: 2px;">□</button>`;
+                    })(),
                     // botões N, L, B
                     ...['N', 'L', 'B'].map(sv => {
                         const isAct = _state.filterStage.has(sv);
@@ -594,7 +599,15 @@
                 if (_state.filterLetra !== null && !!s.has_lyrics !== _state.filterLetra) return false;
                 if (_state.filterLink  !== null && !!s.audio_url  !== _state.filterLink)  return false;
                 if (_state.filterKey.size > 0 && !_state.filterKey.has(s.original_key || '')) return false;
-                if (_state.filterStage.size > 0 && !_state.filterStage.has(s.stage || '')) return false;
+                if (_state.filterStage.size > 0) {
+                    const songStage = s.stage || null;
+                    const match =
+                        (_state.filterStage.has('__none__') && !songStage) ||
+                        (_state.filterStage.has('N') && songStage === 'N') ||
+                        (_state.filterStage.has('L') && songStage === 'L') ||
+                        (_state.filterStage.has('B') && songStage === 'B');
+                    if (!match) return false;
+                }
                 return true;
             });
 
