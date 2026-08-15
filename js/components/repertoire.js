@@ -32,7 +32,7 @@
         filterLetra: null,   // null | true | false
         filterLink:  null,   // null | true | false
         filterKey:   new Set(), // Set<string>; vazio = todos os tons visíveis
-        filterStage: null,   // null = todas | 'N' | 'L' | 'B'
+        filterStage: new Set(), // Set<string>; vazio = todos os estágios visíveis
     };
 
     // Snapshot of positions before any drag in the current drag session.
@@ -547,20 +547,30 @@
                     return `<button class="sort-btn key-filter-btn${isActive ? ' active' : ''}" data-key="${k}" style="padding: 3px 8px; font-size: 0.72rem; min-width: 28px; text-align: center; justify-content: center;">${k}</button>`;
                 }).join('');
                 // Botões de filtro por estágio — ao lado dos tons
-                const stageOptions = [null, 'N', 'L', 'B'];
-                const stageLabels  = { null: '·', N: 'N', L: 'L', B: 'B' };
-                const stageBtns = stageOptions.map(sv => {
-                    const isAct = _state.filterStage === sv;
-                    const stageColorMap = { N: '#60a5fa', L: '#a78bfa', B: '#34d399' };
-                    const col = sv && isAct ? stageColorMap[sv] : isAct ? 'var(--text)' : 'var(--text-muted)';
-                    return `<button class="sort-btn key-filter-btn stage-filter-btn${isAct ? ' active' : ''}" data-stage="${sv === null ? 'null' : sv}" title="Estágio: ${sv || 'Todas'}" style="padding: 3px 8px; font-size: 0.72rem; min-width: 24px; text-align: center; justify-content: center; color: ${col}; margin-left: 2px;">${sv || '·'}</button>`;
-                }).join('');
+                const stageColorMap = { N: '#60a5fa', L: '#a78bfa', B: '#34d399' };
+                const allStagesInactive = _state.filterStage.size === 0;
+                const stageBtns = [
+                    // botão · (todas)
+                    `<button class="sort-btn key-filter-btn stage-filter-btn${allStagesInactive ? ' active' : ''}" data-stage="__all__" title="Todos os estágios" style="padding: 3px 8px; font-size: 0.72rem; min-width: 24px; text-align: center; justify-content: center; margin-left: 2px;">·</button>`,
+                    // botões N, L, B
+                    ...['N', 'L', 'B'].map(sv => {
+                        const isAct = _state.filterStage.has(sv);
+                        const col = isAct ? stageColorMap[sv] : 'var(--text-muted)';
+                        return `<button class="sort-btn key-filter-btn stage-filter-btn${isAct ? ' active' : ''}" data-stage="${sv}" title="Estágio: ${sv}" style="padding: 3px 8px; font-size: 0.72rem; min-width: 24px; text-align: center; justify-content: center; color: ${col}; margin-left: 2px;">${sv}</button>`;
+                    }),
+                ].join('');
                 headerKeyEl.innerHTML = keyBtns + `<span style="display:inline-flex;align-items:center;gap:0;margin-left:6px;border-left:1px solid var(--glass-border);padding-left:6px;">${stageBtns}</span>`;
                 // Listener dos botões de estágio
                 headerKeyEl.querySelectorAll('.stage-filter-btn').forEach(btn => {
                     btn.addEventListener('click', () => {
-                        const raw = btn.dataset.stage;
-                        _state.filterStage = raw === 'null' ? null : raw;
+                        const sv = btn.dataset.stage;
+                        if (sv === '__all__') {
+                            _state.filterStage.clear();
+                        } else if (_state.filterStage.has(sv)) {
+                            _state.filterStage.delete(sv);
+                        } else {
+                            _state.filterStage.add(sv);
+                        }
                         RepertoireComponent._renderSortToolbar();
                         RepertoireComponent._renderSongList();
                     });
@@ -584,7 +594,7 @@
                 if (_state.filterLetra !== null && !!s.has_lyrics !== _state.filterLetra) return false;
                 if (_state.filterLink  !== null && !!s.audio_url  !== _state.filterLink)  return false;
                 if (_state.filterKey.size > 0 && !_state.filterKey.has(s.original_key || '')) return false;
-                if (_state.filterStage !== null && s.stage !== _state.filterStage) return false;
+                if (_state.filterStage.size > 0 && !_state.filterStage.has(s.stage || '')) return false;
                 return true;
             });
 
