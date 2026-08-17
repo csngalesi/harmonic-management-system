@@ -25,6 +25,9 @@
         showFlow:        'row',        // 'row' = leitura linha a linha | 'col' = leitura por coluna
         showDragMode:    false,        // true = grid arrastável para reordenar posições
         stageMode:       false,        // true = clique na célula cicla estágio N→L→B→null
+        groupMode:       false,        // true = clique na célula adiciona ao grupo pendente
+        groupPending:    [],           // [songId, ...] seleção em andamento
+        groups:          [],           // [{id, songIds:[...]}] grupos salvos
         headerCollapsed: false,
         // Client-side filters (null = sem filtro)
         filterFlag:  new Set(), // Set<number>; vazio = todas as flags visíveis
@@ -184,6 +187,9 @@
                         </button>
                         <button class="sort-btn${_state.stageMode ? ' active' : ''}" id="btn-star-mode" title="Modo Estágio — clique na música para ciclar N → L → B → sem estágio" style="margin-left:2px;color:${_state.stageMode ? '#facc15' : 'var(--text-muted)'};">
                             <i class="fa-solid fa-star" style="font-size:.78rem;"></i>
+                        </button>
+                        <button class="sort-btn${_state.groupMode ? ' active' : ''}" id="btn-group-mode" title="Modo Agrupamento — selecione músicas e clique novamente para criar um grupo" style="margin-left:2px;color:${_state.groupMode ? '#a78bfa' : 'var(--text-muted)'};border-radius:50%;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;padding:0;">
+                            <i class="fa-solid fa-circle-nodes" style="font-size:.78rem;"></i>
                         </button>
 
                         <button class="btn btn-primary btn-sm" id="btn-save-order"
@@ -442,6 +448,7 @@
                     el.querySelectorAll('.setlist-chip').forEach(c => c.classList.remove('active'));
                     chip.classList.add('active');
                     RepertoireComponent._renderSetlistChips();
+                    RepertoireComponent._loadGroups();
                     RepertoireComponent._loadSongs();
                 });
             });
@@ -666,7 +673,7 @@
                     // Click na célula: modo estágio → cicla N→L→B→null; modo normal → abre detalhe
                     if (!isGridDrag) {
                         cell.addEventListener('click', (e) => {
-                            if (e.target.closest('.show-alert-btn') || e.target.closest('.show-comment-btn')) return;
+                            if (e.target.closest('.show-alert-btn') || e.target.closest('.show-comment-btn') || e.target.closest('.group-remove-btn')) return;
                             if (_state.stageMode) {
                                 // Cicla estágio: null→N→L→B→null
                                 const sid  = cell.dataset.id;
@@ -688,6 +695,21 @@
                                 });
                                 return;
                             }
+                            if (_state.groupMode) {
+                                const sid = cell.dataset.id;
+                                // Música já pertence a um grupo salvo? Ignora.
+                                const alreadyGrouped = _state.groups.some(g => g.songIds.includes(sid));
+                                if (alreadyGrouped) { window.HMSApp.showToast('Música já pertence a um grupo', 'info'); return; }
+                                const idx = _state.groupPending.indexOf(sid);
+                                if (idx === -1) {
+                                    _state.groupPending.push(sid);
+                                    cell.classList.add('group-selecting');
+                                } else {
+                                    _state.groupPending.splice(idx, 1);
+                                    cell.classList.remove('group-selecting');
+                                }
+                                return;
+                            }
                             const songDetail = _state.songs.find(s => s.id === cell.dataset.id);
                             if (songDetail) RepertoireComponent._openShowDetail(songDetail);
 
@@ -703,6 +725,44 @@
                         btn.classList.toggle('active', _state.stageMode);
                         btn.style.color = _state.stageMode ? '#facc15' : 'var(--text-muted)';
                     }
+                });
+
+                // Listener do botão agrupamento
+                document.getElementById('btn-group-mode')?.addEventListener('click', () => {
+                    if (!_state.groupMode) {
+                        // Entra no modo agrupamento
+                        _state.groupMode = true;
+                        _state.groupPending = [];
+                        const btn = document.getElementById('btn-group-mode');
+                        if (btn) { btn.classList.add('active'); btn.style.color = '#a78bfa'; }
+                        el.classList.add('group-mode-active');
+                    } else {
+                        // Sai do modo e salva o grupo se tiver seleção
+                        if (_state.groupPending.length >= 2) {
+                            const newGroup = { id: 'grp_' + Date.now(), songIds: [..._state.groupPending] };
+                            _state.groups.push(newGroup);
+                            RepertoireComponent._saveGroups();
+                        } else if (_state.groupPending.length === 1) {
+                            window.HMSApp.showToast('Selecione ao menos 2 músicas para criar um grupo', 'info');
+                        }
+                        _state.groupMode = false;
+                        _state.groupPending = [];
+                        const btn = document.getElementById('btn-group-mode');
+                        if (btn) { btn.classList.remove('active'); btn.style.color = 'var(--text-muted)'; }
+                        el.classList.remove('group-mode-active');
+                        RepertoireComponent._renderSongList();
+                    }
+                });
+
+                // Listener dos botões de remover grupo
+                el.querySelectorAll('.group-remove-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const gid = btn.dataset.gid;
+                        _state.groups = _state.groups.filter(g => g.id !== gid);
+                        RepertoireComponent._saveGroups();
+                        RepertoireComponent._renderSongList();
+                    });
                 });
 
                 if (isGridDrag) {
@@ -896,7 +956,27 @@
             }
         },
 
-        // ── Show Grid ─────────────────────────────────────────────
+        // ── Persist groups to localStorage ───────────────────────
+        _saveGroups: function () {
+            const key = _state.activeSetlist
+                ? `hms_groups_${_state.activeSetlist}`
+                : 'hms_groups_all';
+            localStorage.setItem(key, JSON.stringify(_state.groups));
+        },
+
+        _loadGroups: function () {
+            const key = _state.activeSetlist
+                ? `hms_groups_${_state.activeSetlist}`
+                : 'hms_groups_all';
+            try {
+                const raw = localStorage.getItem(key);
+                _state.groups = raw ? JSON.parse(raw) : [];
+            } catch (e) {
+                _state.groups = [];
+            }
+        },
+
+
         // sorted:     songs in current display order (may be alphabetical, key, etc.)
         // byPosition: songs sorted strictly by _position (used only for badge index)
         _renderShowGrid: function (sorted, byPosition) {
@@ -942,6 +1022,11 @@
             }
 
             const isShowDrag = _state.showDragMode && !!_state.activeSetlist;
+
+            // Mapa rápido: songId → grupo
+            const songGroupMap = {};
+            _state.groups.forEach(g => g.songIds.forEach(sid => { songGroupMap[sid] = g.id; }));
+
             const cells = displayList.map(s => {
                 // Null = empty placeholder cell (keeps CSS grid column alignment in col-flow mode)
                 if (!s) return '<div class="show-cell show-cell-empty" aria-hidden="true"></div>';
@@ -960,7 +1045,25 @@
                     : '';
                 const cellStage = s.stage || null;
                 const stageCls  = cellStage ? ' cell-stage-' + cellStage.toLowerCase() : '';
-                return `<div class="show-cell ${rowCls}${isShowDrag ? ' draggable-cell' : ''}${stageCls}" data-id="${s.id}"
+
+                // Agrupamento: determina classes de grupo e botão de remover
+                const gid = songGroupMap[s.id];
+                const group = gid ? _state.groups.find(g => g.id === gid) : null;
+                let groupCls = '';
+                let groupRemoveBtn = '';
+                if (group) {
+                    const isFirst = group.songIds[0] === s.id;
+                    const isLast  = group.songIds[group.songIds.length - 1] === s.id;
+                    groupCls = ' in-group' + (isFirst ? ' group-first' : '') + (isLast ? ' group-last' : '');
+                    if (isFirst) {
+                        groupRemoveBtn = `<button class="group-remove-btn" data-gid="${gid}" title="Remover agrupamento">−</button>`;
+                    }
+                }
+
+                const isSelecting = _state.groupPending.includes(s.id);
+                const selectingCls = isSelecting ? ' group-selecting' : '';
+
+                return `<div class="show-cell ${rowCls}${isShowDrag ? ' draggable-cell' : ''}${stageCls}${groupCls}${selectingCls}" data-id="${s.id}"
                     ${isDragMode ? 'draggable="true"' : ''}>
                     <span class="show-key${keyCls}" data-key="${esc(s.original_key || '')}">${esc(s.original_key || '?')}</span>
                     <span class="show-title">${esc(s.title)}</span>
@@ -974,11 +1077,13 @@
                     <button class="show-alert-btn sf-${sf}" title="Ciclar bandeira">
                         <i class="fa-solid fa-flag"></i>
                     </button>
+                    ${groupRemoveBtn}
                 </div>`;
             }).join('');
             const colClass = _state.showColumns !== 'N' ? ` cols-${_state.showColumns}` : '';
             const stageModeClass = _state.stageMode ? ' stage-mode-active' : '';
-            return `<div class="show-grid${colClass}${stageModeClass}">${cells}</div>`;
+            const groupModeClass = _state.groupMode ? ' group-mode-active' : '';
+            return `<div class="show-grid${colClass}${stageModeClass}${groupModeClass}">${cells}</div>`;
 
         },
 

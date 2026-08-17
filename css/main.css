@@ -1141,3 +1141,69 @@ tbody tr:hover td { background: var(--glass-bg); }
     cursor: cell;
 }
 
+/* ── Modo Agrupamento ───────────────────────────────────────── */
+
+/* Cursor crosshair no modo agrupamento */
+.group-mode-active .show-cell {
+    cursor: crosshair;
+}
+
+/* Célula sendo selecionada — pulso roxo */
+.show-cell.group-selecting {
+    outline: 2px solid rgba(167, 139, 250, 0.8) !important;
+    background: rgba(167, 139, 250, 0.12) !important;
+    animation: group-pulse 1.2s ease-in-out infinite;
+}
+@keyframes group-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(167, 139, 250, 0.4); }
+    50%       { box-shadow: 0 0 0 5px rgba(167, 139, 250, 0); }
+}
+
+/* Células pertencentes a um grupo — borda contínua roxa */
+.show-cell.in-group {
+    position: relative;
+    border-left:  2px solid rgba(139, 92, 246, 0.7) !important;
+    border-right: 2px solid rgba(139, 92, 246, 0.7) !important;
+    border-top:    1px solid transparent !important;
+    border-bottom: 1px solid transparent !important;
+    background: rgba(139, 92, 246, 0.07) !important;
+}
+/* Primeira célula do grupo: borda superior + cantos arredondados */
+.show-cell.in-group.group-first {
+    border-top: 2px solid rgba(139, 92, 246, 0.7) !important;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+}
+/* Última célula do grupo: borda inferior + cantos arredondados */
+.show-cell.in-group.group-last {
+    border-bottom: 2px solid rgba(139, 92, 246, 0.7) !important;
+    border-bottom-left-radius: 6px;
+    border-bottom-right-radius: 6px;
+}
+
+/* Botão "−" para remover o grupo */
+.group-remove-btn {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: rgba(139, 92, 246, 0.85);
+    border: none;
+    color: #fff;
+    font-size: .75rem;
+    font-weight: 700;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 5;
+    padding: 0;
+    transition: background .15s, transform .15s;
+}
+.group-remove-btn:hover {
+    background: #ef4444;
+    transform: scale(1.15);
+}
