@@ -1134,19 +1134,8 @@ tbody tr:hover td { background: var(--glass-bg); }
 .show-stage-badge.show-stage-l { color: #a78bfa; }   /* L = roxo */
 .show-stage-badge.show-stage-b { color: #34d399; }   /* B = verde */
 
-/* Células marcadas com estágio — destaque de borda e fundo */
-.show-cell.cell-stage-n {
-    outline: 1px solid rgba(96, 165, 250, 0.45);
-    background: rgba(96, 165, 250, 0.05);
-}
-.show-cell.cell-stage-l {
-    outline: 1px solid rgba(167, 139, 250, 0.45);
-    background: rgba(167, 139, 250, 0.05);
-}
-.show-cell.cell-stage-b {
-    outline: 1px solid rgba(52, 211, 153, 0.45);
-    background: rgba(52, 211, 153, 0.05);
-}
+/* Células marcadas com estágio — borda/fundo removidos; cor apenas no badge N/L/B */
+/* .show-cell.cell-stage-n/.cell-stage-l/.cell-stage-b — sem outline/background */
 
 /* Cursor diferente no modo estágio */
 .stage-mode-active .show-cell {
