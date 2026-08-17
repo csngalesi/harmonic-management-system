@@ -701,8 +701,7 @@ tbody tr:hover td { background: var(--glass-bg); }
     transition: filter var(--transition);
 }
 .show-cell:hover { filter: brightness(1.2); }
-.show-cell.status-ok   { background: rgba(74, 222, 128, 0.15); }
-.show-cell.status-warn { background: rgba(251, 191, 36, 0.12); }
+.show-cell.status-ok { background: rgba(74, 222, 128, 0.15); }
 .show-cell.draggable-cell { cursor: grab; outline: 1px dashed rgba(139,92,246,.3); }
 .show-cell.draggable-cell:active { cursor: grabbing; }
 /* Empty placeholder cell — occupies grid slot but is invisible (fixes col-flow alignment) */

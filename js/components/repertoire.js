@@ -948,7 +948,7 @@
                 const hasHarmony = !!(s.harmony_str && s.harmony_str.trim());
                 const hasLyrics  = !!s.has_lyrics;
                 const sf         = s.status_flag || 0;
-                const rowCls     = sf ? 'status-flag-' + sf : (hasHarmony ? 'status-ok' : 'status-warn');
+                const rowCls     = sf ? 'status-flag-' + sf : 'status-ok';
                 const keyCls     = (!hasHarmony && !hasLyrics) ? ' key-urgent' : '';
                 const cellComment  = localStorage.getItem(`hms_song_comment_${s.id}`);
                 const cellStatus   = localStorage.getItem(`hms_song_comment_status_${s.id}`) || '';
