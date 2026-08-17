@@ -759,9 +759,29 @@
                     btn.addEventListener('click', (e) => {
                         e.stopPropagation();
                         const gid = btn.dataset.gid;
-                        _state.groups = _state.groups.filter(g => g.id !== gid);
-                        RepertoireComponent._saveGroups();
-                        RepertoireComponent._renderSongList();
+                        const group = _state.groups.find(g => g.id === gid);
+                        const count = group ? group.songIds.length : 0;
+                        window.HMSApp.openModal(`
+                            <div style="text-align:center;padding:8px 0 4px;">
+                                <div style="font-size:2rem;margin-bottom:12px;">🗂️</div>
+                                <h3 style="margin:0 0 8px;font-size:1.05rem;color:var(--text-primary);">Remover agrupamento?</h3>
+                                <p style="color:var(--text-muted);font-size:.88rem;margin:0 0 20px;">
+                                    Este grupo contém <strong style="color:var(--text-primary);">${count} música${count !== 1 ? 's' : ''}</strong>.<br>
+                                    A ação não pode ser desfeita.
+                                </p>
+                                <div style="display:flex;gap:10px;justify-content:center;">
+                                    <button id="grp-cancel-btn" class="btn btn-ghost" style="min-width:90px;">Cancelar</button>
+                                    <button id="grp-confirm-btn" class="btn btn-primary" style="min-width:90px;background:#7c3aed;border-color:#7c3aed;">Remover</button>
+                                </div>
+                            </div>
+                        `);
+                        document.getElementById('grp-cancel-btn')?.addEventListener('click', () => window.HMSApp.closeModal());
+                        document.getElementById('grp-confirm-btn')?.addEventListener('click', () => {
+                            _state.groups = _state.groups.filter(g => g.id !== gid);
+                            RepertoireComponent._saveGroups();
+                            window.HMSApp.closeModal();
+                            RepertoireComponent._renderSongList();
+                        });
                     });
                 });
 
