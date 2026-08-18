@@ -279,17 +279,6 @@
                 <i class="fa-solid fa-wand-magic-sparkles"></i> Visualizar
             </button>
 
-            <!-- Legend -->
-            <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line-color);">
-                <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:10px;">Legenda</div>
-                <div style="display:flex;flex-direction:column;gap:8px;">
-                    ${[1,2,3,4,5,6,7].map(d => `
-                    <div style="display:flex;align-items:center;gap:10px;">
-                        <svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="${DEGREE_COLORS[d]}"/><text x="11" y="15" text-anchor="middle" font-size="10" font-weight="700" fill="${d===7?'#e5e7eb':'white'}">${d}</text></svg>
-                        <span style="font-size:.82rem;color:var(--text-secondary);">Grau ${d}</span>
-                    </div>`).join('')}
-                </div>
-            </div>
             <div id="fb7-notes-list"></div>
         </div>`;
     }
@@ -321,13 +310,6 @@
                 <select id="fb7-arp-quality" class="form-input form-select">${arpOptions}</select>
             </div>
 
-            <!-- Legend -->
-            <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line-color);">
-                <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:10px;">Legenda</div>
-                <div id="fb7-arp-legend" style="display:flex;flex-direction:column;gap:8px;">
-                    ${legendItems}
-                </div>
-            </div>
             <div id="fb7-arp-notes"></div>
         </div>`;
     }
@@ -366,6 +348,12 @@
                         </div>
                         <div class="panel-body" style="padding:20px 14px 12px;">
                             <div id="fretboard-svg"></div>
+                            <!-- Legenda abaixo do braço -->
+                            <div id="fb7-legend-bar" style="
+                                display:flex;flex-wrap:wrap;gap:10px 20px;
+                                margin-top:14px;padding-top:12px;
+                                border-top:1px solid var(--line-color);
+                            "></div>
                         </div>
                     </div>
 
@@ -458,7 +446,25 @@
                 </div>`;
             }).join('');
 
-            listEl.innerHTML = `<div style="margin-top:16px;padding-top:4px;">${rows}</div>`;
+            listEl.innerHTML = '';
+
+            // Legenda abaixo do braço — graus exibidos com nota
+            const legendBar = document.getElementById('fb7-legend-bar');
+            if (legendBar) {
+                legendBar.innerHTML = degrees.map(d => {
+                    const pc    = (rootIdx + intervals[d - 1]) % 12;
+                    const color = DEGREE_COLORS[d];
+                    const note  = _noteName(pc, root);
+                    return `<div style="display:flex;align-items:center;gap:7px;">
+                        <svg width="20" height="20" style="flex-shrink:0">
+                            <circle cx="10" cy="10" r="9" fill="${color}"/>
+                            <text x="10" y="14" text-anchor="middle" font-size="9" font-weight="700" fill="${d===7?'#e5e7eb':'white'}">${d}</text>
+                        </svg>
+                        <span style="font-size:.8rem;color:var(--text-secondary);">Grau ${d}</span>
+                        <span style="font-family:var(--font-mono);font-size:.88rem;font-weight:700;color:${color};">${note}</span>
+                    </div>`;
+                }).join('');
+            }
         },
 
         _applyArp: function () {
@@ -473,53 +479,37 @@
             const svgEl = document.getElementById('fretboard-svg');
             if (svgEl) svgEl.innerHTML = _buildSVG(_state.highlights, true);
 
-            // Notes table
-            const notesEl = document.getElementById('fb7-arp-notes');
-            if (!notesEl) return;
-
             const arp     = ARPEGGIOS[quality];
             const rootIdx = NOTE_NAMES.indexOf(root);
-            if (!arp || rootIdx === -1) { notesEl.innerHTML = ''; return; }
+            if (!arp || rootIdx === -1) return;
 
-            const arpLabels = ['Tônica', 'Terça', 'Quinta', 'Sétima'];
-
-            const rows = arp.intervals.map((semis, i) => {
-                const pc    = (rootIdx + semis) % 12;
-                const color = DEGREE_COLORS[i + 1];
-                return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--line-color);">
-                    <span style="font-size:.8rem;color:var(--text-muted);">${arp.toneLabels[i]} – ${arpLabels[i]}</span>
-                    <span style="font-family:var(--font-mono);font-size:.9rem;font-weight:600;color:${color};">${_noteName(pc, root)}</span>
-                </div>`;
-            }).join('');
-
-            notesEl.innerHTML = `<div style="margin-top:16px;padding-top:4px;">${rows}</div>`;
-
-            // Update legend with note names + interval quality inline
-            const legendEl = document.getElementById('fb7-arp-legend');
-            if (legendEl) {
-                legendEl.innerHTML = arp.toneLabels.map((l, i) => {
-                    const pc          = (rootIdx + arp.intervals[i]) % 12;
-                    const noteName    = _noteName(pc, root);
-                    const degNum      = parseInt(l);  // grau real: 1, 3, 5 ou 7
-                    const color       = DEGREE_COLORS[degNum] || DEGREE_COLORS[1];
-                    const intLabel    = (arp.intervalLabels || [])[i] || '';
-                    const badge       = intLabel
-                        ? `<span style="font-size:.68rem;color:var(--text-muted);background:var(--bg-raised);border:1px solid var(--line-color);border-radius:4px;padding:1px 5px;white-space:nowrap;">${intLabel}</span>`
+            // Legenda abaixo do braço — graus do arpejo com nota
+            const legendBar = document.getElementById('fb7-legend-bar');
+            if (legendBar) {
+                legendBar.innerHTML = arp.toneLabels.map((l, i) => {
+                    const pc       = (rootIdx + arp.intervals[i]) % 12;
+                    const note     = _noteName(pc, root);
+                    const degNum   = parseInt(l);
+                    const color    = DEGREE_COLORS[degNum] || DEGREE_COLORS[1];
+                    const intLabel = (arp.intervalLabels || [])[i] || '';
+                    const arpNames = ['Tônica', 'Terça', 'Quinta', 'Sétima'];
+                    const badge    = intLabel
+                        ? `<span style="font-size:.65rem;color:var(--text-muted);background:var(--bg-raised);border:1px solid var(--line-color);border-radius:4px;padding:1px 4px;">${intLabel}</span>`
                         : '';
-                    return `<div style="display:flex;align-items:center;gap:8px;">
-                        <svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="${color}"/><text x="11" y="15" text-anchor="middle" font-size="10" font-weight="700" fill="${degNum===7?'#e5e7eb':'white'}">${l}</text></svg>
-                        <span style="font-size:.82rem;color:var(--text-secondary);">${arpLabels[i]}</span>
+                    return `<div style="display:flex;align-items:center;gap:7px;">
+                        <svg width="20" height="20" style="flex-shrink:0">
+                            <circle cx="10" cy="10" r="9" fill="${color}"/>
+                            <text x="10" y="14" text-anchor="middle" font-size="9" font-weight="700" fill="${degNum===7?'#e5e7eb':'white'}">${l}</text>
+                        </svg>
+                        <span style="font-size:.8rem;color:var(--text-secondary);">${arpNames[i]}</span>
                         ${badge}
-                        <span style="flex:1;"></span>
-                        <span style="font-family:var(--font-mono);font-size:.95rem;font-weight:700;color:${color};">${noteName}</span>
+                        <span style="font-family:var(--font-mono);font-size:.88rem;font-weight:700;color:${color};">${note}</span>
                     </div>`;
                 }).join('');
             }
-
-            // Clear old separate notes table (now integrated into legend)
-            notesEl.innerHTML = '';
         },
     };
+
 
     window.Fretboard7Component = Fretboard7Component;
     console.info('[HMS] Fretboard7Component loaded.');
