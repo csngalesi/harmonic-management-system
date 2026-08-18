@@ -215,20 +215,30 @@
             const cy   = FB.stringY(h.string);
 
             // Cor: grau real do arpejo (1,3,5,7) ou grau da escala (1-7)
-            const degIdx = isArp ? parseInt(h.degree) : h.degree;
-            const fill   = DEGREE_COLORS[degIdx] || DEGREE_COLORS[1];
-            // Preto (grau 7) em fundo aberto precisa de stroke
+            const degIdx  = isArp ? parseInt(h.degree) : h.degree;
+            const fill    = DEGREE_COLORS[degIdx] || DEGREE_COLORS[1];
             const isBlack = fill === DEGREE_COLORS[7];
+            const is7     = degIdx === 7;
+            // Grau 7: anel branco externo para legibilidade
+            const strokeAttr = is7 ? ' stroke="white" stroke-width="2"' : '';
 
             if (h.fret === 0) {
+                // Corda solta: apenas contorno colorido
                 parts.push(`<circle cx="${cx}" cy="${cy}" r="10" fill="none" stroke="${fill}" stroke-width="2"/>`);
                 parts.push(`<text x="${cx}" y="${cy + 4}" text-anchor="middle" font-size="9" font-weight="700" fill="${fill}">${h.degree}</text>`);
             } else {
-                parts.push(`<circle cx="${cx}" cy="${cy}" r="10" fill="${fill}" opacity="0.95"/>`);
+                parts.push(`<circle cx="${cx}" cy="${cy}" r="10" fill="${fill}" opacity="0.95"${strokeAttr}/>`);
                 const txtColor = isBlack ? '#e5e7eb' : 'white';
                 parts.push(`<text x="${cx}" y="${cy + 4}" text-anchor="middle" font-size="10" font-weight="700" fill="${txtColor}">${h.degree}</text>`);
             }
-            parts.push(`<text x="${cx}" y="${cy + 18}" text-anchor="middle" font-size="7.5" font-weight="600" fill="${fill}" opacity="0.9">${h.noteName}</text>`);
+            // Nome da nota: grau 7 ganha fundo branco na caixa de texto
+            if (is7) {
+                const tw = 18;
+                parts.push(`<rect x="${cx - tw/2 - 1}" y="${cy + 10}" width="${tw + 2}" height="10" rx="2" fill="white" opacity="0.85"/>`);
+                parts.push(`<text x="${cx}" y="${cy + 18}" text-anchor="middle" font-size="7.5" font-weight="700" fill="${fill}">${h.noteName}</text>`);
+            } else {
+                parts.push(`<text x="${cx}" y="${cy + 18}" text-anchor="middle" font-size="7.5" font-weight="600" fill="${fill}" opacity="0.9">${h.noteName}</text>`);
+            }
         }
 
         parts.push(`</svg>`);
@@ -455,13 +465,18 @@
                     const pc    = (rootIdx + intervals[d - 1]) % 12;
                     const color = DEGREE_COLORS[d];
                     const note  = _noteName(pc, root);
+                    const is7   = d === 7;
+                    const circStroke = is7 ? `stroke="white" stroke-width="1.5"` : '';
+                    const noteStyle  = is7
+                        ? `background:white;color:${color};border-radius:3px;padding:0 3px;font-weight:800;`
+                        : `color:${color};`;
                     return `<div style="display:flex;align-items:center;gap:7px;">
                         <svg width="20" height="20" style="flex-shrink:0">
-                            <circle cx="10" cy="10" r="9" fill="${color}"/>
-                            <text x="10" y="14" text-anchor="middle" font-size="9" font-weight="700" fill="${d===7?'#e5e7eb':'white'}">${d}</text>
+                            <circle cx="10" cy="10" r="9" fill="${color}" ${circStroke}/>
+                            <text x="10" y="14" text-anchor="middle" font-size="9" font-weight="700" fill="${is7?'#e5e7eb':'white'}">${d}</text>
                         </svg>
                         <span style="font-size:.8rem;color:var(--text-secondary);">Grau ${d}</span>
-                        <span style="font-family:var(--font-mono);font-size:.88rem;font-weight:700;color:${color};">${note}</span>
+                        <span style="font-family:var(--font-mono);font-size:.88rem;font-weight:700;${noteStyle}">${note}</span>
                     </div>`;
                 }).join('');
             }
