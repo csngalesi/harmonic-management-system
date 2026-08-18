@@ -55,6 +55,22 @@
     // Usar bemóis para chaves que os preferem
     const FLAT_PREF = new Set(['F','Bb','Eb','Ab','Db','Gb','Dm','Gm','Cm','Fm','Bbm','Ebm']);
 
+    // Mapa semitons → nome do intervalo (para legenda de escalas)
+    const SEMITONE_TO_INTERVAL = {
+        0:  'Tônica',
+        1:  '2ª m',
+        2:  '2ª M',
+        3:  '3ª m',
+        4:  '3ª M',
+        5:  '4ª J',
+        6:  '4ª A',
+        7:  '5ª J',
+        8:  '6ª m',
+        9:  '6ª M',
+        10: '7ª m',
+        11: '7ª M',
+    };
+
     function _noteName(pc, root) {
         const useFlats = FLAT_PREF.has(root);
         return useFlats ? FLAT_NAMES[((pc % 12) + 12) % 12] : NOTE_NAMES[((pc % 12) + 12) % 12];
@@ -458,24 +474,29 @@
 
             listEl.innerHTML = '';
 
-            // Legenda abaixo do braço — graus exibidos com nota
+            // Legenda abaixo do braço — graus com nome do intervalo + nota
             const legendBar = document.getElementById('fb7-legend-bar');
             if (legendBar) {
                 legendBar.innerHTML = degrees.map(d => {
-                    const pc    = (rootIdx + intervals[d - 1]) % 12;
-                    const color = DEGREE_COLORS[d];
-                    const note  = _noteName(pc, root);
-                    const is7   = d === 7;
+                    const semis      = intervals[d - 1];
+                    const pc         = (rootIdx + semis) % 12;
+                    const color      = DEGREE_COLORS[d];
+                    const note       = _noteName(pc, root);
+                    const is7        = d === 7;
                     const circStroke = is7 ? `stroke="white" stroke-width="1.5"` : '';
                     const noteStyle  = is7
                         ? `background:white;color:${color};border-radius:3px;padding:0 3px;font-weight:800;`
                         : `color:${color};`;
+                    const intLabel   = SEMITONE_TO_INTERVAL[semis] || `Grau ${d}`;
+                    const badge      = (d > 1)
+                        ? `<span style="font-size:.65rem;color:var(--text-muted);background:var(--bg-raised);border:1px solid var(--line-color);border-radius:4px;padding:1px 4px;white-space:nowrap;">${intLabel}</span>`
+                        : `<span style="font-size:.8rem;color:var(--text-secondary);">${intLabel}</span>`;
                     return `<div style="display:flex;align-items:center;gap:7px;">
                         <svg width="20" height="20" style="flex-shrink:0">
                             <circle cx="10" cy="10" r="9" fill="${color}" ${circStroke}/>
                             <text x="10" y="14" text-anchor="middle" font-size="9" font-weight="700" fill="${is7?'#e5e7eb':'white'}">${d}</text>
                         </svg>
-                        <span style="font-size:.8rem;color:var(--text-secondary);">Grau ${d}</span>
+                        ${badge}
                         <span style="font-family:var(--font-mono);font-size:.88rem;font-weight:700;${noteStyle}">${note}</span>
                     </div>`;
                 }).join('');
