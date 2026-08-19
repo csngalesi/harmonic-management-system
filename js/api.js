@@ -539,7 +539,91 @@
         },
     };
 
-    window.HMSAPI = { Songs, Setlists, Profile, MelodicPhrases, HarmonicStudies, BassStudies, CadencePhrases, GuitarSamples };
+    // ── ShowGroups ───────────────────────────────────────────────────────
+    // Persiste os agrupamentos visuais de músicas (show grid) no Supabase.
+    // Cada grupo é identificado por group_id (UUID gerado no cliente).
+    const ShowGroups = {
+        /**
+         * Retorna todos os grupos do usuário para um dado setlist.
+         * @param {string|null} setlistId  UUID do setlist ou null para "todos"
+         * @returns {Array<{group_id, song_ids, setlist_id}>}
+         */
+        async getAll(setlistId = null) {
+            let query = db()
+                .from('show_groups')
+                .select('group_id, song_ids, setlist_id');
+
+            if (setlistId) {
+                query = query.eq('setlist_id', setlistId);
+            } else {
+                query = query.is('setlist_id', null);
+            }
+
+            const { data, error } = await query;
+            if (error) throw error;
+            return (data || []).map(r => ({ id: r.group_id, songIds: r.song_ids, setlistId: r.setlist_id }));
+        },
+
+        /**
+         * Insere ou atualiza um grupo (upsert por group_id).
+         * @param {{id:string, songIds:string[]}} group
+         * @param {string|null} setlistId
+         */
+        async save(group, setlistId = null) {
+            requireOnline('salvar grupo');
+            const user = await window.HMSAuth.currentUser();
+            const { error } = await db()
+                .from('show_groups')
+                .upsert(
+                    {
+                        user_id:    user.id,
+                        group_id:   group.id,
+                        song_ids:   group.songIds,
+                        setlist_id: setlistId || null,
+                    },
+                    { onConflict: 'user_id,group_id' }
+                );
+            if (error) throw error;
+        },
+
+        /**
+         * Remove um grupo pelo group_id.
+         * @param {string} groupId
+         */
+        async remove(groupId) {
+            requireOnline('remover grupo');
+            const user = await window.HMSAuth.currentUser();
+            const { error } = await db()
+                .from('show_groups')
+                .delete()
+                .eq('group_id', groupId)
+                .eq('user_id', user.id);
+            if (error) throw error;
+        },
+
+        /**
+         * Salva todos os grupos de uma vez (usado na migração do localStorage).
+         * @param {Array<{id,songIds}>} groups
+         * @param {string|null} setlistId
+         */
+        async saveAll(groups, setlistId = null) {
+            requireOnline('salvar grupos');
+            const user = await window.HMSAuth.currentUser();
+            if (!groups.length) return;
+            const rows = groups.map(g => ({
+                user_id:    user.id,
+                group_id:   g.id,
+                song_ids:   g.songIds,
+                setlist_id: setlistId || null,
+            }));
+            const { error } = await db()
+                .from('show_groups')
+                .upsert(rows, { onConflict: 'user_id,group_id' });
+            if (error) throw error;
+        },
+    };
+
+    window.HMSAPI = { Songs, Setlists, Profile, MelodicPhrases, HarmonicStudies, BassStudies, CadencePhrases, GuitarSamples, ShowGroups };
 
     console.info('[HMS] API module loaded.');
 })();

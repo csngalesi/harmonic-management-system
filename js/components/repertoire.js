@@ -408,7 +408,7 @@
             });
 
 
-            RepertoireComponent._loadGroups();   // restaura grupos do localStorage antes do primeiro render
+            await RepertoireComponent._loadGroups();   // restaura grupos do Supabase antes do primeiro render
 
             await Promise.all([
                 RepertoireComponent._loadSetlists(),
@@ -450,8 +450,8 @@
                     el.querySelectorAll('.setlist-chip').forEach(c => c.classList.remove('active'));
                     chip.classList.add('active');
                     RepertoireComponent._renderSetlistChips();
-                    RepertoireComponent._loadGroups();
-                    RepertoireComponent._loadSongs();
+                    RepertoireComponent._loadGroups().then(() => RepertoireComponent._loadSongs());
+                    // _loadGroups is async; _loadSongs runs after groups are fetched
                 });
             });
             const manageSongsBtn = document.getElementById('btn-manage-songs');
@@ -743,7 +743,7 @@
                         if (_state.groupPending.length >= 2) {
                             const newGroup = { id: 'grp_' + Date.now(), songIds: [..._state.groupPending] };
                             _state.groups.push(newGroup);
-                            RepertoireComponent._saveGroups();
+                            RepertoireComponent._saveGroups(); // async — não bloqueia a UI
                         } else if (_state.groupPending.length === 1) {
                             window.HMSApp.showToast('Selecione ao menos 2 músicas para criar um grupo', 'info');
                         }
@@ -778,9 +778,15 @@
                             </div>
                         `);
                         document.getElementById('grp-cancel-btn')?.addEventListener('click', () => window.HMSApp.closeModal());
-                        document.getElementById('grp-confirm-btn')?.addEventListener('click', () => {
+                        document.getElementById('grp-confirm-btn')?.addEventListener('click', async () => {
                             _state.groups = _state.groups.filter(g => g.id !== gid);
-                            RepertoireComponent._saveGroups();
+                            try {
+                                await window.HMSAPI.ShowGroups.remove(gid);
+                            } catch (err) {
+                                console.warn('[HMS] ShowGroups.remove failed:', err.message);
+                                // fallback: save remaining groups to localStorage
+                                await RepertoireComponent._saveGroups();
+                            }
                             window.HMSApp.closeModal();
                             RepertoireComponent._renderSongList();
                         });
@@ -978,23 +984,33 @@
             }
         },
 
-        // ── Persist groups to localStorage ───────────────────────
-        _saveGroups: function () {
-            const key = _state.activeSetlist
-                ? `hms_groups_${_state.activeSetlist}`
-                : 'hms_groups_all';
-            localStorage.setItem(key, JSON.stringify(_state.groups));
+        // ── Persist groups to Supabase (async, with localStorage fallback) ────
+        _saveGroups: async function () {
+            try {
+                // Persist each group to Supabase (upsert)
+                const setlistId = _state.activeSetlist || null;
+                await window.HMSAPI.ShowGroups.saveAll(_state.groups, setlistId);
+            } catch (err) {
+                console.warn('[HMS] ShowGroups.saveAll failed, falling back to localStorage:', err.message);
+                // localStorage fallback so work is not lost
+                const key = _state.activeSetlist ? `hms_groups_${_state.activeSetlist}` : 'hms_groups_all';
+                localStorage.setItem(key, JSON.stringify(_state.groups));
+            }
         },
 
-        _loadGroups: function () {
-            const key = _state.activeSetlist
-                ? `hms_groups_${_state.activeSetlist}`
-                : 'hms_groups_all';
+        _loadGroups: async function () {
             try {
-                const raw = localStorage.getItem(key);
-                _state.groups = raw ? JSON.parse(raw) : [];
-            } catch (e) {
-                _state.groups = [];
+                const setlistId = _state.activeSetlist || null;
+                _state.groups = await window.HMSAPI.ShowGroups.getAll(setlistId);
+            } catch (err) {
+                console.warn('[HMS] ShowGroups.getAll failed, falling back to localStorage:', err.message);
+                const key = _state.activeSetlist ? `hms_groups_${_state.activeSetlist}` : 'hms_groups_all';
+                try {
+                    const raw = localStorage.getItem(key);
+                    _state.groups = raw ? JSON.parse(raw) : [];
+                } catch (e) {
+                    _state.groups = [];
+                }
             }
         },
 
