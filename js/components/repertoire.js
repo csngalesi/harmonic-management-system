@@ -408,6 +408,8 @@
             });
 
 
+            RepertoireComponent._loadGroups();   // restaura grupos do localStorage antes do primeiro render
+
             await Promise.all([
                 RepertoireComponent._loadSetlists(),
                 RepertoireComponent._loadSongs(),
