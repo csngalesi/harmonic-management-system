@@ -541,12 +541,14 @@
 
     // ── ShowGroups ───────────────────────────────────────────────────────
     // Persiste os agrupamentos visuais de músicas (show grid) no Supabase.
-    // Cada grupo é identificado por group_id (UUID gerado no cliente).
+    // Grupos são COMPARTILHADOS entre todos os usuários (leitura: todos;
+    // escrita/exclusão: apenas o criador — mesmo padrão de songs, cadências).
     const ShowGroups = {
         /**
-         * Retorna todos os grupos do usuário para um dado setlist.
+         * Retorna todos os grupos para um dado setlist (compartilhado entre usuários).
+         * RLS garante SELECT aberto para todos os autenticados.
          * @param {string|null} setlistId  UUID do setlist ou null para "todos"
-         * @returns {Array<{group_id, song_ids, setlist_id}>}
+         * @returns {Array<{id, songIds, setlistId}>}
          */
         async getAll(setlistId = null) {
             let query = db()
