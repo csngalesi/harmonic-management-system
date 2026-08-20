@@ -594,12 +594,10 @@
          */
         async remove(groupId) {
             requireOnline('remover grupo');
-            const user = await window.HMSAuth.currentUser();
             const { error } = await db()
                 .from('show_groups')
                 .delete()
-                .eq('group_id', groupId)
-                .eq('user_id', user.id);
+                .eq('group_id', groupId);
             if (error) throw error;
         },
 
