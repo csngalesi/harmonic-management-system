@@ -575,6 +575,7 @@
                 ].join('');
 
                 headerKeyEl.innerHTML = keyBtns + `<span style="display:inline-flex;align-items:center;gap:0;margin-left:6px;border-left:1px solid var(--glass-border);padding-left:6px;">${stageBtns}</span>`;
+
                 // Listener dos botões de estágio
                 headerKeyEl.querySelectorAll('.stage-filter-btn').forEach(btn => {
                     btn.addEventListener('click', () => {
@@ -585,6 +586,47 @@
                             _state.filterStage.delete(sv);
                         } else {
                             _state.filterStage.add(sv);
+                        }
+                        RepertoireComponent._renderSortToolbar();
+                        RepertoireComponent._renderSongList();
+                    });
+                });
+
+                // ── Botões M / m (filtro de modo: Maior / menor) ──────────
+                const MAJOR_KEYS = new Set(['A','B','C','D','E','F','G','Bb','Db','Eb','F#','Ab','Gb','Cb']);
+                const MINOR_KEYS = new Set(['Am','Bm','Cm','Dm','Em','Fm','Gm','Bbm','C#m','D#m','F#m','G#m','Abm','Ebm']);
+
+                // Calcula quais chaves do dataset são maiores/menores
+                const availMajor = uniqueKeys.filter(k => MAJOR_KEYS.has(k));
+                const availMinor = uniqueKeys.filter(k => MINOR_KEYS.has(k));
+
+                // Estado derivado: todos os maiores estão selecionados?
+                const allMajorOn = availMajor.length > 0 && availMajor.every(k => _state.filterKey.has(k));
+                const allMinorOn = availMinor.length > 0 && availMinor.every(k => _state.filterKey.has(k));
+
+                const modeBtnStyle = 'padding: 3px 7px; font-size: 0.72rem; min-width: 22px; text-align: center; justify-content: center; margin-left: 4px; border-left: 1px solid var(--glass-border); padding-left: 8px; font-weight: 700;';
+                const modeSpan = `<span style="display:inline-flex;align-items:center;gap:2px;margin-left:4px;">
+                    <button class="sort-btn key-filter-btn mode-filter-btn${allMajorOn ? ' active' : ''}" data-mode="major"
+                        title="Selecionar todos os tons maiores"
+                        style="${modeBtnStyle}">M</button>
+                    <button class="sort-btn key-filter-btn mode-filter-btn${allMinorOn ? ' active' : ''}" data-mode="minor"
+                        title="Selecionar todos os tons menores"
+                        style="padding: 3px 7px; font-size: 0.72rem; min-width: 22px; text-align: center; justify-content: center; font-style: italic; font-weight: 700;">m</button>
+                </span>`;
+                headerKeyEl.insertAdjacentHTML('beforeend', modeSpan);
+
+                // Listener dos botões M/m
+                headerKeyEl.querySelectorAll('.mode-filter-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const mode = btn.dataset.mode;
+                        const targetKeys = mode === 'major' ? availMajor : availMinor;
+                        const allOn = targetKeys.every(k => _state.filterKey.has(k));
+                        if (allOn) {
+                            // Toggle OFF: remove todos do grupo
+                            targetKeys.forEach(k => _state.filterKey.delete(k));
+                        } else {
+                            // Toggle ON: adiciona todos do grupo
+                            targetKeys.forEach(k => _state.filterKey.add(k));
                         }
                         RepertoireComponent._renderSortToolbar();
                         RepertoireComponent._renderSongList();
