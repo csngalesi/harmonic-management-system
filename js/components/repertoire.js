@@ -591,6 +591,46 @@
                     });
                 });
             }
+
+            // ─ Botão estrela (stageMode) ──────────────────────────────────
+            // .onclick garante que nunca há mais de 1 listener (sobrescreve o anterior).
+            const starBtn = document.getElementById('btn-star-mode');
+            if (starBtn) {
+                starBtn.onclick = () => {
+                    _state.stageMode = !_state.stageMode;
+                    starBtn.classList.toggle('active', _state.stageMode);
+                    starBtn.style.color = _state.stageMode ? '#facc15' : 'var(--text-muted)';
+                };
+            }
+
+            // ─ Botão agrupamento (groupMode) ───────────────────────────
+            const grpBtn = document.getElementById('btn-group-mode');
+            if (grpBtn) {
+                grpBtn.onclick = () => {
+                    const songListEl = document.getElementById('song-list');
+                    if (!_state.groupMode) {
+                        _state.groupMode = true;
+                        _state.groupPending = [];
+                        grpBtn.classList.add('active');
+                        grpBtn.style.color = '#a78bfa';
+                        if (songListEl) songListEl.querySelector('.show-grid')?.classList.add('group-mode-active');
+                    } else {
+                        if (_state.groupPending.length >= 2) {
+                            const newGroup = { id: 'grp_' + Date.now(), songIds: [..._state.groupPending] };
+                            _state.groups.push(newGroup);
+                            RepertoireComponent._saveGroups(); // async — persiste no Supabase
+                        } else if (_state.groupPending.length === 1) {
+                            window.HMSApp.showToast('Selecione ao menos 2 músicas para criar um grupo', 'info');
+                        }
+                        _state.groupMode = false;
+                        _state.groupPending = [];
+                        grpBtn.classList.remove('active');
+                        grpBtn.style.color = 'var(--text-muted)';
+                        if (songListEl) songListEl.querySelector('.show-grid')?.classList.remove('group-mode-active');
+                        RepertoireComponent._renderSongList();
+                    }
+                };
+            }
         },
 
         _renderSongList: function () {
@@ -719,43 +759,7 @@
                     }
                 });
 
-                // Listener do botão estágio (precisa ser registrado após render)
-                document.getElementById('btn-star-mode')?.addEventListener('click', () => {
-                    _state.stageMode = !_state.stageMode;
-                    const btn = document.getElementById('btn-star-mode');
-                    if (btn) {
-                        btn.classList.toggle('active', _state.stageMode);
-                        btn.style.color = _state.stageMode ? '#facc15' : 'var(--text-muted)';
-                    }
-                });
-
-                // Listener do botão agrupamento
-                document.getElementById('btn-group-mode')?.addEventListener('click', () => {
-                    if (!_state.groupMode) {
-                        // Entra no modo agrupamento
-                        _state.groupMode = true;
-                        _state.groupPending = [];
-                        const btn = document.getElementById('btn-group-mode');
-                        if (btn) { btn.classList.add('active'); btn.style.color = '#a78bfa'; }
-                        el.classList.add('group-mode-active');
-                    } else {
-                        // Sai do modo e salva o grupo se tiver seleção
-                        if (_state.groupPending.length >= 2) {
-                            const newGroup = { id: 'grp_' + Date.now(), songIds: [..._state.groupPending] };
-                            _state.groups.push(newGroup);
-                            RepertoireComponent._saveGroups(); // async — não bloqueia a UI
-                        } else if (_state.groupPending.length === 1) {
-                            window.HMSApp.showToast('Selecione ao menos 2 músicas para criar um grupo', 'info');
-                        }
-                        _state.groupMode = false;
-                        _state.groupPending = [];
-                        const btn = document.getElementById('btn-group-mode');
-                        if (btn) { btn.classList.remove('active'); btn.style.color = 'var(--text-muted)'; }
-                        el.classList.remove('group-mode-active');
-                        RepertoireComponent._renderSongList();
-                    }
-                });
-
+                // (listeners de btn-star-mode e btn-group-mode registrados em _renderSortToolbar via .onclick)
                 // Listener dos botões de remover grupo
                 el.querySelectorAll('.group-remove-btn').forEach(btn => {
                     btn.addEventListener('click', (e) => {
