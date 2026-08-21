@@ -604,14 +604,14 @@
                 const allMajorOn = availMajor.length > 0 && availMajor.every(k => _state.filterKey.has(k));
                 const allMinorOn = availMinor.length > 0 && availMinor.every(k => _state.filterKey.has(k));
 
-                const modeBtnStyle = 'padding: 3px 7px; font-size: 0.72rem; min-width: 22px; text-align: center; justify-content: center; margin-left: 4px; border-left: 1px solid var(--glass-border); padding-left: 8px; font-weight: 700;';
-                const modeSpan = `<span style="display:inline-flex;align-items:center;gap:2px;margin-left:4px;">
+                const modeBtnStyle = 'padding: 6px 14px; font-size: 0.95rem; min-width: 38px; text-align: center; justify-content: center; margin-left: 4px; border-left: 1px solid var(--glass-border); padding-left: 14px; font-weight: 800;';
+                const modeSpan = `<span style="display:inline-flex;align-items:center;gap:4px;margin-left:4px;">
                     <button class="sort-btn key-filter-btn mode-filter-btn${allMajorOn ? ' active' : ''}" data-mode="major"
                         title="Selecionar todos os tons maiores"
                         style="${modeBtnStyle}">M</button>
                     <button class="sort-btn key-filter-btn mode-filter-btn${allMinorOn ? ' active' : ''}" data-mode="minor"
                         title="Selecionar todos os tons menores"
-                        style="padding: 3px 7px; font-size: 0.72rem; min-width: 22px; text-align: center; justify-content: center; font-style: italic; font-weight: 700;">m</button>
+                        style="padding: 6px 14px; font-size: 0.95rem; min-width: 38px; text-align: center; justify-content: center; font-style: italic; font-weight: 800;">m</button>
                 </span>`;
                 headerKeyEl.insertAdjacentHTML('beforeend', modeSpan);
 
