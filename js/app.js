@@ -317,70 +317,38 @@
             }
 
             // -- Quick-filter buttons (N / M / m) visíveis no sidebar colapsado ---
-            const MAJOR_KEYS = ['A','B','C','D','E','F','G','Bb','Db','Eb','F#','Ab','Gb','Cb'];
-            const MINOR_KEYS = ['Am','Bm','Cm','Dm','Em','Fm','Gm','Bbm','C#m','D#m','F#m','G#m','Abm','Ebm'];
+            const SQF_MAJOR = ['A','B','C','D','E','F','G','Bb','Db','Eb','F#','Ab','Gb','Cb'];
+            const SQF_MINOR = ['Am','Bm','Cm','Dm','Em','Fm','Gm','Bbm','C#m','D#m','F#m','G#m','Abm','Ebm'];
 
             function _sqfSync() {
+                const RC = window.RepertoireComponent;
+                if (!RC || !RC.quickFilterState) return;
                 try {
-                    const RC = window.RepertoireComponent;
-                    if (!RC || !RC._state) return;
-                    const fs = RC._state.filterStage || new Set();
-                    const fk = RC._state.filterKey   || new Set();
-                    const songs = RC._state.songs || [];
-                    const uniqueKeys = [...new Set(songs.map(s => s.original_key).filter(Boolean))];
-                    const avMaj = uniqueKeys.filter(k => MAJOR_KEYS.includes(k));
-                    const avMin = uniqueKeys.filter(k => MINOR_KEYS.includes(k));
+                    const st = RC.quickFilterState(SQF_MAJOR, SQF_MINOR);
                     const nBtn = document.getElementById('sqf-n');
                     const MBtn = document.getElementById('sqf-M');
                     const mBtn = document.getElementById('sqf-m');
-                    if (nBtn) nBtn.classList.toggle('active', fs.has('N'));
-                    if (MBtn) MBtn.classList.toggle('active', avMaj.length > 0 && avMaj.every(k => fk.has(k)));
-                    if (mBtn) mBtn.classList.toggle('active', avMin.length > 0 && avMin.every(k => fk.has(k)));
+                    if (nBtn) nBtn.classList.toggle('active', st.n);
+                    if (MBtn) MBtn.classList.toggle('active', st.M);
+                    if (mBtn) mBtn.classList.toggle('active', st.m);
                 } catch(e) { /* silencioso */ }
             }
 
-            // Event delegation: um único listener no document captura cliques nos botões
-            // independentemente do momento em que o componente foi inicializado
+            // Event delegation — captura cliques independentemente do timing de init
             document.addEventListener('click', (e) => {
                 const btn = e.target.closest('.sqf-btn');
                 if (!btn) return;
+                const RC = window.RepertoireComponent;
+                if (!RC || !RC.quickFilter) return;
                 try {
-                    const RC = window.RepertoireComponent;
-                    if (!RC || !RC._state) return;
-                    const mode = btn.dataset.sqf;
-                    const songs = RC._state.songs || [];
-                    const uniqueKeys = [...new Set(songs.map(s => s.original_key).filter(Boolean))];
-
-                    if (mode === 'n') {
-                        if ((RC._state.filterStage || new Set()).has('N')) {
-                            RC._state.filterStage.delete('N');
-                        } else {
-                            (RC._state.filterStage = RC._state.filterStage || new Set()).add('N');
-                        }
-                    } else {
-                        const targetKeys = (mode === 'M' ? MAJOR_KEYS : MINOR_KEYS)
-                            .filter(k => uniqueKeys.includes(k));
-                        const fk = RC._state.filterKey = RC._state.filterKey || new Set();
-                        const allOn = targetKeys.length > 0 && targetKeys.every(k => fk.has(k));
-                        if (allOn) {
-                            targetKeys.forEach(k => fk.delete(k));
-                        } else {
-                            targetKeys.forEach(k => fk.add(k));
-                        }
-                    }
-
-                    // Re-renderiza somente se o DOM do Repertório estiver ativo
-                    if (document.getElementById('song-list')) {
-                        RC._renderSortToolbar();
-                        RC._renderSongList();
-                    }
+                    RC.quickFilter(btn.dataset.sqf, SQF_MAJOR, SQF_MINOR);
                     _sqfSync();
                 } catch(err) {
-                    console.error('[SQF] erro ao aplicar filtro:', err);
+                    console.error('[SQF]', err);
                 }
             });
 
-            // Sincroniza o estado visual dos botões periodicamente (só quando colapsado)
+            // Sincroniza visual dos botões periodicamente (só quando sidebar colapsado)
             setInterval(() => {
                 if (sidebar && sidebar.classList.contains('collapsed')) _sqfSync();
             }, 800);

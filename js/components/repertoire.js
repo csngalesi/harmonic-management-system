@@ -4875,6 +4875,54 @@
 
     };
 
+    // Expõe _state publicamente para acesso externo (ex: botões de filtro rápido do sidebar)
+    RepertoireComponent._state = _state;
+
+    /**
+     * Método público para filtros rápidos externos (sidebar colapsado).
+     * @param {'n'|'M'|'m'} mode
+     * @param {string[]} majorKeys  lista de tons maiores disponíveis
+     * @param {string[]} minorKeys  lista de tons menores disponíveis
+     */
+    RepertoireComponent.quickFilter = function(mode, majorKeys, minorKeys) {
+        const songs     = _state.songs || [];
+        const available = [...new Set(songs.map(s => s.original_key).filter(Boolean))];
+        const avMaj = (majorKeys || []).filter(k => available.includes(k));
+        const avMin = (minorKeys || []).filter(k => available.includes(k));
+
+        if (mode === 'n') {
+            if (_state.filterStage.has('N')) _state.filterStage.delete('N');
+            else                              _state.filterStage.add('N');
+        } else {
+            const targets = mode === 'M' ? avMaj : avMin;
+            const allOn   = targets.length > 0 && targets.every(k => _state.filterKey.has(k));
+            if (allOn) targets.forEach(k => _state.filterKey.delete(k));
+            else       targets.forEach(k => _state.filterKey.add(k));
+        }
+
+        if (document.getElementById('song-list')) {
+            RepertoireComponent._renderSortToolbar();
+            RepertoireComponent._renderSongList();
+        }
+    };
+
+    /**
+     * Retorna o estado atual dos filtros rápidos para sincronizar botões externos.
+     * @param {string[]} majorKeys
+     * @param {string[]} minorKeys
+     */
+    RepertoireComponent.quickFilterState = function(majorKeys, minorKeys) {
+        const songs     = _state.songs || [];
+        const available = [...new Set(songs.map(s => s.original_key).filter(Boolean))];
+        const avMaj = (majorKeys || []).filter(k => available.includes(k));
+        const avMin = (minorKeys || []).filter(k => available.includes(k));
+        return {
+            n: _state.filterStage.has('N'),
+            M: avMaj.length > 0 && avMaj.every(k => _state.filterKey.has(k)),
+            m: avMin.length > 0 && avMin.every(k => _state.filterKey.has(k)),
+        };
+    };
+
     window.RepertoireComponent = RepertoireComponent;
     console.info('[HMS] RepertoireComponent loaded.');
 })();
