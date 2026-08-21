@@ -320,14 +320,21 @@
             const SQF_MAJOR = ['A','B','C','D','E','F','G','Bb','Db','Eb','F#','Ab','Gb','Cb'];
             const SQF_MINOR = ['Am','Bm','Cm','Dm','Em','Fm','Gm','Bbm','C#m','D#m','F#m','G#m','Abm','Ebm'];
 
-            function _sqfApply(btn, active, activeColor, activeBg) {
+            function _sqfApply(btn, active, activeColor, activeBg, inactiveColor) {
                 if (!btn) return;
                 btn.classList.toggle('active', active);
-                // Estilo inline garante visibilidade no iOS Safari independente de CSS
-                btn.style.background    = active ? activeBg   : '';
-                btn.style.borderColor   = active ? activeColor : '';
-                btn.style.color         = active ? activeColor : '';
-                btn.style.boxShadow     = active ? `0 0 0 1px ${activeColor}` : '';
+                if (active) {
+                    btn.style.setProperty('background',  activeBg,    'important');
+                    btn.style.setProperty('border-color',activeColor,  'important');
+                    btn.style.setProperty('color',       activeColor,  'important');
+                    btn.style.setProperty('box-shadow',  `0 0 0 1px ${activeColor}`, 'important');
+                } else {
+                    btn.style.removeProperty('background');
+                    btn.style.removeProperty('border-color');
+                    btn.style.removeProperty('box-shadow');
+                    // Define cor inativa explicitamente para não depender da cascata
+                    btn.style.setProperty('color', inactiveColor, 'important');
+                }
             }
 
             function _sqfSync() {
@@ -335,9 +342,9 @@
                 if (!RC || !RC.quickFilterState) return;
                 try {
                     const st = RC.quickFilterState(SQF_MAJOR, SQF_MINOR);
-                    _sqfApply(document.getElementById('sqf-n'), st.n, '#ca8a04',       'rgba(202,138,4,.22)');
-                    _sqfApply(document.getElementById('sqf-M'), st.M, 'var(--brand)',  'var(--brand-dim)');
-                    _sqfApply(document.getElementById('sqf-m'), st.m, 'var(--brand)',  'var(--brand-dim)');
+                    _sqfApply(document.getElementById('sqf-n'), st.n, '#ca8a04',     'rgba(202,138,4,.22)', '#ca8a04');
+                    _sqfApply(document.getElementById('sqf-M'), st.M, 'var(--brand)','var(--brand-dim)',    '#94a3b8');
+                    _sqfApply(document.getElementById('sqf-m'), st.m, 'var(--brand)','var(--brand-dim)',    '#94a3b8');
                 } catch(e) { /* silencioso */ }
             }
 
