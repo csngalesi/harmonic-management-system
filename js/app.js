@@ -316,6 +316,70 @@
                 toggleBtn.addEventListener('click', () => sidebar.classList.toggle('collapsed'));
             }
 
+            // -- Quick-filter buttons (N / M / m) visíveis no sidebar colapsado ---
+            const MAJOR_KEYS = ['A','B','C','D','E','F','G','Bb','Db','Eb','F#','Ab','Gb','Cb'];
+            const MINOR_KEYS = ['Am','Bm','Cm','Dm','Em','Fm','Gm','Bbm','C#m','D#m','F#m','G#m','Abm','Ebm'];
+
+            function _sqfSync() {
+                // Atualiza visual dos botões conforme o estado do RepertoireComponent
+                const RC = window.RepertoireComponent;
+                if (!RC) return;
+                const fs = RC._state.filterStage;
+                const fk = RC._state.filterKey;
+                const songs = RC._state.songs || [];
+                const uniqueKeys = [...new Set(songs.map(s => s.original_key).filter(Boolean))];
+                const avMaj = uniqueKeys.filter(k => MAJOR_KEYS.includes(k));
+                const avMin = uniqueKeys.filter(k => MINOR_KEYS.includes(k));
+
+                const nBtn = document.getElementById('sqf-n');
+                const MBtn = document.getElementById('sqf-M');
+                const mBtn = document.getElementById('sqf-m');
+                if (nBtn) nBtn.classList.toggle('active', fs.has('N'));
+                if (MBtn) MBtn.classList.toggle('active', avMaj.length > 0 && avMaj.every(k => fk.has(k)));
+                if (mBtn) mBtn.classList.toggle('active', avMin.length > 0 && avMin.every(k => fk.has(k)));
+            }
+
+            document.querySelectorAll('.sqf-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const RC = window.RepertoireComponent;
+                    if (!RC) return;
+                    const mode = btn.dataset.sqf;
+                    const songs = RC._state.songs || [];
+                    const uniqueKeys = [...new Set(songs.map(s => s.original_key).filter(Boolean))];
+
+                    if (mode === 'n') {
+                        // Toggle estágio N
+                        if (RC._state.filterStage.has('N')) {
+                            RC._state.filterStage.delete('N');
+                        } else {
+                            RC._state.filterStage.add('N');
+                        }
+                    } else {
+                        // Toggle tons M/m
+                        const targetKeys = (mode === 'M' ? MAJOR_KEYS : MINOR_KEYS)
+                            .filter(k => uniqueKeys.includes(k));
+                        const allOn = targetKeys.every(k => RC._state.filterKey.has(k));
+                        if (allOn) {
+                            targetKeys.forEach(k => RC._state.filterKey.delete(k));
+                        } else {
+                            targetKeys.forEach(k => RC._state.filterKey.add(k));
+                        }
+                    }
+                    RC._renderSortToolbar();
+                    RC._renderSongList();
+                    _sqfSync();
+                });
+            });
+
+            // Sincroniza visual quando o repertório re-renderiza
+            const origRender = window.RepertoireComponent?._renderSortToolbar;
+            if (origRender) {
+                window.RepertoireComponent._renderSortToolbar = function(...args) {
+                    origRender.apply(this, args);
+                    _sqfSync();
+                };
+            }
+
             const mobileBtn = document.getElementById('mobile-menu-btn');
             if (mobileBtn) {
                 mobileBtn.addEventListener('click', () => App._openMobileSidebar());
