@@ -321,9 +321,8 @@
             const MINOR_KEYS = ['Am','Bm','Cm','Dm','Em','Fm','Gm','Bbm','C#m','D#m','F#m','G#m','Abm','Ebm'];
 
             function _sqfSync() {
-                // Atualiza visual dos botões conforme o estado do RepertoireComponent
                 const RC = window.RepertoireComponent;
-                if (!RC) return;
+                if (!RC || !RC._state || !RC._state.filterStage) return; // guard: estado ainda não inicializado
                 const fs = RC._state.filterStage;
                 const fk = RC._state.filterKey;
                 const songs = RC._state.songs || [];
@@ -342,20 +341,18 @@
             document.querySelectorAll('.sqf-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const RC = window.RepertoireComponent;
-                    if (!RC) return;
+                    if (!RC || !RC._state || !RC._state.filterStage) return; // guard
                     const mode = btn.dataset.sqf;
                     const songs = RC._state.songs || [];
                     const uniqueKeys = [...new Set(songs.map(s => s.original_key).filter(Boolean))];
 
                     if (mode === 'n') {
-                        // Toggle estágio N
                         if (RC._state.filterStage.has('N')) {
                             RC._state.filterStage.delete('N');
                         } else {
                             RC._state.filterStage.add('N');
                         }
                     } else {
-                        // Toggle tons M/m
                         const targetKeys = (mode === 'M' ? MAJOR_KEYS : MINOR_KEYS)
                             .filter(k => uniqueKeys.includes(k));
                         const allOn = targetKeys.every(k => RC._state.filterKey.has(k));
@@ -371,14 +368,10 @@
                 });
             });
 
-            // Sincroniza visual quando o repertório re-renderiza
-            const origRender = window.RepertoireComponent?._renderSortToolbar;
-            if (origRender) {
-                window.RepertoireComponent._renderSortToolbar = function(...args) {
-                    origRender.apply(this, args);
-                    _sqfSync();
-                };
-            }
+            // Sincroniza o estado visual dos botões periodicamente (apenas quando sidebar colapsado)
+            setInterval(() => {
+                if (sidebar && sidebar.classList.contains('collapsed')) _sqfSync();
+            }, 800);
 
             const mobileBtn = document.getElementById('mobile-menu-btn');
             if (mobileBtn) {
