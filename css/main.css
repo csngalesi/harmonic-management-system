@@ -260,7 +260,7 @@ input, select, textarea { font-family: inherit; }
     white-space: nowrap; overflow: hidden;
     transition: opacity var(--transition);
 }
-.sidebar.collapsed .nav-section-label { opacity: 0; }
+.sidebar.collapsed .nav-section-label { display: none; }
 .nav-link {
     display: flex; align-items: center; gap: 12px;
     padding: 9px 10px; border-radius: 8px;
@@ -271,7 +271,7 @@ input, select, textarea { font-family: inherit; }
 }
 .nav-link i { font-size: 1rem; width: 20px; text-align: center; flex-shrink: 0; }
 .nav-link span { transition: opacity var(--transition); }
-.sidebar.collapsed .nav-link span { opacity: 0; pointer-events: none; }
+.sidebar.collapsed .nav-link { display: none; }  /* oculta todos os links colapsados */
 .nav-link:hover { background: var(--brand-dim); color: var(--text-primary); }
 .nav-link.active { background: var(--brand-dim); color: var(--brand); font-weight: 500; }
 .nav-link.active i { color: var(--brand); }
