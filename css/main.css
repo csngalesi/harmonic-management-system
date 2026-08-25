@@ -348,6 +348,11 @@ input, select, textarea { font-family: inherit; }
     display: flex; align-items: flex-start; justify-content: space-between;
     gap: 16px; margin-bottom: 24px; flex-wrap: wrap;
 }
+/* Quando colapsado: header ultra-fino, apenas o botão de expandir */
+.page-header.header-collapsed {
+    margin-bottom: 6px;
+    align-items: center;
+}
 .page-title { display: flex; align-items: center; gap: 14px; }
 .page-title-icon {
     width: 44px; height: 44px; border-radius: 12px;

@@ -66,17 +66,17 @@
             _dragSongId         = null;
             content.innerHTML = `
                 <div class="page-header">
-                    <div class="page-title">
+                    <div class="page-title" id="page-header-title"${_state.headerCollapsed ? ' style="display:none"' : ''}>
                         <div class="page-title-icon"><i class="fa-solid fa-list-music"></i></div>
                         <div>
                             <h2>Repertório</h2>
-                            <p ${_state.headerCollapsed ? 'style="display:none"' : ''}>Sua biblioteca de músicas</p>
+                            <p>Sua biblioteca de músicas</p>
                         </div>
-                        <button class="btn-icon" id="btn-collapse-header" title="${_state.headerCollapsed ? 'Expandir controles' : 'Minimizar controles'}" style="margin-left:8px;">
-                            <i class="fa-solid fa-chevron-${_state.headerCollapsed ? 'down' : 'up'}"></i>
-                        </button>
                         <span id="key-filter-header" style="display:inline-flex;align-items:center;flex-wrap:wrap;gap:4px;margin-left:10px;"></span>
                     </div>
+                    <button class="btn-icon" id="btn-collapse-header" title="${_state.headerCollapsed ? 'Expandir controles' : 'Minimizar controles'}" style="margin-left:${_state.headerCollapsed ? '0' : '8px'};flex-shrink:0;">
+                        <i class="fa-solid fa-chevron-${_state.headerCollapsed ? 'down' : 'up'}"></i>
+                    </button>
                     <div class="page-actions"${_state.headerCollapsed ? ' style="display:none"' : ''}>
                         <button class="btn btn-secondary${_state.viewMode === 'show' ? ' active' : ''}" id="btn-toggle-show" title="Modo Show — grid condensado">
                             <i class="fa-solid fa-table-cells"></i> Show
@@ -222,15 +222,19 @@
 
             document.getElementById('btn-collapse-header').addEventListener('click', () => {
                 _state.headerCollapsed = !_state.headerCollapsed;
-                const controls = document.getElementById('rep-controls');
-                const btn      = document.getElementById('btn-collapse-header');
-                const sub      = document.querySelector('.page-title p');
-                const actions  = document.querySelector('.page-actions');
-                controls.style.display = _state.headerCollapsed ? 'none' : '';
-                if (sub)     sub.style.display     = _state.headerCollapsed ? 'none' : '';
-                if (actions) actions.style.display  = _state.headerCollapsed ? 'none' : '';
+                const controls  = document.getElementById('rep-controls');
+                const titleEl   = document.getElementById('page-header-title');
+                const actions   = document.querySelector('.page-actions');
+                const btn       = document.getElementById('btn-collapse-header');
+                const header    = document.querySelector('.page-header');
+
+                controls.style.display  = _state.headerCollapsed ? 'none' : '';
+                if (titleEl)  titleEl.style.display  = _state.headerCollapsed ? 'none' : '';
+                if (actions)  actions.style.display  = _state.headerCollapsed ? 'none' : '';
+                if (header)   header.classList.toggle('header-collapsed', _state.headerCollapsed);
                 btn.querySelector('i').className = `fa-solid fa-chevron-${_state.headerCollapsed ? 'down' : 'up'}`;
                 btn.title = _state.headerCollapsed ? 'Expandir controles' : 'Minimizar controles';
+                btn.style.marginLeft = _state.headerCollapsed ? '0' : '8px';
                 // Atualiza chips de filtro (some quando colapsado, aparece quando expandido)
                 RepertoireComponent._renderSortToolbar();
             });
