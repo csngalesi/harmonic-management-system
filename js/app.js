@@ -332,7 +332,6 @@
                     btn.style.removeProperty('background');
                     btn.style.removeProperty('border-color');
                     btn.style.removeProperty('box-shadow');
-                    // Define cor inativa explicitamente para não depender da cascata
                     btn.style.setProperty('color', inactiveColor, 'important');
                 }
             }
@@ -345,6 +344,8 @@
                     _sqfApply(document.getElementById('sqf-n'), st.n, '#ca8a04',     'rgba(202,138,4,.22)', '#ca8a04');
                     _sqfApply(document.getElementById('sqf-M'), st.M, 'var(--brand)','var(--brand-dim)',    '#94a3b8');
                     _sqfApply(document.getElementById('sqf-m'), st.m, 'var(--brand)','var(--brand-dim)',    '#94a3b8');
+                    // X nunca fica ativo — apenas garante reset visual
+                    _sqfApply(document.getElementById('sqf-x'), false, '', '', 'var(--text-muted)');
                 } catch(e) { /* silencioso */ }
             }
 

@@ -231,6 +231,8 @@
                 if (actions) actions.style.display  = _state.headerCollapsed ? 'none' : '';
                 btn.querySelector('i').className = `fa-solid fa-chevron-${_state.headerCollapsed ? 'down' : 'up'}`;
                 btn.title = _state.headerCollapsed ? 'Expandir controles' : 'Minimizar controles';
+                // Atualiza chips de filtro (some quando colapsado, aparece quando expandido)
+                RepertoireComponent._renderSortToolbar();
             });
 
             // Key filter clicks in the header (always visible, even when collapsed)
@@ -549,6 +551,11 @@
 
             const headerKeyEl = document.getElementById('key-filter-header');
             if (headerKeyEl) {
+                // Quando o header está colapsado, não mostra nenhum filtro de tom/estágio
+                if (_state.headerCollapsed) {
+                    headerKeyEl.innerHTML = '';
+                    return; // não continua para montar os botões
+                }
                 const allKeysInactive = _state.filterKey.size === 0;
                 const dotBtn = `<button class="sort-btn key-filter-btn${allKeysInactive ? ' active' : ''}" data-key="__all__" style="padding: 3px 8px; font-size: 0.72rem; min-width: 24px; text-align: center; justify-content: center;">·</button>`;
                 const keyBtns = dotBtn + uniqueKeys.map(k => {
@@ -4890,14 +4897,28 @@
         const avMaj = (majorKeys || []).filter(k => available.includes(k));
         const avMin = (minorKeys || []).filter(k => available.includes(k));
 
-        if (mode === 'n') {
-            if (_state.filterStage.has('N')) _state.filterStage.delete('N');
-            else                              _state.filterStage.add('N');
-        } else {
-            const targets = mode === 'M' ? avMaj : avMin;
-            const allOn   = targets.length > 0 && targets.every(k => _state.filterKey.has(k));
-            if (allOn) targets.forEach(k => _state.filterKey.delete(k));
-            else       targets.forEach(k => _state.filterKey.add(k));
+        // Helper: limpa todos os filtros rápidos
+        function _clearAll() {
+            _state.filterStage.delete('N');
+            avMaj.forEach(k => _state.filterKey.delete(k));
+            avMin.forEach(k => _state.filterKey.delete(k));
+        }
+
+        if (mode === 'x') {
+            // X: limpa tudo, sem exclusão
+            _clearAll();
+        } else if (mode === 'n') {
+            const wasOn = _state.filterStage.has('N');
+            _clearAll();                         // exclui os outros
+            if (!wasOn) _state.filterStage.add('N'); // toggle: só ativa se estava off
+        } else if (mode === 'M') {
+            const wasOn = avMaj.length > 0 && avMaj.every(k => _state.filterKey.has(k));
+            _clearAll();
+            if (!wasOn) avMaj.forEach(k => _state.filterKey.add(k));
+        } else if (mode === 'm') {
+            const wasOn = avMin.length > 0 && avMin.every(k => _state.filterKey.has(k));
+            _clearAll();
+            if (!wasOn) avMin.forEach(k => _state.filterKey.add(k));
         }
 
         if (document.getElementById('song-list')) {
@@ -4906,11 +4927,6 @@
         }
     };
 
-    /**
-     * Retorna o estado atual dos filtros rápidos para sincronizar botões externos.
-     * @param {string[]} majorKeys
-     * @param {string[]} minorKeys
-     */
     RepertoireComponent.quickFilterState = function(majorKeys, minorKeys) {
         const songs     = _state.songs || [];
         const available = [...new Set(songs.map(s => s.original_key).filter(Boolean))];
@@ -4922,6 +4938,7 @@
             m: avMin.length > 0 && avMin.every(k => _state.filterKey.has(k)),
         };
     };
+
 
     window.RepertoireComponent = RepertoireComponent;
     console.info('[HMS] RepertoireComponent loaded.');

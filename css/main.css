@@ -328,6 +328,8 @@ input, select, textarea { font-family: inherit; }
 .sqf-M.active         { background: var(--brand-dim) !important; border-color: var(--brand) !important; color: var(--brand) !important; box-shadow: 0 0 0 1px var(--brand-dim); }
 .sqf-m                { color: var(--text-secondary); }
 .sqf-m.active         { background: var(--brand-dim) !important; border-color: var(--brand) !important; color: var(--brand) !important; box-shadow: 0 0 0 1px var(--brand-dim); }
+.sqf-x                { color: var(--text-muted); font-size: 1.5rem; border-style: dashed; }
+.sqf-x:hover          { background: rgba(239,68,68,.12) !important; border-color: #ef4444 !important; color: #ef4444 !important; }
 
 /* -- Main Wrapper --------------------------------------------------- */
 .main-wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
