@@ -125,9 +125,12 @@ input, select, textarea { font-family: inherit; }
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-lg);
     width: 100%; max-width: 560px;
-    margin: auto;         /* centraliza verticalmente quando conteúdo é curto */
+    max-height: calc(100vh - 32px);  /* nunca ultrapassa a tela */
+    display: flex; flex-direction: column;  /* permite sd-body crescer e rolar */
+    margin: auto;
     box-shadow: 0 24px 64px rgba(0,0,0,.6);
     animation: modal-in .25s ease;
+    overflow: hidden;  /* arredondamento nas bordas */
 }
 .modal-container.modal-lg { max-width: 900px; }
 @keyframes modal-in { from { opacity: 0; transform: scale(.94) translateY(-10px); } to { opacity: 1; transform: none; } }
@@ -824,7 +827,12 @@ tbody tr:hover td { background: var(--glass-bg); }
 .sd-header-tabs .sd-tab:hover { color:var(--text-secondary); background:rgba(255,255,255,.05); }
 .sd-header-tabs .sd-tab.active { color:var(--brand); background:var(--brand-dim); border-bottom-color:transparent; }
 
-.sd-body { padding:14px 18px; }
+.sd-body {
+    padding: 14px 18px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;  /* scroll inercial no iOS */
+    flex: 1;  /* ocupa espaço disponível dentro do modal-container flex */
+}
 .sd-pane { display:none; }
 .sd-pane.active { display:block; }
 #sd-pane-letra.active { display:flex; flex-direction:column; }
@@ -841,7 +849,7 @@ tbody tr:hover td { background: var(--glass-bg); }
 /* ── Tablet portrait/landscape optimisation ─────────────────── */
 @media (min-width: 768px) and (max-width: 1024px) {
     .modal-overlay  { padding: 8px; }
-    .modal-container { max-width: 95vw; }
+    .modal-container { max-width: 95vw; max-height: calc(100vh - 16px); }
 
     .modal-body  { padding: 16px 18px; }
     .modal-header { padding: 16px 18px 12px; }
