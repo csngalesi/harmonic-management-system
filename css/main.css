@@ -795,7 +795,13 @@ tbody tr:hover td { background: var(--glass-bg); }
 .show-key[data-key="Am"]  { background: rgba(190,24,93,.22);  color:#f9a8d4; }
 
 /* ── Show Detail Modal ─────────────────────────────────────── */
-.sd-modal { display:flex; flex-direction:column; min-width:320px; max-width:580px; }
+.sd-modal {
+    display: flex; flex-direction: column;
+    min-width: 320px; max-width: 580px;
+    flex: 1;          /* ocupa o espaço do modal-container */
+    min-height: 0;    /* permite shrink no iOS (obrigatório para scroll funcionar) */
+    overflow: hidden; /* garante border-radius do pai */
+}
 .sd-header {
     display:flex; align-items:flex-start; justify-content:space-between;
     gap:12px; padding:16px 20px 12px;
@@ -831,7 +837,9 @@ tbody tr:hover td { background: var(--glass-bg); }
     padding: 14px 18px;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;  /* scroll inercial no iOS */
-    flex: 1;  /* ocupa espaço disponível dentro do modal-container flex */
+    flex: 1;
+    min-height: 0;    /* essencial: sem isso o flex-child não faz scroll no iOS */
+    touch-action: pan-y;  /* informa ao browser que é pan vertical */
 }
 .sd-pane { display:none; }
 .sd-pane.active { display:block; }
