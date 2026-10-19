@@ -82,7 +82,7 @@
                             <i class="fa-solid fa-table-cells"></i> Show
                         </button>
                         <span id="show-cols-picker" style="display:${_state.viewMode === 'show' ? 'inline-flex' : 'none'};align-items:center;gap:3px;margin-left:2px;" title="Número de colunas no modo Show">
-                            ${['S','N','2','3','4','5'].map(v => `<button class="col-pick-btn${_state.showColumns === v ? ' active' : ''}" data-cols="${v}">${v}</button>`).join('')}
+                            ${['S','N','2','3','4','5','6','7'].map(v => `<button class="col-pick-btn${_state.showColumns === v ? ' active' : ''}" data-cols="${v}">${v}</button>`).join('')}
                         </span>
                         <button class="btn btn-secondary" id="btn-manage-setlists">
                             <i class="fa-solid fa-folder-open"></i> Setlists
@@ -1085,7 +1085,7 @@
             let displayList = sorted;
             if (_state.showFlow === 'col' && sorted.length > 0) {
                 // Determine number of columns from CSS class (mirrors show-grid CSS)
-                const colMap = { S: 1, '2': 2, '3': 3, '4': 4, '5': 5 };
+                const colMap = { S: 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7 };
                 let numCols;
                 if (_state.showColumns === 'N') {
                     // 'N' = responsive — must match CSS media queries:
@@ -1212,6 +1212,19 @@
                 let i = 0;
                 let chordIdx = 0; // índice sequencial de cada posição de acorde/barra
                 const sep = `<span style="opacity:.35;font-size:.7em;margin:0 3px;">·</span>`;
+                let lastChordColor = null; // "/" herda a cor do acorde anterior
+
+                // Helper: inline color style for a chord token
+                const colorOf = (t) => t.isDotDegree ? '#f97316' : window.HarmonyEngine.degreeColor(t.deg);
+                const degStyle = (t) => {
+                    const c = colorOf(t);
+                    if (c) lastChordColor = c;
+                    return c ? ` style="background:${c}28;border-color:${c};color:${c};"` : '';
+                };
+                const slashStyle = () => lastChordColor
+                    ? ` style="background:${lastChordColor}28;border-color:${lastChordColor};color:${lastChordColor};"`
+                    : '';
+
                 while (i < toks.length) {
                     const t = toks[i];
                     if (t.type === 'STRUCT' && t.value === '[') {
@@ -1224,7 +1237,12 @@
                         }
                         i++; // skip ]
                         if (group.length) {
-                            const inner = group.map(g => `<span class="sd-chord" data-chord="${esc(g.value || '')}" data-chord-idx="${chordIdx++}" style="background:transparent;border:none;padding:0;box-shadow:none;">${esc(g.value || '')}</span>`).join(sep);
+                            const inner = group.map(g => {
+                                const gc = window.HarmonyEngine.degreeColor(g.deg);
+                                if (gc) lastChordColor = gc;
+                                const gs = gc ? `background:${gc}28;border-color:${gc};color:${gc};` : '';
+                                return `<span class="sd-chord" data-chord="${esc(g.value || '')}" data-chord-idx="${chordIdx++}" style="background:transparent;border:none;padding:0;box-shadow:none;${gs}">${esc(g.value || '')}</span>`;
+                            }).join(sep);
                             out.push(`<span class="sd-chord-group" style="display:inline-flex;align-items:center;border:1px solid var(--glass-border);border-radius:var(--radius-sm,6px);padding:3px 8px;background:var(--glass-bg);">${inner}</span>`);
                         }
                         continue;
@@ -1232,11 +1250,11 @@
                     if (t.type === 'LABEL')
                         out.push(`<span class="sd-label">${esc(t.value)}</span>`);
                     else if (t.type === 'STRUCT')
-                        out.push(t.value === '/' ? `<span class="sd-chord" data-chord="/" data-chord-idx="${chordIdx++}">/</span>` : `<span class="sd-sep">${esc(t.value) || '·'}</span>`);
+                        out.push(t.value === '/' ? `<span class="sd-chord" data-chord="/" data-chord-idx="${chordIdx++}"${slashStyle()}>/</span>` : `<span class="sd-sep">${esc(t.value) || '·'}</span>`);
                     else if (t.type === 'MOD')
                         out.push(`<span class="sd-mod">${esc('!' + t.value + '!')}</span>`);
                     else
-                        out.push(`<span class="sd-chord" data-chord="${esc(t.value || '')}" data-chord-idx="${chordIdx++}">${esc(t.value || '')}</span>`);
+                        out.push(`<span class="sd-chord" data-chord="${esc(t.value || '')}" data-chord-idx="${chordIdx++}"${degStyle(t)}>${esc(t.value || '')}</span>`);
                     i++;
                 }
                 return out.join('');
@@ -1253,6 +1271,16 @@
                         <div style="min-width:0;flex:1;overflow:hidden;">
                             <div class="sd-title" style="font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(song.title)}</div>
                             <div class="sd-sub" style="font-size:.68rem;margin-top:1px;">${esc([song.artist, song.genre].filter(Boolean).join(' · '))}</div>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:2px;flex-shrink:0;" title="Legenda de graus">
+                            <span title="1° grau" style="width:16px;height:16px;border-radius:50%;background:#ef4444;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;cursor:default;flex-shrink:0;">1</span>
+                            <span title="2° grau" style="width:16px;height:16px;border-radius:50%;background:#eab308;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;cursor:default;flex-shrink:0;">2</span>
+                            <span title="3° grau" style="width:16px;height:16px;border-radius:50%;background:#16a34a;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;cursor:default;flex-shrink:0;">3</span>
+                            <span title="4° grau" style="width:16px;height:16px;border-radius:50%;background:#795548;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;cursor:default;flex-shrink:0;">4</span>
+                            <span title="5° grau" style="width:16px;height:16px;border-radius:50%;background:#2563eb;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;cursor:default;flex-shrink:0;">5</span>
+                            <span title="5.5 — dominante da dominante" style="min-width:22px;height:16px;border-radius:8px;background:#f97316;display:inline-flex;align-items:center;justify-content:center;font-size:7px;font-weight:700;color:#fff;padding:0 3px;cursor:default;flex-shrink:0;">5.5</span>
+                            <span title="6° grau" style="width:16px;height:16px;border-radius:50%;background:#f472b6;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;cursor:default;flex-shrink:0;">6</span>
+                            <span title="7° grau" style="width:16px;height:16px;border-radius:50%;background:#6b7280;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;cursor:default;flex-shrink:0;">7</span>
                         </div>
                         <div class="sd-header-tabs">
                             <button class="sd-tab${_defaultTab === 'func' ? ' active' : ''}" data-tab="func">Harm Func</button>
@@ -2395,6 +2423,20 @@
                                         transition:background .15s,color .15s;">
                                         <i class="fa-solid fa-upload"></i> Upload
                                     </button>
+                                    <button type="button" id="btn-yt-fetch" title="Buscar áudio no YouTube e enviar ao Supabase"
+                                        style="flex-shrink:0;padding:0 14px;height:38px;border-radius:8px;border:1px solid #ef4444;
+                                        background:rgba(239,68,68,.1);color:#ef4444;cursor:pointer;
+                                        display:flex;align-items:center;gap:6px;font-size:.82rem;white-space:nowrap;
+                                        transition:background .15s,color .15s;">
+                                        <i class="fa-brands fa-youtube"></i> YouTube
+                                    </button>
+                                    <button type="button" id="btn-sidecar-on" title="Iniciar Sidecar YouTube no notebook local (inicia o arquivo .bat)"
+                                        style="flex-shrink:0;padding:0 12px;height:38px;border-radius:8px;border:1px solid #10b981;
+                                        background:rgba(16,185,129,.1);color:#10b981;cursor:pointer;
+                                        display:flex;align-items:center;gap:6px;font-size:.82rem;white-space:nowrap;
+                                        transition:background .15s,color .15s;">
+                                        <i class="fa-solid fa-play"></i> Bat on
+                                    </button>
                                     <input type="file" id="sf-audio-file-input" accept=".mp3,.m4a,.ogg,.wav,.aac,audio/*" style="display:none;">
                                 </div>
                                 <span class="form-hint">Cole um link direto ou clique em Upload para enviar o arquivo para o Supabase Storage.</span>
@@ -2461,6 +2503,40 @@
                     }, 3000);
                 }
             });
+
+            // ── Iniciar Sidecar local (Bat on) ─────────────────────────
+            const _batBtn = document.getElementById('btn-sidecar-on');
+            if (_batBtn) {
+                _batBtn.addEventListener('click', () => {
+                    const iframe = document.createElement('iframe');
+                    iframe.style.display = 'none';
+                    iframe.src = 'hms-sidecar://start';
+                    document.body.appendChild(iframe);
+                    setTimeout(() => iframe.remove(), 3000);
+                    window.HMSApp.showToast('Iniciando Sidecar no notebook local... Aguarde a janela abrir.', 'info', 4000);
+                });
+            }
+
+            // ── YouTube fetch (abre nova aba — sem CORS) ──────────────
+            const _ytBtn = document.getElementById('btn-yt-fetch');
+            if (_ytBtn) {
+                _ytBtn.addEventListener('click', () => {
+                    const title  = (document.getElementById('sf-title')?.value  || '').trim();
+                    const artist = (document.getElementById('sf-artist')?.value || '').trim();
+                    if (!title) { window.HMSApp.showToast('Preencha o Título antes de buscar.', 'warning'); return; }
+                    if (!songId) { window.HMSApp.showToast('Salve a música antes de buscar áudio.', 'warning'); return; }
+
+                    const params = new URLSearchParams({ songId, title, artist });
+                    const url = `http://localhost:7890/ui?${params}`;
+
+                    window.open(url, '_blank');
+                    window.HMSApp.showToast(
+                        'Nova aba aberta. Aguarde o download terminar, feche a aba e reabra esta música para ver o áudio vinculado.',
+                        'info',
+                        8000
+                    );
+                });
+            }
 
             document.getElementById('sf-title').focus();
         },
