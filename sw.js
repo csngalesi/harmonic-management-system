@@ -4,7 +4,7 @@
  * Strategy: Cache-first for static assets, network-first for API calls.
  */
 
-const CACHE_NAME = 'hms-v66';
+const CACHE_NAME = 'hms-v67';
 
 
 
@@ -15,7 +15,7 @@ const APP_SHELL = [
     '/',
     '/index.html',
     '/css/main.css?v=25',
-    '/js/core/harmonyEngine.js?v=21',
+    '/js/core/harmonyEngine.js?v=22',
     '/js/core/chordShapes.js?v=13',
     '/js/core/audioEngine.js?v=30',
     '/js/core/melodyEngine.js?v=13',
@@ -25,7 +25,7 @@ const APP_SHELL = [
     '/js/supabase-client.js?v=13',
     '/js/auth.js?v=13',
     '/js/api.js?v=24',
-    '/js/components/repertoire.js?v=37',
+    '/js/components/repertoire.js?v=38',
     '/js/components/player.js?v=15',
     '/js/components/analyzer.js?v=13',
     '/js/components/extractor.js?v=13',

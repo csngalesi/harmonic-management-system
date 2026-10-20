@@ -1235,8 +1235,16 @@
                 const sep = `<span style="opacity:.35;font-size:.7em;margin:0 3px;">·</span>`;
                 let lastChordColor = null; // "/" herda a cor do acorde anterior
 
+                const DEG_COLORS = ['', '#ef4444', '#eab308', '#16a34a', '#795548', '#2563eb', '#f472b6', '#6b7280'];
+                const getDegColor = (deg) => {
+                    if (window.HarmonyEngine && typeof window.HarmonyEngine.degreeColor === 'function') {
+                        return window.HarmonyEngine.degreeColor(deg);
+                    }
+                    return (deg >= 1 && deg <= 7) ? DEG_COLORS[deg] : null;
+                };
+
                 // Helper: inline color style for a chord token
-                const colorOf = (t) => t.isDotDegree ? '#f97316' : window.HarmonyEngine.degreeColor(t.deg);
+                const colorOf = (t) => t.isDotDegree ? '#f97316' : getDegColor(t.deg);
                 const degStyle = (t) => {
                     const c = colorOf(t);
                     if (c) lastChordColor = c;
@@ -1259,7 +1267,7 @@
                         i++; // skip ]
                         if (group.length) {
                             const inner = group.map(g => {
-                                const gc = window.HarmonyEngine.degreeColor(g.deg);
+                                const gc = getDegColor(g.deg);
                                 if (gc) lastChordColor = gc;
                                 const gs = gc ? `background:${gc}28;border-color:${gc};color:${gc};` : '';
                                 return `<span class="sd-chord" data-chord="${esc(g.value || '')}" data-chord-idx="${chordIdx++}" style="background:transparent;border:none;padding:0;box-shadow:none;${gs}">${esc(g.value || '')}</span>`;
