@@ -222,6 +222,12 @@
 
             document.getElementById('btn-collapse-header').addEventListener('click', () => {
                 _state.headerCollapsed = !_state.headerCollapsed;
+                if (_state.headerCollapsed) {
+                    // Ao colapsar os controles, desativa modos especiais para permitir abrir músicas diretamente
+                    _state.stageMode = false;
+                    _state.groupMode = false;
+                    _state.showDragMode = false;
+                }
                 const controls  = document.getElementById('rep-controls');
                 const titleEl   = document.getElementById('page-header-title');
                 const actions   = document.querySelector('.page-actions');
@@ -558,8 +564,7 @@
                 // Quando o header está colapsado, não mostra nenhum filtro de tom/estágio
                 if (_state.headerCollapsed) {
                     headerKeyEl.innerHTML = '';
-                    return; // não continua para montar os botões
-                }
+                } else {
                 const allKeysInactive = _state.filterKey.size === 0;
                 const dotBtn = `<button class="sort-btn key-filter-btn${allKeysInactive ? ' active' : ''}" data-key="__all__" style="padding: 3px 8px; font-size: 0.72rem; min-width: 24px; text-align: center; justify-content: center;">·</button>`;
                 const keyBtns = dotBtn + uniqueKeys.map(k => {
@@ -643,6 +648,7 @@
                         RepertoireComponent._renderSongList();
                     });
                 });
+                }
             }
 
             // ─ Botão estrela (stageMode) ──────────────────────────────────
@@ -766,50 +772,53 @@
                         RepertoireComponent._openCommentModal(cell.dataset.id);
                     });
                     // Click na célula: modo estágio → cicla N→L→B→null; modo normal → abre detalhe
-                    if (!isGridDrag) {
-                        cell.addEventListener('click', (e) => {
-                            if (e.target.closest('.show-alert-btn') || e.target.closest('.show-comment-btn') || e.target.closest('.group-remove-btn')) return;
-                            if (_state.stageMode) {
-                                // Cicla estágio: null→N→L→B→null
-                                const sid  = cell.dataset.id;
-                                const song = _state.songs.find(s => s.id === sid);
-                                if (!song) return;
-                                const stageSeq = [null, 'N', 'L', 'B'];
-                                const curIdx   = stageSeq.indexOf(song.stage || null);
-                                const newStage = stageSeq[(curIdx + 1) % stageSeq.length];
-                                const prevStage = song.stage;
-                                // Atualiza estado local imediatamente (UX otimista)
-                                song.stage = newStage;
-                                RepertoireComponent._updateStageBadge(cell, newStage);
-                                // Persiste no banco em background
-                                window.HMSAPI.Songs.setStage(sid, newStage).catch(err => {
-                                    // Reverte se falhar
-                                    song.stage = prevStage;
-                                    RepertoireComponent._updateStageBadge(cell, prevStage);
-                                    window.HMSApp.showToast('Erro ao salvar estágio: ' + err.message, 'error');
-                                });
-                                return;
+                    cell.addEventListener('click', (e) => {
+                        if (e.target.closest('.show-alert-btn') || e.target.closest('.show-comment-btn') || e.target.closest('.group-remove-btn')) return;
+                        if (isGridDrag) {
+                            window.HMSApp.showToast('Modo Reordenar ativo. Arraste as músicas ou desative o botão de arrastar para abrir.', 'info', 2500);
+                            return;
+                        }
+                        if (_state.stageMode) {
+                            // Cicla estágio: null→N→L→B→null
+                            const sid  = cell.dataset.id;
+                            const song = _state.songs.find(s => String(s.id) === String(sid));
+                            if (!song) return;
+                            const stageSeq = [null, 'N', 'L', 'B'];
+                            const curIdx   = stageSeq.indexOf(song.stage || null);
+                            const newStage = stageSeq[(curIdx + 1) % stageSeq.length];
+                            const prevStage = song.stage;
+                            // Atualiza estado local imediatamente (UX otimista)
+                            song.stage = newStage;
+                            RepertoireComponent._updateStageBadge(cell, newStage);
+                            window.HMSApp.showToast(`Modo Estágio: "${song.title}" → ${newStage || 'Sem estágio'}. Desative a estrela ⭐ para abrir a harmonia.`, 'info', 2500);
+                            // Persiste no banco em background
+                            window.HMSAPI.Songs.setStage(sid, newStage).catch(err => {
+                                // Reverte se falhar
+                                song.stage = prevStage;
+                                RepertoireComponent._updateStageBadge(cell, prevStage);
+                                window.HMSApp.showToast('Erro ao salvar estágio: ' + err.message, 'error');
+                            });
+                            return;
+                        }
+                        if (_state.groupMode) {
+                            const sid = cell.dataset.id;
+                            // Música já pertence a um grupo salvo? Ignora.
+                            const alreadyGrouped = _state.groups.some(g => g.songIds.includes(sid));
+                            if (alreadyGrouped) { window.HMSApp.showToast('Música já pertence a um grupo. Desative o modo agrupamento para abrir a harmonia.', 'info', 3000); return; }
+                            const idx = _state.groupPending.indexOf(sid);
+                            if (idx === -1) {
+                                _state.groupPending.push(sid);
+                                cell.classList.add('group-selecting');
+                            } else {
+                                _state.groupPending.splice(idx, 1);
+                                cell.classList.remove('group-selecting');
                             }
-                            if (_state.groupMode) {
-                                const sid = cell.dataset.id;
-                                // Música já pertence a um grupo salvo? Ignora.
-                                const alreadyGrouped = _state.groups.some(g => g.songIds.includes(sid));
-                                if (alreadyGrouped) { window.HMSApp.showToast('Música já pertence a um grupo', 'info'); return; }
-                                const idx = _state.groupPending.indexOf(sid);
-                                if (idx === -1) {
-                                    _state.groupPending.push(sid);
-                                    cell.classList.add('group-selecting');
-                                } else {
-                                    _state.groupPending.splice(idx, 1);
-                                    cell.classList.remove('group-selecting');
-                                }
-                                return;
-                            }
-                            const songDetail = _state.songs.find(s => s.id === cell.dataset.id);
-                            if (songDetail) RepertoireComponent._openShowDetail(songDetail);
-
-                        });
-                    }
+                            window.HMSApp.showToast('Modo Agrupamento ativo. Desative o botão de agrupamento para abrir a harmonia.', 'info', 2500);
+                            return;
+                        }
+                        const songDetail = _state.songs.find(s => String(s.id) === String(cell.dataset.id));
+                        if (songDetail) RepertoireComponent._openShowDetail(songDetail);
+                    });
                 });
 
                 // (listeners de btn-star-mode e btn-group-mode registrados em _renderSortToolbar via .onclick)
@@ -935,6 +944,16 @@
                     if (action === 'delete')  RepertoireComponent._handleDelete(id);
                     if (action === 'alert')   RepertoireComponent._handleToggleAlert(id);
                     if (action === 'comment') RepertoireComponent._openCommentModal(id);
+                });
+            });
+
+            // Permite clicar em qualquer lugar do card para abrir a harmonia na visão de lista
+            el.querySelectorAll('.song-card').forEach(card => {
+                card.style.cursor = 'pointer';
+                card.addEventListener('click', (e) => {
+                    if (e.target.closest('[data-action]') || e.target.closest('button') || e.target.closest('input')) return;
+                    const songDetail = _state.songs.find(s => String(s.id) === String(card.dataset.id));
+                    if (songDetail) RepertoireComponent._openShowDetail(songDetail);
                 });
             });
 
@@ -1183,7 +1202,9 @@
         },
 
         _openShowDetail: function (song) {
-            const origKey  = song.original_key || 'C';
+            try {
+                if (!song) return;
+                const origKey  = song.original_key || 'C';
             const isMinor  = origKey.endsWith('m');
             const root     = origKey.replace(/m$/, '');
             // Normalize standalone (X/) shorthand (e.g. "(3/)" = "3rd degree + repeat") → "3 /"
@@ -2100,6 +2121,10 @@
                     const el = document.getElementById('sd-lyrics-content');
                     if (el) el.innerHTML = `<p style="color:var(--accent-red,#ef4444);font-size:.85rem;">Erro ao carregar letra: ${String(err?.message || err || 'erro desconhecido')}</p>`;
                 });
+            }
+            } catch (err) {
+                console.error('[HMS] Erro ao abrir detalhe da música:', err);
+                window.HMSApp.showToast('Erro ao abrir harmonia: ' + err.message, 'error');
             }
         },
 
