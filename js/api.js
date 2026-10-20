@@ -551,6 +551,16 @@
          * @returns {Array<{id, songIds, setlistId}>}
          */
         async getAll(setlistId = null) {
+            // Offline: ShowGroups não são sincronizados no IndexedDB.
+            // A fonte de verdade offline é o localStorage (mesmo fallback do repertoire.js).
+            if (window.HMSOffline && window.HMSOffline.isOffline()) {
+                const key = setlistId ? `hms_groups_${setlistId}` : 'hms_groups_all';
+                try {
+                    const raw = localStorage.getItem(key);
+                    return raw ? JSON.parse(raw) : [];
+                } catch { return []; }
+            }
+
             let query = db()
                 .from('show_groups')
                 .select('group_id, song_ids, setlist_id');

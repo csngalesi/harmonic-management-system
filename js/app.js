@@ -115,6 +115,41 @@
             container.innerHTML = htmlContent;
             overlay.classList.remove('hidden');
             overlay.addEventListener('click', HMSApp._overlayClick);
+
+            // Drag-to-scroll em todos os modal-body (mouse + touch)
+            setTimeout(() => {
+                const body = container.querySelector('.modal-body');
+                if (!body) return;
+                let isDown = false, startY = 0, scrollTop = 0;
+                const SKIP = new Set(['INPUT','TEXTAREA','BUTTON','SELECT','OPTION','LABEL','A']);
+
+                // Mouse
+                body.addEventListener('mousedown', e => {
+                    if (SKIP.has(e.target.tagName) || e.target.closest('button,a,input,textarea,select')) return;
+                    isDown = true;
+                    startY = e.clientY;
+                    scrollTop = body.scrollTop;
+                    body.style.cursor = 'grabbing';
+                    body.style.userSelect = 'none';
+                });
+                const stopMouse = () => { isDown = false; body.style.cursor = ''; body.style.userSelect = ''; };
+                body.addEventListener('mouseup', stopMouse);
+                body.addEventListener('mouseleave', stopMouse);
+                body.addEventListener('mousemove', e => {
+                    if (!isDown) return;
+                    body.scrollTop = scrollTop - (e.clientY - startY);
+                });
+
+                // Touch (mobile)
+                body.addEventListener('touchstart', e => {
+                    if (SKIP.has(e.target.tagName) || e.target.closest('button,a,input,textarea,select')) return;
+                    startY = e.touches[0].clientY;
+                    scrollTop = body.scrollTop;
+                }, { passive: true });
+                body.addEventListener('touchmove', e => {
+                    body.scrollTop = scrollTop - (e.touches[0].clientY - startY);
+                }, { passive: true });
+            }, 0);
         },
 
         closeModal() {
@@ -151,6 +186,7 @@
         melodicStudies: window.MelodicStudiesComponent,
         harmonicMelodic: window.HarmonicMelodicComponent,
         harmonicBass:    window.HarmonicBassComponent,
+        randomTrain:     window.RandomTrainComponent,
         guitarSampler:   window.GuitarSamplerComponent,
     };
 
@@ -257,6 +293,23 @@
                 loginBtn.disabled = true;
                 loginBtn.innerHTML = '<span class="btn-spinner"></span> Aguarde…';
 
+                // ── Modo avião: sem rede, tenta login via cache ───────────
+                if (!navigator.onLine) {
+                    const cached = App._getCachedUser();
+                    if (cached && cached.email === email) {
+                        console.info('[HMS] Login offline via cache para:', email);
+                        App._enteredViaCache = true;
+                        App._showApp(cached);
+                        return;
+                    }
+                    errorEl.textContent = 'Sem conexão. Faça login online pelo menos uma vez para acessar offline.';
+                    errorEl.classList.remove('hidden');
+                    loginBtn.disabled = false;
+                    loginBtn.innerHTML = `<i class="fa-solid fa-right-to-bracket"></i> ${isSignup ? 'Criar Conta' : 'Entrar'}`;
+                    return;
+                }
+
+                // ── Login online normal ───────────────────────────────────
                 try {
                     if (isSignup) {
                         await window.HMSAuth.signup(email, password);

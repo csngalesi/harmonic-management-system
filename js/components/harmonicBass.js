@@ -142,6 +142,7 @@
         savingTitle:   '',
     };
 
+
     function _ensureSlots() {
         while (_st.slots.length < _st.chords.length) _st.slots.push({ n1:'1', n2:'5', b1:'', b2:'' });
         _st.slots.length = _st.chords.length;
@@ -823,7 +824,566 @@
                 window.HMSApp.showToast('Erro ao remover.', 'error');
             }
         },
+
+        // ══════════════════════════════════════════════════════════
+        // ── TREINO ALEATÓRIO ──────────────────────────────────────
+        // ══════════════════════════════════════════════════════════
+
+        _renderTrain: async function () {
+            const tabEl = document.getElementById('hb-tab-content');
+            tabEl.innerHTML = `
+                <div class="page-header">
+                    <div class="page-title">
+                        <div class="page-title-icon"><i class="fa-solid fa-shuffle"></i></div>
+                        <div>
+                            <h2>Treino Aleatório</h2>
+                            <p>Estude harmonias de forma aleatória com filtros do Repertório</p>
+                        </div>
+                    </div>
+                </div>
+                <div id="hb-train-wrap">
+                    <div style="text-align:center;padding:2rem;color:var(--text-muted);">
+                        <i class="fa-solid fa-spinner fa-spin"></i> Carregando playlists e músicas…
+                    </div>
+                </div>
+            `;
+
+            // Load setlists and songs in parallel
+            try {
+                const [setlists, songs] = await Promise.all([
+                    window.HMSAPI.Setlists.getAll(),
+                    window.HMSAPI.Songs.getAll(),
+                ]);
+                _st.trainSetlists = setlists || [];
+                _st.trainAllSongs = (songs || []).filter(s => s.harmony_str && s.harmony_str.trim());
+            } catch (err) {
+                _st.trainSetlists = [];
+                _st.trainAllSongs = [];
+                window.HMSApp.showToast('Erro ao carregar dados.', 'error');
+            }
+
+            C._renderTrainFilters();
+        },
+
+        // ── Render the filter panel ───────────────────────────────
+        _renderTrainFilters() {
+            const wrap = document.getElementById('hb-train-wrap');
+            if (!wrap) return;
+
+            const f = _st.trainFilters;
+
+            // ── Flag color map (same as Repertório) ──────────────
+            const FLAG_COLORS = ['#6b7280','#22c55e','#eab308','#f97316','#3b82f6','#a855f7','#6b7280'];
+            const FLAG_ICONS  = ['fa-circle-dot','fa-flag','fa-flag','fa-flag','fa-flag','fa-flag','fa-flag'];
+            const FLAG_LABELS = ['Todas','Verde','Amarelo','Laranja','Azul','Roxo','Cinza'];
+
+            // ── Setlist chips ─────────────────────────────────────
+            const setlistChips = _st.trainSetlists.length
+                ? _st.trainSetlists.map(sl => {
+                    const on = f.setlistIds.has(sl.id);
+                    return `<button class="hb-train-setlist" data-id="${esc(sl.id)}" style="
+                        padding:5px 14px;border-radius:99px;font-size:.8rem;cursor:pointer;
+                        font-family:var(--font-ui);font-weight:${on ? '700' : '400'};
+                        background:${on ? 'var(--brand-dim,rgba(124,58,237,.12))' : 'var(--glass-bg)'};
+                        border:1.5px solid ${on ? 'var(--brand,#7c3aed)' : 'var(--glass-border)'};
+                        color:${on ? 'var(--brand,#7c3aed)' : 'var(--text-secondary)'};
+                        transition:all .15s;">${esc(sl.name)}</button>`;
+                }).join('')
+                : `<span style="font-size:.78rem;color:var(--text-muted);">Nenhuma playlist encontrada</span>`;
+
+            // ── Key chips ─────────────────────────────────────────
+            const keyChips = window.HarmonyEngine.allKeys().map(k => {
+                const on = f.keys.has(k.value);
+                return `<button class="hb-train-key" data-key="${esc(k.value)}" style="
+                    padding:3px 10px;border-radius:6px;font-size:.72rem;cursor:pointer;
+                    font-family:var(--font-mono);font-weight:600;
+                    background:${on ? 'var(--brand-dim)' : 'var(--glass-bg)'};
+                    border:1.5px solid ${on ? 'var(--brand,#7c3aed)' : 'var(--glass-border)'};
+                    color:${on ? 'var(--brand,#7c3aed)' : 'var(--text-secondary)'};
+                    transition:all .15s;">${esc(k.label)}</button>`;
+            }).join('');
+
+            // ── Flag chips ────────────────────────────────────────
+            const flagChips = [0,1,2,3,4,5,6].map(n => {
+                const on = f.flags.has(n);
+                return `<button class="hb-train-flag" data-flag="${n}" title="${FLAG_LABELS[n]}" style="
+                    width:28px;height:28px;border-radius:50%;cursor:pointer;display:flex;
+                    align-items:center;justify-content:center;font-size:.75rem;
+                    background:${on ? FLAG_COLORS[n] + '33' : 'var(--glass-bg)'};
+                    border:2px solid ${on ? FLAG_COLORS[n] : 'var(--glass-border)'};
+                    color:${on ? FLAG_COLORS[n] : 'var(--text-muted)'};
+                    transition:all .15s;">
+                    <i class="fa-solid ${FLAG_ICONS[n]}"></i>
+                </button>`;
+            }).join('');
+
+            // ── Tristate button helper ─────────────────────────────
+            const triBtn = (cls, cur, val, label) => {
+                const on = cur === val;
+                return `<button class="${cls}" data-val="${val}" style="
+                    padding:3px 10px;border-radius:6px;font-size:.75rem;cursor:pointer;
+                    font-weight:${on ? '700' : '400'};
+                    background:${on ? 'var(--brand-dim)' : 'var(--glass-bg)'};
+                    border:1.5px solid ${on ? 'var(--brand,#7c3aed)' : 'var(--glass-border)'};
+                    color:${on ? 'var(--brand,#7c3aed)' : 'var(--text-secondary)'};
+                    transition:all .15s;">${label}</button>`;
+            };
+
+            // ── Count preview ─────────────────────────────────────
+            const preview = C._countFiltered();
+
+            wrap.innerHTML = `
+            <div class="panel" style="margin-bottom:.75rem;padding:14px 16px;">
+
+                <!-- Playlists -->
+                <div style="margin-bottom:14px;">
+                    <div style="font-size:.65rem;font-weight:700;letter-spacing:.08em;color:var(--text-muted);margin-bottom:8px;">PLAYLISTS <span style="opacity:.5;font-weight:400;">(vazio = todas)</span></div>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                        ${setlistChips}
+                    </div>
+                </div>
+
+                <!-- Tons -->
+                <div style="margin-bottom:14px;">
+                    <div style="font-size:.65rem;font-weight:700;letter-spacing:.08em;color:var(--text-muted);margin-bottom:8px;">TOM <span style="opacity:.5;font-weight:400;">(vazio = todos)</span></div>
+                    <div style="display:flex;flex-wrap:wrap;gap:5px;">
+                        ${keyChips}
+                    </div>
+                </div>
+
+                <!-- Flags -->
+                <div style="margin-bottom:14px;">
+                    <div style="font-size:.65rem;font-weight:700;letter-spacing:.08em;color:var(--text-muted);margin-bottom:8px;">FLAG <span style="opacity:.5;font-weight:400;">(vazio = todas)</span></div>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+                        ${flagChips}
+                    </div>
+                </div>
+
+                <!-- Harm / Letra / Link -->
+                <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:16px;">
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span style="font-size:.72rem;font-weight:700;color:var(--text-muted);">HARM:</span>
+                        ${triBtn('hb-train-harm','●',null,'●')}
+                        ${triBtn('hb-train-harm',f.harm,true,'S')}
+                        ${triBtn('hb-train-harm',f.harm,false,'N')}
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span style="font-size:.72rem;font-weight:700;color:var(--text-muted);">LETRA:</span>
+                        ${triBtn('hb-train-letra','●',null,'●')}
+                        ${triBtn('hb-train-letra',f.letra,true,'S')}
+                        ${triBtn('hb-train-letra',f.letra,false,'N')}
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span style="font-size:.72rem;font-weight:700;color:var(--text-muted);">LINK:</span>
+                        ${triBtn('hb-train-link','●',null,'●')}
+                        ${triBtn('hb-train-link',f.link,true,'S')}
+                        ${triBtn('hb-train-link',f.link,false,'N')}
+                    </div>
+                </div>
+
+                <!-- Start button -->
+                <div style="display:flex;align-items:center;gap:12px;padding-top:12px;border-top:1px solid var(--glass-border);">
+                    <span id="hb-train-count" style="font-size:.82rem;color:var(--text-muted);">
+                        <i class="fa-solid fa-music"></i> <strong style="color:var(--text-primary);">${preview}</strong> música${preview !== 1 ? 's' : ''} selecionada${preview !== 1 ? 's' : ''}
+                    </span>
+                    <button id="hb-train-start" class="btn btn-primary" style="margin-left:auto;" ${preview === 0 ? 'disabled' : ''}>
+                        <i class="fa-solid fa-play"></i> Iniciar Treino
+                    </button>
+                </div>
+            </div>
+
+            <!-- Hint -->
+            <div style="font-size:.7rem;color:var(--text-muted);padding:5px 10px;
+                background:var(--bg-raised);border-radius:var(--radius-sm);border-left:3px solid var(--brand);">
+                Apenas músicas com harmonia preenchida são incluídas no treino.
+                Use as setas ← → ou clique nos botões para navegar · Tecla <code>Esc</code> fecha o modal.
+            </div>
+            `;
+
+            C._bindTrainEvents();
+        },
+
+        // ── Bind filter events ────────────────────────────────────
+        _bindTrainEvents() {
+            const wrap = document.getElementById('hb-train-wrap');
+            if (!wrap) return;
+
+            // Setlist toggle
+            wrap.querySelectorAll('.hb-train-setlist').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const id = btn.dataset.id;
+                    if (_st.trainFilters.setlistIds.has(id)) _st.trainFilters.setlistIds.delete(id);
+                    else _st.trainFilters.setlistIds.add(id);
+                    C._renderTrainFilters();
+                });
+            });
+
+            // Key toggle
+            wrap.querySelectorAll('.hb-train-key').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const k = btn.dataset.key;
+                    if (_st.trainFilters.keys.has(k)) _st.trainFilters.keys.delete(k);
+                    else _st.trainFilters.keys.add(k);
+                    C._renderTrainFilters();
+                });
+            });
+
+            // Flag toggle
+            wrap.querySelectorAll('.hb-train-flag').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const n = +btn.dataset.flag;
+                    if (_st.trainFilters.flags.has(n)) _st.trainFilters.flags.delete(n);
+                    else _st.trainFilters.flags.add(n);
+                    C._renderTrainFilters();
+                });
+            });
+
+            // Harm tristate
+            wrap.querySelectorAll('.hb-train-harm').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const v = btn.dataset.val;
+                    _st.trainFilters.harm = v === 'null' || v === '●' ? null : v === 'true';
+                    C._renderTrainFilters();
+                });
+            });
+
+            // Letra tristate
+            wrap.querySelectorAll('.hb-train-letra').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const v = btn.dataset.val;
+                    _st.trainFilters.letra = v === 'null' || v === '●' ? null : v === 'true';
+                    C._renderTrainFilters();
+                });
+            });
+
+            // Link tristate
+            wrap.querySelectorAll('.hb-train-link').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const v = btn.dataset.val;
+                    _st.trainFilters.link = v === 'null' || v === '●' ? null : v === 'true';
+                    C._renderTrainFilters();
+                });
+            });
+
+            // Start button
+            const startBtn = document.getElementById('hb-train-start');
+            if (startBtn) startBtn.addEventListener('click', () => C._startTrain());
+
+            // Keyboard navigation
+            C._bindTrainKeyboard();
+        },
+
+        // ── Count filtered songs (preview) ────────────────────────
+        _countFiltered() {
+            return C._applyTrainFilters(_st.trainAllSongs).length;
+        },
+
+        // ── Apply all filters to a song array ─────────────────────
+        _applyTrainFilters(songs) {
+            const f = _st.trainFilters;
+            let result = songs.filter(s => s.harmony_str && s.harmony_str.trim());
+
+            // Filter by setlist — need setlist membership info
+            if (f.setlistIds.size > 0) {
+                result = result.filter(s => s._setlistIds && [...f.setlistIds].some(id => s._setlistIds.includes(id)));
+            }
+
+            // Filter by key
+            if (f.keys.size > 0) {
+                result = result.filter(s => f.keys.has(s.original_key));
+            }
+
+            // Filter by flag
+            if (f.flags.size > 0) {
+                result = result.filter(s => f.flags.has(s.status_flag ?? 0));
+            }
+
+            // Harm — does the song have a harmony string? (same logic as Repertório filterHarm)
+            if (f.harm !== null) {
+                result = result.filter(s => !!(s.harmony_str && s.harmony_str.trim()) === f.harm);
+            }
+
+            // Letra — has_lyrics flag
+            if (f.letra !== null) {
+                result = result.filter(s => !!s.has_lyrics === f.letra);
+            }
+
+            // Link — has audio_url
+            if (f.link !== null) {
+                result = result.filter(s => !!s.audio_url === f.link);
+            }
+
+            return result;
+        },
+
+
+        // ── Start the training session ────────────────────────────
+        _startTrain: async function () {
+            const startBtn = document.getElementById('hb-train-start');
+            if (startBtn) { startBtn.disabled = true; startBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Carregando…'; }
+
+            try {
+                // If any setlist filter active, we need setlist membership
+                let songs = _st.trainAllSongs;
+                if (_st.trainFilters.setlistIds.size > 0) {
+                    // Load songs for each selected setlist and tag them
+                    const setlistSongSets = await Promise.all(
+                        [..._st.trainFilters.setlistIds].map(id => window.HMSAPI.Songs.getAll({ setlistId: id }))
+                    );
+                    // Build a map of songId → setlistIds[]
+                    const memberMap = {};
+                    setlistSongSets.forEach((slSongs, idx) => {
+                        const slId = [..._st.trainFilters.setlistIds][idx];
+                        (slSongs || []).forEach(s => {
+                            if (!memberMap[s.id]) memberMap[s.id] = [];
+                            memberMap[s.id].push(slId);
+                        });
+                    });
+                    // Annotate songs
+                    songs = songs.map(s => ({ ...s, _setlistIds: memberMap[s.id] || [] }));
+                }
+
+                let filtered = C._applyTrainFilters(songs);
+
+                if (filtered.length === 0) {
+                    window.HMSApp.showToast('Nenhuma música encontrada com esses filtros.', 'warning');
+                    if (startBtn) { startBtn.disabled = false; startBtn.innerHTML = '<i class="fa-solid fa-play"></i> Iniciar Treino'; }
+                    return;
+                }
+
+                // Fisher-Yates shuffle
+                const arr = filtered.slice();
+                for (let i = arr.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [arr[i], arr[j]] = [arr[j], arr[i]];
+                }
+
+                _st.trainSongs  = arr;
+                _st.trainIdx    = 0;
+                _st.trainActive = true;
+
+                C._openTrainModal();
+            } catch (err) {
+                console.error('[HarmonicBass] Train start error:', err);
+                window.HMSApp.showToast('Erro ao iniciar treino.', 'error');
+            } finally {
+                if (startBtn) { startBtn.disabled = false; startBtn.innerHTML = '<i class="fa-solid fa-play"></i> Iniciar Treino'; }
+            }
+        },
+
+        // ── Navigate in the shuffled queue ───────────────────────
+        _trainNavigate(delta) {
+            if (!_st.trainSongs.length) return;
+            _st.trainIdx = ((_st.trainIdx + delta) % _st.trainSongs.length + _st.trainSongs.length) % _st.trainSongs.length;
+            C._updateTrainModalContent();
+        },
+
+        // ── Build chord display for a song ───────────────────────
+        _trainChordsHtml(song) {
+            if (!song.harmony_str || !song.harmony_str.trim()) return '';
+            try {
+                // Detect root & minor from original_key (e.g. "Gm", "C", "F#m")
+                const raw = song.original_key || 'C';
+                const isMinor = raw.endsWith('m');
+                const root = isMinor ? raw.slice(0, -1) : raw;
+
+                const tokens = window.HarmonyEngine.translate(song.harmony_str, root, isMinor);
+                const chords = tokens.filter(t => t.type === 'CHORD').map(t => t.value);
+
+                if (!chords.length) return `<code style="font-size:.85rem;color:var(--text-muted);">${esc(song.harmony_str)}</code>`;
+
+                return chords.map(ch => {
+                    const col = _chordColor(ch);
+                    return `<span style="
+                        display:inline-block;padding:3px 10px;border-radius:6px;margin:3px;
+                        background:var(--bg-raised);border:1px solid var(--glass-border);
+                        font-family:var(--font-mono);font-size:1rem;font-weight:700;
+                        color:${col};">${esc(ch)}</span>`;
+                }).join('');
+            } catch (_) {
+                return `<code style="font-size:.85rem;color:var(--text-muted);">${esc(song.harmony_str)}</code>`;
+            }
+        },
+
+        // ── Render modal content for current song ─────────────────
+        _updateTrainModalContent() {
+            const song  = _st.trainSongs[_st.trainIdx];
+            const total = _st.trainSongs.length;
+            const idx   = _st.trainIdx;
+
+            const counterEl = document.getElementById('hb-tm-counter');
+            if (counterEl) counterEl.textContent = `${idx + 1} / ${total}`;
+
+            const bodyEl = document.getElementById('hb-tm-body');
+            if (!bodyEl || !song) return;
+
+            const raw      = song.original_key || '';
+            const isMinor  = raw.endsWith('m');
+            const keyLabel = raw
+                ? `${raw} ${isMinor ? 'Menor' : 'Maior'}`
+                : '—';
+
+            bodyEl.innerHTML = `
+                <div style="text-align:center;padding:0 4px;">
+                    <!-- Song title -->
+                    <div style="font-size:1.45rem;font-weight:800;color:var(--text-primary);
+                        margin-bottom:4px;line-height:1.2;">${esc(song.title || '—')}</div>
+
+                    <!-- Artist + key -->
+                    <div style="font-size:.85rem;color:var(--text-muted);margin-bottom:20px;">
+                        ${song.artist ? `<span>${esc(song.artist)}</span> · ` : ''}
+                        <span style="font-family:var(--font-mono);font-weight:700;
+                            color:var(--brand,#7c3aed);">${esc(keyLabel)}</span>
+                    </div>
+
+                    <!-- Harmony raw string -->
+                    <div style="font-size:.72rem;font-weight:700;letter-spacing:.07em;
+                        color:var(--text-muted);margin-bottom:10px;">HARMONIA (${esc(song.harmony_str || '')})</div>
+
+                    <!-- Translated chords -->
+                    <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:2px;
+                        margin-bottom:24px;min-height:40px;">
+                        ${C._trainChordsHtml(song)}
+                    </div>
+
+                    <!-- Metadata badges -->
+                    <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;
+                        font-size:.7rem;color:var(--text-muted);">
+                        ${song.genre ? `<span style="padding:2px 8px;background:var(--bg-raised);border-radius:4px;border:1px solid var(--glass-border);">${esc(song.genre)}</span>` : ''}
+                        ${song.has_lyrics ? `<span style="padding:2px 8px;background:var(--bg-raised);border-radius:4px;border:1px solid var(--glass-border);color:#34d399;"><i class="fa-solid fa-align-left"></i> Letra</span>` : ''}
+                        ${song.audio_url  ? `<span style="padding:2px 8px;background:var(--bg-raised);border-radius:4px;border:1px solid var(--glass-border);color:#60a5fa;"><i class="fa-solid fa-link"></i> Link</span>` : ''}
+                    </div>
+                </div>
+            `;
+        },
+
+        // ── Open the training modal ───────────────────────────────
+        _openTrainModal() {
+            const song  = _st.trainSongs[_st.trainIdx];
+            const total = _st.trainSongs.length;
+
+            window.HMSApp.openModal(`
+                <div id="hb-train-modal" style="
+                    min-width:min(90vw,520px);max-width:600px;
+                    display:flex;flex-direction:column;max-height:90vh;overflow:hidden;">
+
+                    <!-- Header -->
+                    <div class="modal-header" style="flex-shrink:0;">
+                        <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
+                            <i class="fa-solid fa-shuffle" style="color:var(--brand);"></i>
+                            <span style="font-weight:700;font-size:.95rem;">Treino Aleatório</span>
+                            <span id="hb-tm-counter" style="
+                                margin-left:auto;font-size:.78rem;font-family:var(--font-mono);
+                                background:var(--bg-raised);padding:2px 10px;border-radius:99px;
+                                border:1px solid var(--glass-border);color:var(--text-muted);">
+                                1 / ${total}
+                            </span>
+                        </div>
+                        <button class="modal-close" id="hb-tm-close" style="flex-shrink:0;">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+
+                    <!-- Progress bar -->
+                    <div style="height:3px;background:var(--bg-raised);flex-shrink:0;overflow:hidden;">
+                        <div id="hb-tm-progress" style="
+                            height:100%;
+                            width:${((1 / total) * 100).toFixed(1)}%;
+                            background:var(--brand,#7c3aed);
+                            transition:width .35s ease;"></div>
+                    </div>
+
+                    <!-- Body (song display) -->
+                    <div id="hb-tm-body" style="
+                        flex:1;overflow-y:auto;padding:28px 24px 16px;"></div>
+
+                    <!-- Navigation footer -->
+                    <div style="
+                        display:flex;align-items:center;justify-content:space-between;
+                        padding:14px 20px;border-top:1px solid var(--glass-border);
+                        flex-shrink:0;gap:10px;">
+                        <button id="hb-tm-prev" class="btn btn-ghost" style="flex:1;max-width:160px;">
+                            <i class="fa-solid fa-arrow-left"></i> Anterior
+                        </button>
+                        <button id="hb-tm-shuffle" class="btn btn-ghost" title="Embaralhar novamente" style="padding:7px 12px;">
+                            <i class="fa-solid fa-shuffle"></i>
+                        </button>
+                        <button id="hb-tm-next" class="btn btn-primary" style="flex:1;max-width:160px;">
+                            Próximo <i class="fa-solid fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+            `);
+
+            // Populate body
+            C._updateTrainModalContent();
+
+            // Bind modal buttons
+            document.getElementById('hb-tm-close')?.addEventListener('click', () => {
+                _st.trainActive = false;
+                window.HMSApp.closeModal();
+            });
+
+            document.getElementById('hb-tm-prev')?.addEventListener('click', () => {
+                C._trainNavigate(-1);
+                C._updateTrainProgress();
+            });
+
+            document.getElementById('hb-tm-next')?.addEventListener('click', () => {
+                C._trainNavigate(+1);
+                C._updateTrainProgress();
+            });
+
+            document.getElementById('hb-tm-shuffle')?.addEventListener('click', () => {
+                // Re-shuffle from current position
+                const arr = _st.trainSongs.slice();
+                for (let i = arr.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [arr[i], arr[j]] = [arr[j], arr[i]];
+                }
+                _st.trainSongs = arr;
+                _st.trainIdx   = 0;
+                C._updateTrainModalContent();
+                C._updateTrainProgress();
+                window.HMSApp.showToast('Embaralhado novamente!', 'info');
+            });
+        },
+
+        // ── Update progress bar ───────────────────────────────────
+        _updateTrainProgress() {
+            const total = _st.trainSongs.length;
+            const pct   = total > 0 ? ((_st.trainIdx + 1) / total * 100).toFixed(1) : 0;
+            const bar   = document.getElementById('hb-tm-progress');
+            if (bar) bar.style.width = pct + '%';
+        },
+
+        // ── Global keyboard handler for train modal ───────────────
+        _trainKeyHandler: null,
+        _bindTrainKeyboard() {
+            // Remove any existing handler
+            if (C._trainKeyHandler) {
+                document.removeEventListener('keydown', C._trainKeyHandler);
+                C._trainKeyHandler = null;
+            }
+            C._trainKeyHandler = (e) => {
+                if (!_st.trainActive) return;
+                if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    C._trainNavigate(+1);
+                    C._updateTrainProgress();
+                } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    C._trainNavigate(-1);
+                    C._updateTrainProgress();
+                } else if (e.key === 'Escape') {
+                    _st.trainActive = false;
+                    window.HMSApp.closeModal();
+                }
+            };
+            document.addEventListener('keydown', C._trainKeyHandler);
+        },
     };
+
 
     window.HarmonicBassComponent = C;
     console.info('[HMS] HarmonicBassComponent loaded.');

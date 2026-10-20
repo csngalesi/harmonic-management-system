@@ -15,6 +15,29 @@
     const SHARP_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
     const FLAT_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
+    // ── Degree Color Palette ─────────────────────────────────────
+    // Index = degree (1-7); index 0 unused. One fixed color per degree.
+    const DEG_COLORS = ['', '#ef4444', '#eab308', '#16a34a', '#795548', '#2563eb', '#f472b6', '#6b7280'];
+    const DOT_DEG_COLOR = '#f97316'; // laranja — para acordes X.Y (ex: 5.5)
+
+    function degreeColor(deg) {
+        if (!deg || deg < 1 || deg > 7) return null;
+        return DEG_COLORS[deg];
+    }
+
+    // Returns true when a raw degree token (e.g. "2m", "7h", "5", "1M7") resolves to minor/dim.
+    // When no explicit quality given, falls back to the diatonic quality of the degree in keyState.
+    function _isMinorDegToken(degToken, keyState) {
+        const m = degToken.match(/^([b#]?)([1-7])(.*)/);
+        if (!m) return false;
+        const degNum = parseInt(m[2]);
+        let suffix = m[3].startsWith(':') ? m[3].slice(1) : m[3];
+        if (/^[mho]/.test(suffix)) return true;   // m, h (half-dim), o (dim) → minor-ish
+        if (/^[M+7]/.test(suffix)) return false;  // M (major), + (aug), 7 (dominant) → major
+        // Bare degree → use diatonic quality
+        return isMinorDegree(keyState, degNum);
+    }
+
     // Keys that should render notes with flat spellings
     const FLAT_PREF = new Set([
         'F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb',
@@ -360,12 +383,19 @@
                 result.push({ type: 'STRUCT', value: token.value });
 
             } else if (token.type === 'CHORD') {
-                result.push({ type: 'CHORD', value: renderDegreeToken(token.value, keyState) });
+                const degM = token.value.match(/^([b#]?)([1-7])/);
+                const degNum = degM ? parseInt(degM[2]) : null;
+                result.push({
+                    type: 'CHORD',
+                    value: renderDegreeToken(token.value, keyState),
+                    deg: degNum,
+                    isMinorChord: degNum !== null ? _isMinorDegToken(token.value, keyState) : false,
+                });
 
             } else if (token.type === 'SEC_DOM') {
                 // Resolve target — plain degree ("4", "1m") or DOT_DEGREE ("5.5")
                 const dotM = token.target.match(/^([b#]?)([1-7])\.([b#]?[1-7][mMho7]*)$/);
-                let tNoteIdx, tIsMinor, targetChordStr;
+                let tNoteIdx, tIsMinor, targetChordStr, tDeg;
 
                 if (dotM) {
                     // DOT_DEGREE target e.g. "5.5": resolve outer then inner
@@ -385,10 +415,14 @@
                     else if (innerMode === 'M') tIsMinor = false;
                     else                        tIsMinor = isMinorDegree(outerKey, innerDeg);
                     targetChordStr = renderDegreeToken(innerStr, outerKey);
+                    // For coloring: use outer degree relative to original key
+                    tDeg = outerDeg;
                 } else {
                     const tM = token.target.match(/^([b#]?)([1-7])([mM]?)(.*)$/);
                     if (!tM) continue;
-                    const tAcc = tM[1], tDeg = parseInt(tM[2]), tMode = tM[3];
+                    const tAcc = tM[1];
+                    tDeg = parseInt(tM[2]);
+                    const tMode = tM[3];
                     tNoteIdx = degreeNoteIdx(keyState, tDeg, tAcc);
                     if (tMode === 'm')      tIsMinor = true;
                     else if (tMode === 'M') tIsMinor = false;
@@ -403,14 +437,12 @@
                 };
 
                 // Render each prefix chord relative to the TARGET key.
-                // parsePrefixStr may include trailing '/' on tokens (e.g. "2/" from "2/5").
-                // Emit those as STRUCT slashes between prefix chords (but not after the last
-                // one — slashBeforeTarget handles the gap between last prefix and target).
+                // All prefix chips inherit the TARGET degree color (user rule: "preparação herda cor do destino").
                 for (let pi = 0; pi < token.prefix.length; pi++) {
                     const pd = token.prefix[pi];
                     const hasSlash = pd.endsWith('/');
                     const cleanPd  = hasSlash ? pd.slice(0, -1) : pd;
-                    result.push({ type: 'CHORD', value: renderDegreeToken(cleanPd, targetKey) });
+                    result.push({ type: 'CHORD', value: renderDegreeToken(cleanPd, targetKey), deg: tDeg, isMinorChord: tIsMinor });
                     if (hasSlash && pi < token.prefix.length - 1) {
                         result.push({ type: 'STRUCT', value: '/' });
                     }
@@ -423,7 +455,7 @@
 
                 // Show target chord if parens notation
                 if (token.showTarget) {
-                    result.push({ type: 'CHORD', value: targetChordStr });
+                    result.push({ type: 'CHORD', value: targetChordStr, deg: tDeg, isMinorChord: tIsMinor });
                 }
 
                 // Optional slash after target chord
@@ -435,13 +467,20 @@
                 // X.Y — render inner degree Y in the temporary key rooted at outer degree X
                 const outerM = token.outer.match(/^([b#]?)([1-7])$/);
                 if (outerM) {
-                    const outerIdx = degreeNoteIdx(keyState, parseInt(outerM[2]), outerM[1]);
+                    const outerDegNum = parseInt(outerM[2]);
+                    const outerIdx = degreeNoteIdx(keyState, outerDegNum, outerM[1]);
                     const outerKey = {
                         rootIdx: outerIdx,
-                        isMinor: isMinorDegree(keyState, parseInt(outerM[2])),
+                        isMinor: isMinorDegree(keyState, outerDegNum),
                         useFlats: keyState.useFlats,
                     };
-                    result.push({ type: 'CHORD', value: renderDegreeToken(token.inner, outerKey) });
+                    result.push({
+                        type: 'CHORD',
+                        value: renderDegreeToken(token.inner, outerKey),
+                        deg: outerDegNum,
+                        isMinorChord: _isMinorDegToken(token.inner, outerKey),
+                        isDotDegree: true, // receives special orange color
+                    });
                 }
 
             } else if (token.type === 'SECTION') {
@@ -1006,13 +1045,22 @@
                             }
                             break;
 
-                        case 'CHORD':
-                            out.push(`<span class="sd-chord">${_esc(t.value)}</span>`);
+                        case 'CHORD': {
+                            const cDegM = t.value.match(/^[b#]?([1-7])/);
+                            const cDeg  = cDegM ? parseInt(cDegM[1]) : null;
+                            // Minor if explicit suffix m/h/o; bare degree treated as major in Func view
+                            const cIsMinor = /^[b#]?[1-7][mho]/.test(t.value);
+                            const cColor   = degreeColor(cDeg, cIsMinor);
+                            const cStyle   = cColor ? ` style="background:${cColor}28;border-color:${cColor};color:${cColor};"` : '';
+                            out.push(`<span class="sd-chord"${cStyle}>${_esc(t.value)}</span>`);
                             break;
+                        }
 
-                        case 'DOT_DEGREE':
-                            out.push(`<span class="sd-chord">${_esc(t.outer + '.' + t.inner)}</span>`);
+                        case 'DOT_DEGREE': {
+                            const ddStyle = ` style="background:${DOT_DEG_COLOR}28;border-color:${DOT_DEG_COLOR};color:${DOT_DEG_COLOR};"`;
+                            out.push(`<span class="sd-chord"${ddStyle}>${_esc(t.outer + '.' + t.inner)}</span>`);
                             break;
+                        }
 
                         case 'SEC_DOM': {
                             // Reconstruct the original notation (e.g. "25(4)", "5/(3/)")
@@ -1021,7 +1069,13 @@
                             const close  = t.showTarget ? ')' : '"';
                             const slashB = t.slashBeforeTarget ? '/' : '';
                             const slashA = t.slashAfterTarget  ? '/' : '';
-                            out.push(`<span class="sd-chord">${_esc(prefix + slashB + open + t.target + slashA + close)}</span>`);
+                            // Color = destination degree (preparação herda cor do destino)
+                            const sDegM   = t.target.match(/^[b#]?([1-7])/);
+                            const sDeg    = sDegM ? parseInt(sDegM[1]) : null;
+                            const sIsMin  = /^[b#]?[1-7][mho]/.test(t.target);
+                            const sColor  = degreeColor(sDeg, sIsMin);
+                            const sStyle  = sColor ? ` style="background:${sColor}28;border-color:${sColor};color:${sColor};"` : '';
+                            out.push(`<span class="sd-chord"${sStyle}>${_esc(prefix + slashB + open + t.target + slashA + close)}</span>`);
                             break;
                         }
 
@@ -1046,6 +1100,9 @@
 
         /** Returns raw functional tokens (no transposition). */
         tokenize,
+
+        /** Returns the degree color (CSS hex string) for a given degree (1-7) and minor flag. */
+        degreeColor,
 
         // For unit testing
         _noteToIdx: noteToIdx,

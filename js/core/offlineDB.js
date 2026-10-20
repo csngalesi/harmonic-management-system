@@ -138,6 +138,14 @@
                 req.onerror   = (e) => reject(e.target.error);
             });
         },
+
+        getAll() {
+            return tx('setlist_songs', 'readonly', (store, resolve, reject) => {
+                const req = store.getAll();
+                req.onsuccess = (e) => resolve(e.target.result || []);
+                req.onerror   = (e) => reject(e.target.error);
+            });
+        },
     };
 
     // ── Meta ────────────────────────────────────────────────────────

@@ -1,7 +1,11 @@
-# Exclude large audio sample files from deployment
+﻿# Pastas locais de MP3 e assets grandes — nao vao para o Vercel
+musicas full/
+playlist Galesi/
+Music HMS/
+mp3 nome tratadas/
 chords guitar/
+supabase/
+
+# Dev artifacts
+*.sql
 node_modules/
-.git/
-*.wav
-*.mp3
-*.aiff

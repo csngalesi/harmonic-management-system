@@ -149,7 +149,7 @@ input, select, textarea { font-family: inherit; }
     transition: all var(--transition);
 }
 .modal-close:hover { background: var(--danger); border-color: var(--danger); color: #fff; }
-.modal-body   { padding: 20px 24px; }
+.modal-body   { padding: 20px 24px; overflow-y: auto; flex: 1; min-height: 0; -webkit-overflow-scrolling: touch; }
 .modal-footer {
     display: flex; justify-content: flex-end; gap: 10px;
     padding: 16px 24px;
@@ -700,6 +700,18 @@ tbody tr:hover td { background: var(--glass-bg); }
 .filter-pill.sf-5 { color: #a855f7; }
 .filter-pill.sf-5.active { background: #1a0030; border-color: #a855f7; color: #a855f7; }
 
+/* ── Filter Group (Treino Aleatório panel) ───────────────────── */
+.filter-group-label {
+    font-size: .65rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .08em; color: var(--text-muted); margin-bottom: 8px;
+}
+.filter-group-hint { font-weight: 400; opacity: .5; margin-left: 4px; }
+.filter-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.info-banner {
+    padding: 6px 12px; border-radius: var(--radius-sm, 6px);
+    background: var(--bg-raised); border-left: 3px solid var(--brand);
+    color: var(--text-muted);
+}
 /* ── Search Block (type pills + input) ─────────────────────── */
 .search-block { display: flex; flex-direction: column; gap: 8px; }
 .search-type-bar { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -803,8 +815,8 @@ tbody tr:hover td { background: var(--glass-bg); }
     overflow: hidden; /* garante border-radius do pai */
 }
 .sd-header {
-    display:flex; align-items:flex-start; justify-content:space-between;
-    gap:12px; padding:16px 20px 12px;
+    display:flex; align-items:center; justify-content:space-between;
+    flex-wrap:wrap; gap:8px; padding:10px 14px;
     border-bottom:1px solid var(--glass-border);
 }
 .sd-title { font-size:1rem; font-weight:600; color:var(--text-primary); }
@@ -872,11 +884,9 @@ tbody tr:hover td { background: var(--glass-bg); }
     transition: background .15s, border-color .15s, color .15s, transform .1s;
 }
 .sd-chord.chord-active {
-    background: rgba(74,222,128,.18);
-    border-color: var(--chord-green);
-    color: var(--chord-green);
-    transform: scale(1.08);
-    box-shadow: 0 0 12px rgba(74,222,128,.35);
+    transform: scale(1.08) !important;
+    filter: brightness(1.3) !important;
+    box-shadow: 0 0 14px currentColor !important;
 }
 .sd-chord-group {
     display:inline-flex; align-items:center; gap:4px;
@@ -941,6 +951,16 @@ tbody tr:hover td { background: var(--glass-bg); }
 .show-grid.cols-5 .show-cell  { padding: 4px 6px; }
 .show-grid.cols-5 .show-title { font-size: 0.7rem; }
 .show-grid.cols-5 .show-key   { font-size: 0.65rem; padding: 1px 4px; }
+
+.show-grid.cols-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.show-grid.cols-6 .show-cell  { padding: 3px 5px; }
+.show-grid.cols-6 .show-title { font-size: 0.63rem; }
+.show-grid.cols-6 .show-key   { font-size: 0.58rem; padding: 1px 3px; }
+
+.show-grid.cols-7 { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.show-grid.cols-7 .show-cell  { padding: 2px 4px; }
+.show-grid.cols-7 .show-title { font-size: 0.57rem; }
+.show-grid.cols-7 .show-key   { font-size: 0.52rem; padding: 1px 3px; }
 
 /* ── Column Picker Buttons ────────────────────────────────────── */
 .col-pick-btn {

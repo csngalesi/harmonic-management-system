@@ -1227,8 +1227,8 @@
 
             // DUPLICATA — ver também buildChordsHtml() no editor H (~linha 1759) e _renderChords() em player.js
             // Unificar futuramente em HarmonyEngine.renderChordsHtml()
-            function buildChordsHtml(toks) {
-                if (!toks.length) return `<span style="color:var(--text-muted);font-size:.85rem;">Sem harmonia cadastrada.</span>`;
+            function buildChordsHtml(toks, optRoot, optIsMinor) {
+                if (!toks || !toks.length) return `<span style="color:var(--text-muted);font-size:.85rem;">Sem harmonia cadastrada.</span>`;
                 const out = [];
                 let i = 0;
                 let chordIdx = 0; // índice sequencial de cada posição de acorde/barra
@@ -1243,8 +1243,36 @@
                     return (deg >= 1 && deg <= 7) ? DEG_COLORS[deg] : null;
                 };
 
+                const calcChordDegree = (chordName, curRoot) => {
+                    if (!chordName || typeof chordName !== 'string' || !curRoot) return null;
+                    const m = chordName.trim().match(/^([A-G][b#]?)/);
+                    if (!m) return null;
+                    const BASE = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+                    const getSemi = (n) => {
+                        const l = n[0].toUpperCase();
+                        let idx = BASE[l] ?? 0;
+                        for (let k = 1; k < n.length; k++) {
+                            if (n[k] === '#') idx++;
+                            else if (n[k] === 'b') idx--;
+                        }
+                        return ((idx % 12) + 12) % 12;
+                    };
+                    const diff = (getSemi(m[1]) - getSemi(curRoot) + 12) % 12;
+                    const SEMI_TO_DEG = [1, 2, 2, 3, 3, 4, 5, 5, 6, 6, 7, 7];
+                    return SEMI_TO_DEG[diff] || 1;
+                };
+
+                const curR = optRoot || root;
                 // Helper: inline color style for a chord token
-                const colorOf = (t) => t.isDotDegree ? '#f97316' : getDegColor(t.deg);
+                const colorOf = (t) => {
+                    if (!t) return null;
+                    if (t.isDotDegree) return '#f97316';
+                    let d = t.deg;
+                    if (!d || d < 1 || d > 7) {
+                        d = calcChordDegree(t.value, curR);
+                    }
+                    return getDegColor(d);
+                };
                 const degStyle = (t) => {
                     const c = colorOf(t);
                     if (c) lastChordColor = c;
@@ -1267,10 +1295,10 @@
                         i++; // skip ]
                         if (group.length) {
                             const inner = group.map(g => {
-                                const gc = getDegColor(g.deg);
+                                const gc = colorOf(g);
                                 if (gc) lastChordColor = gc;
-                                const gs = gc ? `background:${gc}28;border-color:${gc};color:${gc};` : '';
-                                return `<span class="sd-chord" data-chord="${esc(g.value || '')}" data-chord-idx="${chordIdx++}" style="background:transparent;border:none;padding:0;box-shadow:none;${gs}">${esc(g.value || '')}</span>`;
+                                const gs = gc ? `color:${gc};` : '';
+                                return `<span class="sd-chord" data-chord="${esc(g.value || '')}" data-chord-idx="${chordIdx++}" style="background:transparent;border:none;padding:0 2px;box-shadow:none;${gs}">${esc(g.value || '')}</span>`;
                             }).join(sep);
                             out.push(`<span class="sd-chord-group" style="display:inline-flex;align-items:center;border:1px solid var(--glass-border);border-radius:var(--radius-sm,6px);padding:3px 8px;background:var(--glass-bg);">${inner}</span>`);
                         }
@@ -1296,27 +1324,12 @@
             const _sfClass = (song.status_flag && song.status_flag > 0) ? ` song-flag-${song.status_flag}` : '';
             window.HMSApp.openModal(`
                 <div class="sd-modal${_sfClass}">
-                    <div class="sd-header" style="padding:8px 14px;align-items:center;gap:8px;">
-                        <div style="min-width:0;flex:1;overflow:hidden;">
+                    <div class="sd-header" style="padding:8px 12px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;">
+                        <div class="sd-header-info" style="min-width:130px;flex:1 1 auto;overflow:hidden;">
                             <div class="sd-title" style="font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(song.title)}</div>
-                            <div class="sd-sub" style="font-size:.68rem;margin-top:1px;">${esc([song.artist, song.genre].filter(Boolean).join(' · '))}</div>
+                            <div class="sd-sub" style="font-size:.68rem;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc([song.artist, song.genre].filter(Boolean).join(' · '))}</div>
                         </div>
-                        <div style="display:flex;align-items:center;gap:2px;flex-shrink:0;" title="Legenda de graus">
-                            <span title="1° grau" style="width:16px;height:16px;border-radius:50%;background:#ef4444;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;cursor:default;flex-shrink:0;">1</span>
-                            <span title="2° grau" style="width:16px;height:16px;border-radius:50%;background:#eab308;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;cursor:default;flex-shrink:0;">2</span>
-                            <span title="3° grau" style="width:16px;height:16px;border-radius:50%;background:#16a34a;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;cursor:default;flex-shrink:0;">3</span>
-                            <span title="4° grau" style="width:16px;height:16px;border-radius:50%;background:#795548;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;cursor:default;flex-shrink:0;">4</span>
-                            <span title="5° grau" style="width:16px;height:16px;border-radius:50%;background:#2563eb;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;cursor:default;flex-shrink:0;">5</span>
-                            <span title="5.5 — dominante da dominante" style="min-width:22px;height:16px;border-radius:8px;background:#f97316;display:inline-flex;align-items:center;justify-content:center;font-size:7px;font-weight:700;color:#fff;padding:0 3px;cursor:default;flex-shrink:0;">5.5</span>
-                            <span title="6° grau" style="width:16px;height:16px;border-radius:50%;background:#f472b6;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;cursor:default;flex-shrink:0;">6</span>
-                            <span title="7° grau" style="width:16px;height:16px;border-radius:50%;background:#6b7280;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;cursor:default;flex-shrink:0;">7</span>
-                        </div>
-                        <div class="sd-header-tabs">
-                            <button class="sd-tab${_defaultTab === 'func' ? ' active' : ''}" data-tab="func">Harm Func</button>
-                            <button class="sd-tab${_defaultTab === 'acor' ? ' active' : ''}" data-tab="acor">Harm Acor</button>
-                            <button class="sd-tab${_defaultTab === 'letra' ? ' active' : ''}" data-tab="letra">Letra</button>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+                        <div class="sd-header-actions" style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
                             <span class="song-key-badge" style="font-size:.85rem;">${esc(origKey)}</span>
                             <button id="sd-harmony-btn" title="${(window.HMSReadOnly && window.HMSReadOnly.isActive()) || (window.HMSOffline && window.HMSOffline.isOffline()) ? 'Somente leitura — edições indisponíveis' : 'Editor de Harmonia'}"
                                 style="width:28px;height:28px;background:var(--brand);color:#fff;border-radius:8px;font-weight:800;font-size:.78rem;border:none;flex-shrink:0;transition:opacity .15s;${(window.HMSReadOnly && window.HMSReadOnly.isActive()) || (window.HMSOffline && window.HMSOffline.isOffline()) ? 'opacity:.3;cursor:not-allowed;' : 'cursor:pointer;'}"
@@ -1332,6 +1345,21 @@
                                 <i class="fa-solid fa-exclamation"></i>
                             </button>
                             <button class="modal-close" id="sd-close-btn"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <div class="sd-header-legend" style="display:flex;align-items:center;gap:2px;flex-shrink:0;" title="Legenda de graus">
+                            <span title="1° grau" style="width:16px;height:16px;border-radius:50%;background:#ef4444;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;cursor:default;flex-shrink:0;">1</span>
+                            <span title="2° grau" style="width:16px;height:16px;border-radius:50%;background:#eab308;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;cursor:default;flex-shrink:0;">2</span>
+                            <span title="3° grau" style="width:16px;height:16px;border-radius:50%;background:#16a34a;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;cursor:default;flex-shrink:0;">3</span>
+                            <span title="4° grau" style="width:16px;height:16px;border-radius:50%;background:#795548;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;cursor:default;flex-shrink:0;">4</span>
+                            <span title="5° grau" style="width:16px;height:16px;border-radius:50%;background:#2563eb;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;cursor:default;flex-shrink:0;">5</span>
+                            <span title="5.5 — dominante da dominante" style="min-width:22px;height:16px;border-radius:8px;background:#f97316;display:inline-flex;align-items:center;justify-content:center;font-size:7px;font-weight:700;color:#fff;padding:0 3px;cursor:default;flex-shrink:0;">5.5</span>
+                            <span title="6° grau" style="width:16px;height:16px;border-radius:50%;background:#f472b6;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;cursor:default;flex-shrink:0;">6</span>
+                            <span title="7° grau" style="width:16px;height:16px;border-radius:50%;background:#6b7280;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;cursor:default;flex-shrink:0;">7</span>
+                        </div>
+                        <div class="sd-header-tabs" style="flex-shrink:0;">
+                            <button class="sd-tab${_defaultTab === 'func' ? ' active' : ''}" data-tab="func">Harm Func</button>
+                            <button class="sd-tab${_defaultTab === 'acor' ? ' active' : ''}" data-tab="acor">Harm Acor</button>
+                            <button class="sd-tab${_defaultTab === 'letra' ? ' active' : ''}" data-tab="letra">Letra</button>
                         </div>
                     </div>
                     <div class="sd-body">
@@ -1665,8 +1693,9 @@
             document.getElementById('sd-key-select')?.addEventListener('change', function () {
                 const newIsMinor = this.value.endsWith('m');
                 const newRoot = this.value.replace(/m$/, '');
-                const newTokens = window.HarmonyEngine.translate(song.harmony_str || '', newRoot, newIsMinor);
-                document.getElementById('sd-chords-display').innerHTML = buildChordsHtml(newTokens);
+                const harmNorm = (song.harmony_str || '').replace(/(?<![b#0-9mMho7/])\((\S+?)\/\)/g, '$1 /');
+                const newTokens = window.HarmonyEngine.translate(harmNorm, newRoot, newIsMinor);
+                document.getElementById('sd-chords-display').innerHTML = buildChordsHtml(newTokens, newRoot, newIsMinor);
                 _bindChordChips();
             });
 
@@ -1982,12 +2011,13 @@
                 document.getElementById('sd-hf-key')?.addEventListener('change', function () {
                     const newIsMinor = this.value.endsWith('m');
                     const newRoot    = this.value.replace(/m$/, '');
-                    const newToks    = window.HarmonyEngine.translate(song.harmony_str || '', newRoot, newIsMinor);
-                    document.getElementById('sd-hf-chords').innerHTML = buildChordsHtml(newToks);
+                    const harmNorm   = (song.harmony_str || '').replace(/(?<![b#0-9mMho7/])\((\S+?)\/\)/g, '$1 /');
+                    const newToks    = window.HarmonyEngine.translate(harmNorm, newRoot, newIsMinor);
+                    document.getElementById('sd-hf-chords').innerHTML = buildChordsHtml(newToks, newRoot, newIsMinor);
                     const mainSel    = document.getElementById('sd-key-select');
                     if (mainSel) { mainSel.value = this.value; }
                     const mainChords = document.getElementById('sd-chords-display');
-                    if (mainChords) mainChords.innerHTML = buildChordsHtml(newToks);
+                    if (mainChords) mainChords.innerHTML = buildChordsHtml(newToks, newRoot, newIsMinor);
                 });
 
                 // ── Drag (mouse + touch) ──────────────────────────
@@ -2164,23 +2194,79 @@
 
             // DUPLICATA — ver também buildChordsHtml() em _openShowDetail (~linha 870) e _renderChords() em player.js
             // Unificar futuramente em HarmonyEngine.renderChordsHtml()
-            function buildChordsHtml(toks) {
+            function buildChordsHtml(toks, optRoot, optIsMinor) {
                 if (!toks || !toks.length) return `<span style="color:var(--text-muted);font-size:.85rem;">Sem harmonia.</span>`;
                 const out = []; let i = 0;
                 const sep = `<span style="opacity:.35;font-size:.7em;margin:0 3px;">·</span>`;
+                let lastChordColor = null;
+
+                const DEG_COLORS = ['', '#ef4444', '#eab308', '#16a34a', '#795548', '#2563eb', '#f472b6', '#6b7280'];
+                const getDegColor = (deg) => {
+                    if (window.HarmonyEngine && typeof window.HarmonyEngine.degreeColor === 'function') {
+                        return window.HarmonyEngine.degreeColor(deg);
+                    }
+                    return (deg >= 1 && deg <= 7) ? DEG_COLORS[deg] : null;
+                };
+
+                const calcChordDegree = (chordName, curRoot) => {
+                    if (!chordName || typeof chordName !== 'string' || !curRoot) return null;
+                    const m = chordName.trim().match(/^([A-G][b#]?)/);
+                    if (!m) return null;
+                    const BASE = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+                    const getSemi = (n) => {
+                        const l = n[0].toUpperCase();
+                        let idx = BASE[l] ?? 0;
+                        for (let k = 1; k < n.length; k++) {
+                            if (n[k] === '#') idx++;
+                            else if (n[k] === 'b') idx--;
+                        }
+                        return ((idx % 12) + 12) % 12;
+                    };
+                    const diff = (getSemi(m[1]) - getSemi(curRoot) + 12) % 12;
+                    const SEMI_TO_DEG = [1, 2, 2, 3, 3, 4, 5, 5, 6, 6, 7, 7];
+                    return SEMI_TO_DEG[diff] || 1;
+                };
+
+                const curR = optRoot || root;
+                const colorOf = (t) => {
+                    if (!t) return null;
+                    if (t.isDotDegree) return '#f97316';
+                    let d = t.deg;
+                    if (!d || d < 1 || d > 7) {
+                        d = calcChordDegree(t.value, curR);
+                    }
+                    return getDegColor(d);
+                };
+                const degStyle = (t) => {
+                    const c = colorOf(t);
+                    if (c) lastChordColor = c;
+                    return c ? ` style="background:${c}28;border-color:${c};color:${c};"` : '';
+                };
+                const slashStyle = () => lastChordColor
+                    ? ` style="background:${lastChordColor}28;border-color:${lastChordColor};color:${lastChordColor};"`
+                    : '';
+
                 while (i < toks.length) {
                     const t = toks[i];
                     if (t.type === 'STRUCT' && t.value === '[') {
                         const group = []; i++;
                         while (i < toks.length && !(toks[i].type === 'STRUCT' && toks[i].value === ']')) { group.push(toks[i]); i++; }
                         i++;
-                        if (group.length) out.push(`<span class="sd-chord">${group.map(g => `<span>${esc(g.value||'')}</span>`).join(sep)}</span>`);
+                        if (group.length) {
+                            const inner = group.map(g => {
+                                const gc = colorOf(g);
+                                if (gc) lastChordColor = gc;
+                                const gs = gc ? `color:${gc};` : '';
+                                return `<span class="sd-chord" style="background:transparent;border:none;padding:0 2px;box-shadow:none;${gs}">${esc(g.value||'')}</span>`;
+                            }).join(sep);
+                            out.push(`<span class="sd-chord-group" style="display:inline-flex;align-items:center;border:1px solid var(--glass-border);border-radius:var(--radius-sm,6px);padding:3px 8px;background:var(--glass-bg);">${inner}</span>`);
+                        }
                         continue;
                     }
                     if (t.type === 'LABEL')       out.push(`<span class="sd-label">${esc(t.value)}</span>`);
-                    else if (t.type === 'STRUCT')  out.push(t.value==='/' ? `<span class="sd-chord">/</span>` : `<span class="sd-sep">${esc(t.value)||'·'}</span>`);
+                    else if (t.type === 'STRUCT')  out.push(t.value==='/' ? `<span class="sd-chord"${slashStyle()}>/</span>` : `<span class="sd-sep">${esc(t.value)||'·'}</span>`);
                     else if (t.type === 'MOD')     out.push(`<span class="sd-mod">${esc('!'+t.value+'!')}</span>`);
-                    else                           out.push(`<span class="sd-chord">${esc(t.value||'')}</span>`);
+                    else                           out.push(`<span class="sd-chord"${degStyle(t)}>${esc(t.value||'')}</span>`);
                     i++;
                 }
                 return out.join('');
