@@ -2627,12 +2627,14 @@
             const _batBtn = document.getElementById('btn-sidecar-on');
             if (_batBtn) {
                 _batBtn.addEventListener('click', () => {
-                    const iframe = document.createElement('iframe');
-                    iframe.style.display = 'none';
-                    iframe.src = 'hms-sidecar://start';
-                    document.body.appendChild(iframe);
-                    setTimeout(() => iframe.remove(), 3000);
-                    window.HMSApp.showToast('Iniciando Sidecar no notebook local... Aguarde a janela abrir.', 'info', 4000);
+                    try {
+                        window.location.href = 'hms-sidecar://start';
+                    } catch (_) {
+                        const a = document.createElement('a');
+                        a.href = 'hms-sidecar://start';
+                        a.click();
+                    }
+                    window.HMSApp.showToast('Iniciando Sidecar no notebook... Se o navegador pedir permissão para abrir o aplicativo, confirme.', 'info', 5000);
                 });
             }
 
