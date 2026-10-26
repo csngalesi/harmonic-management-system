@@ -2627,14 +2627,11 @@
             const _batBtn = document.getElementById('btn-sidecar-on');
             if (_batBtn) {
                 _batBtn.addEventListener('click', () => {
-                    try {
-                        window.location.href = 'hms-sidecar://start';
-                    } catch (_) {
-                        const a = document.createElement('a');
-                        a.href = 'hms-sidecar://start';
-                        a.click();
-                    }
-                    window.HMSApp.showToast('Iniciando Sidecar no notebook... Se o navegador pedir permissão para abrir o aplicativo, confirme.', 'info', 5000);
+                    window.HMSApp.showToast(
+                        'Para ativar o Sidecar, dê 2 cliques no atalho "HMS YouTube Sidecar" na sua Área de Trabalho (o antivírus protege o navegador de abrir scripts sozinho).',
+                        'info',
+                        7000
+                    );
                 });
             }
 
