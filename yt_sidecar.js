@@ -2,8 +2,15 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 const http=require("http"),https=require("https");
 const {execFileSync}=require("child_process");
 const fs=require("fs"),path=require("path"),os=require("os");
-const PORT=7890;
-const YTDLP="C:/Users/csnga/.gemini/antigravity/brain/f3411c24-0958-4516-8fb2-3e79fee3149b/scratch/yt-dlp.exe";
+const PORT = 7890;
+const YTDLP_CANDIDATES = [
+  path.join(__dirname, "yt-dlp.exe"),
+  "C:/Users/csnga/.gemini/antigravity/brain/f3411c24-0958-4516-8fb2-3e79fee3149b/scratch/yt-dlp.exe",
+  "yt-dlp"
+];
+const YTDLP = YTDLP_CANDIDATES.find(p => {
+  try { return fs.existsSync(p); } catch(_) { return false; }
+}) || "yt-dlp";
 const HOST_SB="knwpgznnipufvwobgrzf.supabase.co";
 const KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtud3Bnem5uaXB1ZnZ3b2JncnpmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Mjc2NTkxMywiZXhwIjoyMDg4MzQxOTEzfQ.dyZVQRJ0IhG1VE7IL4rVLmb_-H4WeNoC2APyEfEdTk0";
 const BUCKET="songs-audio";
